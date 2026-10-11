@@ -1,0 +1,31 @@
+---
+description: ERD JSON을 기준 문서로 읽고 코드/DDL로 옮기는 방법
+alwaysApply: false
+---
+
+# ERD가 기준 문서이다
+
+## 위치
+- ERD 파일은 `doc/erd/` 에 둔다. (없으면 사용자에게 파일 복사를 요청한다)
+  - `erd-model-tenant-*.json` : 공용 스키마(테넌트 관리) -> `db/migration/public`
+  - `erd-model-i18n-common-code-*.json` : 테넌트 스키마(다국어, 공통코드) -> `db/migration/tenant`
+  - `erd-model-org-user-*.json` : 테넌트 스키마(회사, 부서, 사람, 사용자) -> `db/migration/tenant` (다국어/공통코드 이후 버전)
+  - `erd-model-file-team-auth-menu-*.json` : 테넌트 스키마(파일, 팀, 권한, 메뉴) -> `db/migration/tenant` (회사/사용자 이후 버전)
+- 기준 파일은 위 파일명 패턴(`erd-model-tenant-*.json`, `erd-model-i18n-common-code-*.json`, `erd-model-org-user-*.json`, `erd-model-file-team-auth-menu-*.json`)뿐이다. 그 외 이름의 파일(예: `erd-model-20261009-1525.json`처럼 erd-tool이 내보낸 임의 이름)은 **옛 버전이거나 작업 중 파일일 수 있으므로 기준으로 쓰지 않는다.** 구분이 모호하면 사용자에게 어느 파일이 최신인지 묻는다.
+- 설계 담당(Claude AI)이 ERD를 수정하면 파일 이름의 날짜가 바뀐다. 같은 패턴 중 **가장 최신 날짜 파일**을 기준으로 한다.
+
+## JSON 읽는 법
+- `entities[]`: `physicalName`(테이블명), `logicalName`(한글명), `remark`(영역과 설명), `attributes[]`
+- `attributes[]`: `physicalName`(컬럼명), `dataType`, `length`, `isPrimaryKey`, `isForeignKey`, `nullable`, `description`
+  - **`description`에 기본값, 허용값, UK(유니크) 규칙이 적혀 있다.** 반드시 읽고 제약으로 반영한다.
+- `relationships[]`: `source`가 부모, `target`이 자식. `fkAttributeIds`가 자식의 FK 컬럼. `sourceCardinality`가 `zero-one`이면 FK가 nullable(선택 관계)이다. `source`와 `target`이 같으면 자기참조(계층)이다.
+- **파일 간 참조**: 테넌트 스키마 ERD는 여러 파일로 나뉘어 있다. 다른 파일의 엔티티를 참조하는 컬럼은 `relationships`에 관계선이 없고, `description`에 `DB FK: <테이블>(<컬럼>)`으로 표기되어 있다. 같은 테넌트 스키마 안이므로 **DDL에서는 실제 FK 제약을 만든다.**
+- **감사컬럼(`create_user_pk`, `update_user_pk`, `changed_user_pk` 등)은 FK 제약을 두지 않는다**(시스템/Seed 처리, 사용자 삭제 후 보존). 값은 `user_account.user_pk`이다.
+- `description`에 `공통코드 XXX: A/B/C`로 적힌 컬럼은 해당 코드그룹의 코드값을 문자열로 저장한다(FK 없음). 해당 코드그룹은 Seed 대상이다.
+- `subjectAreas[]`: 영역 구분(다국어, 공통코드, 테넌트 관리). 패키지 구분의 참고.
+
+## 규칙
+- ERD에 없는 테이블/컬럼을 만들거나, 있는 것을 바꾸지 않는다. 필요하다고 판단되면 **변경 요청을 사용자에게 보고**한다(설계 담당이 ERD를 수정한 뒤 반영한다).
+- DDL을 쓸 때 ERD의 타입은 `10-database-conventions.mdc`의 변환표를 따른다.
+- ERD의 `defaultValue`는 비어 있다. 기본값은 `description`을 보고 DDL에 반영한다. (예: `use_yn` -> `DEFAULT 'Y'`)
+- ERD 파일 자체는 수정하지 않는다.

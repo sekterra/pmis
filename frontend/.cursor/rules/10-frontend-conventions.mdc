@@ -1,0 +1,39 @@
+---
+description: React/TypeScript/antd 화면 개발 규칙(페이지 구조, ProTable/ProForm, 요청, 권한, 스타일)
+globs: src/**/*.ts,src/**/*.tsx,config/**/*.ts
+alwaysApply: false
+---
+
+# 프론트엔드 개발 규칙
+
+## 페이지 구조
+- 페이지는 `src/pages/<도메인>/<화면>/`에 두고 관련 파일을 **같은 폴더에 함께** 둔다: `index.tsx`, `service.ts`(API 호출), `data.d.ts`(타입), 스타일, 필요 시 `_mock.ts`.
+- 라우트는 `config/routes.ts`에 선언한다. `name`은 `menu.xxx` 다국어 키, 접근 제어는 `access` 필드로 한다.
+- 화면 하나가 커지면 하위 컴포넌트를 같은 폴더의 `components/`로 분리한다. 여러 화면이 공유하는 것만 `src/components/`로 올린다.
+
+## 목록/폼/표
+- 목록 화면은 `ProTable`의 `request` prop으로 서버 페이징/검색/정렬을 처리한다. 폼은 `ProForm`/`ModalForm`/`DrawerForm`을 우선 사용한다.
+- 사용여부(`use_yn`)는 `Y/N` 문자열 그대로 API와 주고받고, 화면에서는 Switch/Tag 등으로 표시한다. **삭제 버튼은 논리삭제 API를 호출**하며 확인 대화상자를 거친다.
+- 계층형 데이터(공통코드, 메뉴 등)는 `ProTable`의 트리 데이터 또는 `Tree`/`TreeSelect`를 사용한다.
+- 입력 검증은 폼 `rules`로 하고, 서버 오류 메시지도 사용자에게 보이게 처리한다.
+
+## 요청과 API
+- 서버 호출은 `src/core/request`에서 한 번 설정한 `request`를 쓴다. 화면마다 오류 처리를 따로 만들지 않는다.
+- 응답 형식: `{ success, data?, errorCode?, errorMessage?, showType?, traceId?, fieldErrors? }`. **`errorCode`는 문자열**(`<DOMAIN>.<NAME>`, 예 `AUTH.TOKEN_EXPIRED`)이다. 오류 알림에는 `traceId`를 함께 보여 준다. `fieldErrors`는 폼 필드 오류로 매핑하는 헬퍼를 쓴다.
+- 경로: 테넌트 앱 `/api/mdm/v1/<복수형-kebab>`, 플랫폼 콘솔 `/api/platform/v1/...`. 개발 백엔드 주소는 `config/proxy.ts`의 `dev`에서 환경변수로 받는다. 서버 주소·비밀 값을 하드코딩하지 않는다.
+- 페이징: ProTable의 `current/pageSize/sorter`를 API의 `page`(1부터)/`size`(기본 20, 최대 200)/`sort=필드,방향`으로 바꾸는 어댑터 하나(`toTableRequest`)를 모든 목록이 쓴다. 응답은 `data={items,total,page,size}`. 작은 조회 목록(언어, 국가, 내 메뉴)은 배열을 그대로 받는다.
+- API 클라이언트는 `src/services/mdm/*.ts`에 손으로 작성하고 타입은 `data.d.ts`에 둔다. `src/services/ant-design-pro/`와 `npm run openapi`는 쓰지 않는다.
+- 테넌트는 브라우저의 Host로 정해진다. FE 코드에 테넌트 코드를 넣지 않는다. 로컬 개발만 프록시가 `X-Tenant-Code`(환경변수 `DEV_TENANT_CODE`)를 붙인다.
+- 인증(백엔드 설계 확정): Access 토큰은 **메모리에만** 보관(`localStorage`/`sessionStorage` 금지)하고 `Authorization: Bearer`로 보낸다. Refresh는 서버가 HttpOnly 쿠키로 관리하며 FE는 읽지 못한다. refresh/logout 요청에는 헤더 `X-MDM-Request: 1`을 붙인다. 앱 시작 시 refresh로 세션을 복구한다. 401 `AUTH.TOKEN_EXPIRED`는 갱신을 single-flight로 한 번만 호출하고 대기 요청을 재시도한다. 409 `AUTH.REFRESH_IN_PROGRESS`는 잠시 후 한 번 재시도한다. 갱신 실패 시 상태를 비우고 로그인으로 보낸다(`redirect` 보존). 비밀번호 변경이 필요한 상태(`passwordChangeRequired`)면 변경 화면 외 이동을 막는다. 로그아웃은 `BroadcastChannel`로 다른 탭에 알린다.
+- 백엔드에 없는 API나 필드는 만들지 말고 명세를 요청한다. 목(`_mock.ts`)은 쓰지 않는다.
+
+## 타입, 코드 품질
+- TypeScript strict. `any` 사용을 피하고, API 응답 타입을 `data.d.ts`에 정의한다.
+- 상태: 화면 내부 상태는 `useState`, 전역은 `useModel`(`src/models/`)과 `@@initialState`. 복잡한 서버 상태는 `@tanstack/react-query`가 이미 포함되어 있다면 그것을 쓴다.
+- 스타일 우선순위: Tailwind CSS v4(레이아웃) -> antd-style `createStyles`(테마 토큰) -> CSS Modules. Less는 기존 코드 유지 외에는 새로 쓰지 않는다.
+- 접근성과 반응형을 고려하고, 화면 문자열은 하드코딩하지 않는다(`20-i18n-and-backend.mdc`).
+
+## 메뉴와 권한
+- 라우트는 `config/routes.ts`에 정적으로 선언하고 `name`은 서버 `menu_code`와 같은 키로 맞춘다. 서버 `GET /menus/my`가 보이는 메뉴, 순서, 이름, 메뉴별 허용 기능(`actions`: READ/CREATE/UPDATE/DELETE/EXPORT)을 정한다. 서버에 없는 라우트는 숨기고, 라우트가 없는 서버 메뉴는 무시한다.
+- 권한은 `useAccess().can(menuCode, action)` 한 형태로만 묻는다. 권한 이름을 화면에 흩뿌리지 않는다.
+- FE 권한 체크는 UX용이며 실제 보안은 백엔드가 보장한다.

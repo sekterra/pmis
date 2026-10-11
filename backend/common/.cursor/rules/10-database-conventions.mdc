@@ -1,0 +1,51 @@
+---
+description: DB 공통 규칙(PK, 감사컬럼, use_yn, 네이밍, 타입 변환). SQL/엔티티 작성 시 반드시 적용
+globs: **/*.sql,**/entity/**/*.java
+alwaysApply: false
+---
+
+# DB 공통 규칙
+
+## 기본 키(PK)
+- 기본 키는 **`BIGINT` + Sequence**. 컬럼명은 `<대상>_pk` (예: `tenant_pk`, `code_pk`).
+- 시퀀스명: `<테이블명>_seq`, `INCREMENT BY 1`.
+- JPA: `@GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "...")` + `@SequenceGenerator(sequenceName = "<테이블명>_seq", allocationSize = 1)`. IDENTITY 사용 금지.
+- **예외**: `support_language`는 `support_language_code`(VARCHAR, BCP 47 예: `ko-KR`)가 PK이며, 번역 테이블들이 이 코드값을 FK로 가진다.
+
+## 감사 컬럼
+- ERD에 정의된 테이블에는 아래 4개를 둔다. (추가 전용 이력 테이블은 ERD에 정의된 컬럼만 사용)
+  - `create_datetime` TIMESTAMP (기본값 `CURRENT_TIMESTAMP`), `create_user_pk` BIGINT
+  - `update_datetime` TIMESTAMP, `update_user_pk` BIGINT
+- 엔티티는 `@MappedSuperclass` BaseEntity + Spring Data JPA Auditing(`@CreatedDate`, `@LastModifiedDate`, `@CreatedBy`, `@LastModifiedBy`)으로 채운다.
+- `create_user_pk`, `update_user_pk`는 사용자 엔티티가 설계되기 전까지 **FK를 걸지 않는다**(값만 저장).
+
+## 사용여부와 논리삭제
+- `use_yn CHAR(1) NOT NULL DEFAULT 'Y' CHECK (use_yn IN ('Y','N'))`
+- **삭제는 논리삭제**(`use_yn = 'N'`)가 기본이다. 사용자 요청 삭제는 물리 DELETE를 하지 않는다. (물리 삭제가 필요한 경우는 사용자에게 먼저 확인)
+- 조회 API는 기본적으로 `use_yn = 'Y'`만 반환한다. 관리 화면용으로 `N` 포함 조회가 필요하면 별도 파라미터로 명시한다.
+- 그 밖의 `*_yn` 컬럼도 `CHAR(1)` + `CHECK ('Y','N')`. 자바에서는 `Boolean`으로 다루고 `AttributeConverter`(Y/N <-> Boolean)를 사용한다.
+- `system_yn`은 **사용하지 않는다**.
+
+## 네이밍
+- 테이블/컬럼: 소문자 snake_case, **ERD의 physicalName을 그대로** 쓴다.
+- 접미사: 식별키 `_pk`, 코드값 `_code`, 여부 `_yn`, 일시 `_datetime`, 일자 `_date`.
+- 제약/인덱스: `pk_<table>`, `uk_<table>_<cols>`, `fk_<table>_<ref>`, `ix_<table>_<cols>`.
+- Java: 클래스 PascalCase, 필드 camelCase. 테이블 `common_code` -> `CommonCode`, 컬럼 `code_value` -> `codeValue`. `@Table(name=...)`, `@Column(name=...)`을 항상 명시한다.
+
+## ERD 데이터 타입 -> PostgreSQL / Java
+| ERD | PostgreSQL | Java |
+|---|---|---|
+| BIGINT | BIGINT | Long |
+| INTEGER | INTEGER | Integer |
+| VARCHAR2(n) | VARCHAR(n) | String |
+| CHAR(1) | CHAR(1) | String 또는 Boolean(Y/N 컨버터) |
+| CLOB | TEXT | String |
+| TIMESTAMP | TIMESTAMP | LocalDateTime |
+| DATE | DATE | LocalDate |
+- 일시는 **UTC로 저장**한다(`spring.jpa.properties.hibernate.jdbc.time_zone=UTC`). 시간대 변환은 표시 계층에서 한다.
+
+## 제약조건
+- ERD 컬럼 설명(description)과 엔티티 비고(remark)에 적힌 `UK(...)`는 **유니크 제약**으로 만든다.
+- NOT NULL, PK, FK는 ERD의 nullable, isPrimaryKey, 관계(relationships)를 따른다.
+- **다른 스키마의 테이블을 참조하는 FK는 만들지 않는다**(아래 `20-flyway-multitenancy.mdc` 참조).
+- `*_code` 컬럼 중 공통코드 값을 저장하는 컬럼은 **FK 없이** 문자열로 저장하고, 허용값 검증은 애플리케이션에서 한다. 공용 스키마의 상태값은 Java Enum으로 관리한다.

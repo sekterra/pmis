@@ -1,0 +1,293 @@
+# MDM API
+
+기본 경로 `/api/mdm/v1`. 이후 단계의 엔드포인트도 이 파일에 이어서 적는다.
+
+## 공통 규약
+
+성공과 실패 모두 같은 래퍼다.
+
+```json
+{
+  "success": true,
+  "data": {},
+  "errorCode": null,
+  "errorMessage": null,
+  "showType": null,
+  "traceId": null,
+  "fieldErrors": null
+}
+```
+
+`showType`은 0 무시, 1 경고, 2 오류, 3 알림, 9 로그인 이동이다. 오류 코드는 `<DOMAIN>.<NAME>` 문자열이다.
+
+건수가 적은 조회 목록(지원 언어, 국가, 코드 조회)은 `data`에 배열을 바로 담는다. 관리용 검색 목록만 페이지를 쓴다. `page`는 1부터다.
+
+```json
+{ "items": [], "total": 0, "page": 1, "size": 20 }
+```
+
+쿼리 `page` 기본 1, `size` 기본 20, 최대 200. `page`가 1보다 작거나 `size`가 1보다 작거나 200보다 크면 `400 COMMON.INVALID_PAGE`.
+
+정렬은 `sort=field,asc`를 반복한다. 방향 생략은 asc. 리소스마다 허용 필드만 받고, 그 밖이면 `400 COMMON.INVALID_SORT`. 정렬을 생략하면 리소스 기본 정렬을 쓰고, 항상 PK를 마지막 키로 붙여 페이지가 흔들리지 않게 한다. Spring Data의 0부터 세는 `Pageable` 바인딩은 쓰지 않는다.
+
+요청 본문 검증 실패는 `400 COMMON.VALIDATION_FAILED`와 `fieldErrors`다. 읽을 수 없는 JSON도 같은 코드다.
+
+테넌트는 요청마다 식별한다. 개발 프로필(`dev`)에서만 `X-Tenant-Code` 헤더를 쓴다. 테넌트가 없거나 사용 중이 아니면 `TENANT.NOT_FOUND` 또는 `TENANT.INACTIVE`다.
+
+Access 토큰은 `Authorization: Bearer`다. 관리 API는 `@RequirePermission(menu, action)`이다. 권한 코드는 `메뉴코드:기능코드`다. 예: `COMMON_CODE:UPDATE`. 인증이 없으면 `401 AUTH.UNAUTHORIZED`, 토큰 만료는 `401 AUTH.TOKEN_EXPIRED`, 서명·kid·aud·typ 불일치는 `401 AUTH.TOKEN_REJECTED`, 권한이 없으면 `403 AUTH.FORBIDDEN`, 계정이 `ACTIVE`가 아니거나 `use_yn='N'`이면 `401 AUTH.ACCOUNT_DISABLED`다. `mdm.security.permit-all`은 `dev`에서만 켤 수 있고 기본은 끈다.
+
+| 경로 | 인증 |
+| --- | --- |
+| POST `/api/mdm/v1/auth/login`, `/auth/refresh` | 공개. 구현은 8.2 |
+| GET `/api/mdm/v1/auth/jwks` | 공개. 래퍼 없음. `Cache-Control: public, max-age=300`. 공개키만 |
+| GET `/api/mdm/v1/i18n/languages` | 공개. 테넌트 식별 필요 |
+| GET `/api/mdm/v1/i18n/bundles`, `/bundles/{code}` | `common`, `error`, `auth`만 공개. 그 외 네임스페이스는 인증 필요 |
+| GET `/api/mdm/v1/codes`, `/codes/{group}`, `/nations` | 인증 필요. 권한 선언 없음 |
+| `@RequirePermission` 관리 API | 인증과 권한 |
+
+JWKS 예:
+
+```json
+{ "keys": [ { "kty": "RSA", "kid": "...", "n": "...", "e": "AQAB" } ] }
+```
+
+`errorMessage`와 `fieldErrors` 문구는 `error` 네임스페이스 번들에서 오류 코드(필드 오류는 메시지 문자열)를 요청 언어로 찾는다. 없거나 테넌트가 아직 없거나 번들 조회가 실패하면 예외의 기본 문구를 쓴다. 번들 실패가 오류 응답을 깨뜨리지 않는다.
+
+공통코드 유효기간의 오늘은 테넌트 `timezone_id` 기준이다. 시간대가 없거나 올바르지 않으면 시스템 기본 시간대를 쓴다.
+
+## 코드 조회
+
+권한 선언 없음.
+
+`GET /api/mdm/v1/codes/{groupCode}`
+
+사용 중이고 유효기간 안인 코드만 평면 목록으로 준다. 언어는 `lang` 쿼리, `Accept-Language`, 테넌트 기본 언어 순이다. 이름은 `common_code_lang`의 그 언어, `support_language.fallback_language_code` 체인, `common_code.code_name` 순이다. 계층 그룹도 `parentCodeValue`가 있는 평면 목록이다.
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "codeValue": "GROUP",
+      "codeName": "그룹",
+      "parentCodeValue": null,
+      "sortOrder": 1,
+      "extAttr1": null,
+      "extAttr2": null,
+      "extAttr3": null,
+      "extAttr4": null,
+      "extAttr5": null
+    }
+  ]
+}
+```
+
+없거나 사용 중지된 그룹은 `404 CODE.GROUP_NOT_FOUND`.
+
+`GET /api/mdm/v1/codes?groups=A,B` 는 최대 30개 그룹의 맵이다. `data`는 `{ "A": [ ... ], "B": [ ... ] }` 다.
+
+## 코드 그룹 관리
+
+메뉴 `COMMON_CODE`.
+
+| 메서드 | 경로 | 기능 |
+| --- | --- | --- |
+| GET | `/api/mdm/v1/code-groups` | READ. `keyword`, `solutionCode`, `useYn` |
+| GET | `/api/mdm/v1/code-groups/{groupCode}` | READ |
+| POST | `/api/mdm/v1/code-groups` | CREATE |
+| PUT | `/api/mdm/v1/code-groups/{groupCode}` | UPDATE |
+| DELETE | `/api/mdm/v1/code-groups/{groupCode}` | DELETE. `use_yn=N`. 사용 중인 코드가 있으면 `409 CODE.GROUP_IN_USE` |
+| POST | `/api/mdm/v1/code-groups/{groupCode}/restore` | UPDATE. `use_yn=Y` |
+
+정렬 필드: `codeGroupCode`, `codeGroupName`, `sortOrder`, `solutionCode`, `codeGroupPk`. 기본은 그룹 코드, PK.
+
+요청 예:
+
+```json
+{
+  "codeGroupCode": "HIER_IT",
+  "solutionCode": "MDM",
+  "codeGroupName": "계층",
+  "description": null,
+  "hierarchy": true,
+  "codeValueLength": null,
+  "extAttrSchema": null,
+  "sortOrder": 1,
+  "translations": [
+    { "supportLanguageCode": "ko-KR", "name": "계층", "description": null }
+  ]
+}
+```
+
+`translations`는 그룹과 언어 기준으로 있으면 고치고 없으면 넣는다. 요청에 없는 언어는 그대로 둔다. 그룹 코드가 있으면 `409 CODE.DUPLICATE`. 지원하지 않는 언어는 `400 CODE.LANGUAGE_NOT_FOUND`.
+
+## 공통코드 관리
+
+메뉴 `COMMON_CODE`.
+
+| 메서드 | 경로 | 기능 |
+| --- | --- | --- |
+| GET | `/api/mdm/v1/common-codes?groupCode=` | READ. `groupCode` 필수. `keyword`, `useYn` |
+| GET | `/api/mdm/v1/common-codes/{codePk}` | READ |
+| POST | `/api/mdm/v1/common-codes` | CREATE |
+| PUT | `/api/mdm/v1/common-codes/{codePk}` | UPDATE. 그룹 코드는 바꿀 수 없다 |
+| DELETE | `/api/mdm/v1/common-codes/{codePk}` | DELETE. `use_yn=N`. `changeReason` 선택 |
+| POST | `/api/mdm/v1/common-codes/{codePk}/restore` | UPDATE. 복구 이력은 `U` |
+| GET | `/api/mdm/v1/common-codes/{codePk}/history` | READ |
+
+정렬 필드: `codeValue`, `codeName`, `sortOrder`, `codePk`. 기본은 정렬순서, 코드값, PK. 이력 기본 정렬은 변경 시각 내림차순, 이력 PK.
+
+사용 중인 `code_value`만 그룹 안에서 유일하다. 논리 삭제한 값은 다시 등록할 수 있다. 겹치면 `409 CODE.DUPLICATE`. `code_value_length`보다 길면 `400 CODE.VALUE_LENGTH`. 계층이 아닌 그룹에 상위 코드를 주면 `400 CODE.PARENT_NOT_ALLOWED`. 상위 코드는 같은 그룹의 사용 중인 코드여야 하고, 없으면 `404 CODE.PARENT_NOT_FOUND`, 순환이면 `400 CODE.CYCLE`. `levelNo`와 `codePath`는 서버가 계산한다. 예: `/ROOT/CHILD`. `validFromDate`가 `validToDate`보다 늦으면 `400 CODE.INVALID_DATE`.
+
+이름 번역도 그룹과 같이 언어 기준 upsert이고, 요청에 없는 언어는 유지한다.
+
+등록, 수정, 삭제, 복구는 같은 트랜잭션에서 `common_code_history`에 `C`/`U`/`D`를 남긴다. 복구는 `U`다. 변경 사용자는 아직 없어 NULL이다.
+
+`SECURITY_POLICY` / `TEMP_PASSWORD_VALID_DAYS`의 `extAttr1`은 양의 정수여야 한다. 아니거나 그 코드를 삭제하면 `400 CODE.INVALID_POLICY_VALUE`.
+
+## 이번 단계 오류 코드
+
+| 코드 | HTTP | 의미 |
+| --- | --- | --- |
+| COMMON.INVALID_PAGE | 400 | 페이지 또는 크기 |
+| COMMON.INVALID_SORT | 400 | 정렬 필드 또는 방향 |
+| COMMON.VALIDATION_FAILED | 400 | 본문 검증, 필수 그룹, 읽을 수 없는 JSON |
+| AUTH.FORBIDDEN | 403 | 기본 프로필의 관리 API |
+| CODE.GROUP_NOT_FOUND | 404 | 그룹 없음 또는 조회 API에서 사용 중지 |
+| CODE.NOT_FOUND | 404 | 코드 없음 |
+| CODE.PARENT_NOT_FOUND | 404 | 상위 코드 없음 |
+| CODE.DUPLICATE | 409 | 그룹 코드 또는 사용 중인 코드 값 중복 |
+| CODE.GROUP_IN_USE | 409 | 사용 중인 코드가 있어 그룹 삭제 불가 |
+| CODE.PARENT_NOT_ALLOWED | 400 | 비계층 그룹의 상위 코드 |
+| CODE.CYCLE | 400 | 계층 순환 |
+| CODE.VALUE_LENGTH | 400 | 코드 값 길이 |
+| CODE.INVALID_DATE | 400 | 시작일, 종료일 |
+| CODE.INVALID_POLICY_VALUE | 400 | 임시 비밀번호 유효 일수 |
+| CODE.LANGUAGE_NOT_FOUND | 400 | 지원하지 않는 언어 |
+
+## 다국어 조회
+
+권한 선언 없음. 국가 관리도 메뉴 `I18N` 권한을 쓴다.
+
+`GET /api/mdm/v1/i18n/languages` 는 사용 중인 지원 언어 배열이다. `data` 예:
+
+```json
+[{ "supportLanguageCode": "ko-KR", "languageName": "한국어", "nativeName": "한국어", "defaultLanguage": true, "fallbackLanguageCode": null, "textDirectionCode": "LTR", "dateFormat": "yyyy-MM-dd", "datetimeFormat": "yyyy-MM-dd HH:mm", "numberFormat": "#,##0.##" }]
+```
+
+`GET /api/mdm/v1/i18n/bundles/{namespaceCode}?lang=` 의 `data`는 `{ namespaceCode, language, messages }` 다. 언어는 `lang`, `Accept-Language`, 테넌트 기본 언어 순이다. 문구는 요청 언어, 대체 언어 체인, 테넌트 기본 언어, `default_message` 순이며 순환은 한 번 본 언어에서 끊는다. 약한 `ETag`와 `Cache-Control: no-cache`를 준다. `If-None-Match`가 같으면 본문 없는 `304`다. 이 응답만 래퍼가 없다. 없거나 사용 중지된 네임스페이스는 `404 I18N.NAMESPACE_NOT_FOUND`.
+
+`GET /api/mdm/v1/i18n/bundles?namespaces=a,b` 는 최대 20개. `data`는 네임스페이스 코드를 키로 한 번들 맵이다.
+
+`GET /api/mdm/v1/nations` 는 사용 중인 국가 배열이다. 관리 목록은 같은 경로에 `managed=true`를 붙이며 페이지다. 국가 관리도 `I18N` 메뉴 권한이다.
+
+번들 캐시는 테넌트별 메모리 맵이고 TTL은 60초다. 언어·네임스페이스·메시지 변경은 그 테넌트의 해당 캐시를 바로 지운다. 다른 인스턴스에는 TTL 안에 반영된다.
+
+## 다국어 관리
+
+메뉴 `I18N`.
+
+| 메서드 | 경로 | 기능 |
+| --- | --- | --- |
+| GET | `/api/mdm/v1/support-languages` | READ. 배열. `useYn` 생략 시 사용 중지 포함 |
+| POST/PUT/DELETE | `/api/mdm/v1/support-languages` 와 `/{code}`, `/{code}/restore` | 등록, 수정, 사용 중지, 복구 |
+| GET | `/api/mdm/v1/nations?managed=true` | READ. 페이지 |
+| POST/PUT/DELETE | `/api/mdm/v1/nations` 와 `/{nationCode}`, `/{nationCode}/restore` | 등록, 수정, 사용 중지, 복구 |
+| GET/POST/PUT/DELETE | `/api/mdm/v1/i18n-namespaces` | 페이지 목록, 단건, 등록, 수정, 사용 중지, 복구 |
+| GET/POST/PUT/DELETE | `/api/mdm/v1/i18n-messages` | 페이지 목록, 단건(번역 포함), 등록, 수정, 논리 삭제, 복구 |
+
+지원 언어는 기본 언어가 활성 1개다. 바꾸면 한 트랜잭션에서 이전 기본을 내린다. 기본 언어이거나 다른 활성 언어의 대체 언어이면 `409 I18N.LANGUAGE_IN_USE`. 대체 체인 순환은 `400 I18N.FALLBACK_CYCLE`. 코드는 BCP 47이고 등록 후 바꿀 수 없다.
+
+국가 코드는 ISO 3166-1 alpha-2 대문자 2자이고 등록 후 바꿀 수 없다. `defaultLanguageCode`는 활성 지원 언어여야 한다.
+
+네임스페이스 코드는 등록 후 바꿀 수 없다. 사용 중지하면 메시지는 남고 번들 조회에서는 빠진다.
+
+메시지 키는 네임스페이스 안 사용 중 행만 유일하다. 논리 삭제 후 같은 키를 다시 등록할 수 있다. `messageTypeCode`는 공통코드 검증 없이 저장한다. 번역은 `(메시지, 언어)` upsert이고 요청에 없는 언어는 유지한다. 문구가 바뀔 때만 `versionNo`가 1 증가한다. 상태는 요청값 또는 신규 `DRAFT`, 기계 번역은 요청값 또는 `N`이다. 없는 언어는 `400 I18N.LANGUAGE_NOT_FOUND`.
+
+국가 정렬 필드: `nationCode`, `nationName`, `sortOrder`, `nationPk`. 네임스페이스: `namespaceCode`, `namespaceName`, `namespacePk`. 메시지: `messageKey`, `messageTypeCode`, `messagePk`.
+
+## 이번 단계 오류 코드
+
+| 코드 | HTTP | 의미 |
+| --- | --- | --- |
+| I18N.NAMESPACE_NOT_FOUND | 404 | 네임스페이스 없음 또는 사용 중지 |
+| I18N.LANGUAGE_NOT_FOUND | 400 또는 404 | 언어 없음. 참조는 400, 단건 조회는 404 |
+| I18N.NATION_NOT_FOUND | 404 | 국가 없음 |
+| I18N.MESSAGE_NOT_FOUND | 404 | 메시지 없음 |
+| I18N.DUPLICATE | 409 | 사용 중인 코드·키 중복 |
+| I18N.LANGUAGE_IN_USE | 409 | 기본 언어 또는 대체 언어로 쓰여 중지 불가 |
+| I18N.FALLBACK_CYCLE | 400 | 대체 언어 순환 |
+| I18N.DEFAULT_REQUIRED | 400 | 기본 언어가 하나가 아님 |
+
+## 인증
+
+`POST /api/mdm/v1/auth/login` 본문 `{ "loginId", "password" }`. 성공 `data`는 `accessToken`, `tokenType`(`Bearer`), `expiresIn`(초), `passwordChangeRequired`다. Refresh는 `Set-Cookie: mdm_refresh`만이다. Path는 `/api/mdm/v1/auth`, HttpOnly, SameSite=Lax, Secure는 설정값이다.
+
+`POST /api/mdm/v1/auth/refresh`와 `POST /api/mdm/v1/auth/logout`은 본문이 없고 헤더 `X-MDM-Request: 1`이 필요하다. 없으면 `403 AUTH.CSRF`. refresh는 쿠키를 회전한다. 같은 쿠키가 유예 시간 안에 다시 오면 `409 AUTH.REFRESH_IN_PROGRESS`이고 가족은 유지된다. 프론트는 새 쿠키로 한 번 더 호출한다. 유예가 지난 재사용은 `401 AUTH.TOKEN_REUSED`다.
+
+`POST /api/mdm/v1/auth/password/change` 본문 `{ "currentPassword", "newPassword" }`. 성공하면 새 Access와 새 refresh 쿠키를 준다. `GET /api/mdm/v1/auth/me`는 `userPk`, `loginId`, `displayName`, `supportLanguageCode`, `timezoneId`, `roleCodes`, `passwordChangeRequired`다.
+
+`pwd_change_required=true`이면 비밀번호 변경, 로그아웃, me, refresh 외 테넌트 API는 `403 AUTH.PASSWORD_CHANGE_REQUIRED`다. `GET /api/mdm/v1/menus/my`는 이 허용 목록에 없다.
+
+## 내 메뉴
+
+`GET /api/mdm/v1/menus/my`. 인증된 테넌트 사용자라면 권한 선언 없이 호출한다. 쿼리 `lang`은 선택이다.
+
+응답 `data`는 배열이다. 페이지 객체가 아니다. `Cache-Control: no-store`다. ETag와 304는 주지 않는다.
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "menuCode": "SYSTEM",
+      "parentMenuCode": null,
+      "menuName": "시스템",
+      "menuTypeCode": "GROUP",
+      "routePath": "/system",
+      "iconName": null,
+      "levelNo": 1,
+      "sortOrder": 10,
+      "actions": ["READ"]
+    },
+    {
+      "menuCode": "COMPANY",
+      "parentMenuCode": "SYSTEM",
+      "menuName": "회사",
+      "menuTypeCode": "PAGE",
+      "routePath": "/system/company",
+      "iconName": null,
+      "levelNo": 2,
+      "sortOrder": 30,
+      "actions": ["READ", "CREATE", "UPDATE", "DELETE", "EXPORT"]
+    }
+  ]
+}
+```
+
+노출 규칙:
+
+- `use_yn='Y'`이고 `visible_yn='Y'`인 메뉴만 후보가 된다.
+- `PAGE`는 그 메뉴의 `READ`가 있을 때만 포함한다. `actions`에는 같은 메뉴의 `READ`가 함께 있는 기능만 들어간다. 그래서 `READ`가 없는 메뉴는 목록에 없고, 있는 메뉴의 `actions`에는 `READ`가 항상 있다.
+- `GROUP`은 노출되는 하위 메뉴가 하나라도 있을 때만 포함한다. 하위가 모두 빠지면 그룹도 빠진다. 그룹의 `actions`는 `["READ"]`다.
+- 정렬은 `levelNo`, `sortOrder`, `menuCode`다. 트리는 프론트가 조립한다.
+
+권한은 `DbPermissionChecker`의 캐시와 같은 조회를 쓴다. 역할 유효기간, 역할 권한 합집합, `READ`가 없으면 다른 기능을 빼는 규칙은 그 클래스에만 있다.
+
+메뉴 이름 키는 네임스페이스 `menu`의 `message_key`이고 값은 `menu_code`와 같다. 예: `SYSTEM`, `I18N`, `COMPANY`. 언어는 `lang`, 없으면 `Accept-Language`의 첫 언어, 없으면 테넌트 기본 언어다. 그다음 지원 언어의 대체 언어 체인과 테넌트 기본 언어, 메시지 `default_message`를 기존 번들 캐시로 고른다. 키가 없거나 번들 결과가 비어 있으면 `menu.menu_name`을 쓴다.
+
+오류는 인증 없음 `401 AUTH.UNAUTHORIZED`, 비밀번호 변경 강제 `403 AUTH.PASSWORD_CHANGE_REQUIRED`, 토큰의 테넌트와 헤더가 다름 `400 TENANT.HOST_MISMATCH`다. 메뉴 관리 API는 없다.
+
+계정 없음, 비밀번호 불일치, 비활성, 잠금은 모두 `401 AUTH.INVALID_CREDENTIALS`다. 비밀번호 정책 위반은 `400 AUTH.PASSWORD_POLICY`와 `fieldErrors`다. 현재와 같으면 `400 AUTH.PASSWORD_SAME`, 최근 재사용은 `400 AUTH.PASSWORD_REUSED`다.
+
+### FE 연동 시나리오
+
+1. 로그인 화면은 토큰 없이 언어와 `common`, `error`, `auth` 번들을 받는다.
+2. 로그인 성공 후 Access는 메모리에만 두고, refresh 쿠키는 브라우저가 보관한다.
+3. Access가 만료되면 `X-MDM-Request: 1`과 쿠키로 refresh한다. 새 Access로 원래 요청을 다시 보낸다.
+4. refresh가 `409 AUTH.REFRESH_IN_PROGRESS`이면 저장소의 새 쿠키로 한 번 더 refresh한다.
+5. refresh가 401이면 로그인 화면으로 보낸다.
+6. `passwordChangeRequired`가 true이면 비밀번호 변경 화면만 연다. 변경 후 새 Access를 쓴다.
+7. 비밀번호 변경이 필요 없으면 `GET /api/mdm/v1/auth/me` 다음에 `GET /api/mdm/v1/menus/my`를 호출하고, 그 목록에 있는 `routePath`만 라우트로 연다.
+
+프론트 구조는 정하지 않는다. 로컬은 개발 서버 프록시, 운영은 테넌트 Host 아래 같은 사이트를 전제로 한다.

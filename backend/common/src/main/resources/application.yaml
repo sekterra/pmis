@@ -1,0 +1,53 @@
+spring:
+  application:
+    name: common
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:local}
+  config:
+    import: optional:file:./config/application-local.yaml
+  datasource:
+    url: ${MDM_DB_URL}
+    username: ${MDM_DB_USERNAME}
+    password: ${MDM_DB_PASSWORD}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: none
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+  flyway:
+    enabled: ${MDM_FLYWAY_ENABLED:false}
+    locations: classpath:db/migration/public
+    schemas: pmis
+    default-schema: pmis
+    create-schemas: false
+    clean-disabled: true
+
+mdm:
+  security:
+    bcrypt-strength: ${MDM_BCRYPT_STRENGTH:10}
+    issuer: ${MDM_JWT_ISSUER:http://localhost}
+    permit-all: ${MDM_SECURITY_PERMIT_ALL:false}
+    trust-forwarded-headers: false
+    refresh-reuse-grace-seconds: 10
+    platform:
+      access-token-minutes: 15
+      refresh-token-days: 14
+      max-login-fail-count: 5
+      lock-minutes: 30
+      password-min-length: 12
+      password-min-classes: 3
+      password-expire-days: 90
+      temp-password-valid-days: 3
+    public-namespaces:
+      - common
+      - error
+      - auth
+    cookie:
+      secure: ${MDM_COOKIE_SECURE:true}
+    cors:
+      allowed-origins: []
+    private-key-path: ${MDM_JWT_PRIVATE_KEY_PATH:}
+    previous-public-key-path: ${MDM_JWT_PREVIOUS_PUBLIC_KEY_PATH:}

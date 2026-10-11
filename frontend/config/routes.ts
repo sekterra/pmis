@@ -1,0 +1,60 @@
+export default [
+  {
+    path: '/user',
+    layout: false,
+    routes: [
+      {
+        path: '/user/login',
+        name: 'login',
+        component: './user/login',
+      },
+      {
+        path: '/user',
+        redirect: '/user/login',
+      },
+    ],
+  },
+  {
+    path: '/welcome',
+    name: 'welcome',
+    icon: 'home',
+    component: './Welcome',
+  },
+  {
+    name: 'exception',
+    icon: 'warning',
+    path: '/exception',
+    routes: [
+      {
+        path: '/exception',
+        redirect: '/exception/403',
+      },
+      {
+        name: '403',
+        icon: 'stop',
+        path: '/exception/403',
+        component: './exception/403',
+      },
+      {
+        name: '404',
+        icon: 'warning',
+        path: '/exception/404',
+        component: './exception/404',
+      },
+      {
+        name: '500',
+        icon: 'bug',
+        path: '/exception/500',
+        component: './exception/500',
+      },
+    ],
+  },
+  {
+    path: '/',
+    redirect: '/welcome',
+  },
+  {
+    component: './exception/404',
+    path: '/*',
+  },
+];
