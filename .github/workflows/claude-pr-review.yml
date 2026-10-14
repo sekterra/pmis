@@ -45,6 +45,7 @@ jobs:
       - name: Review PR with Claude
         uses: anthropics/claude-code-action@v1
         with:
+          show_full_output: true
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
           anthropic_federation_rule_id: REPLACE_WITH_PR_RULE_ID
