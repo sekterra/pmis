@@ -89,8 +89,9 @@ public class TenantProvisioningService {
 				.orElseThrow(() -> new ApiException(404, "TENANT.NOT_FOUND", "프로비저닝 기록이 없습니다.", 2));
 		TemporaryPassword password = work == null ? null : work.temporaryPassword();
 		boolean adminAlreadyPresent = work != null && work.adminAlreadyPresent();
+		String adminLoginId = work == null ? null : work.adminLoginId();
 		return new ProvisioningResult(tenantCode, tenant.schemaName(), tenant.statusCode(), provisioning.currentStep(),
-				provisioning.executionStatus(), password, adminAlreadyPresent);
+				provisioning.executionStatus(), password, adminAlreadyPresent, adminLoginId);
 	}
 
 	private static void rejectClosedStatus(String statusCode) {

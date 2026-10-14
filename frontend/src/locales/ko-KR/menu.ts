@@ -1,5 +1,7 @@
 export default {
   'menu.welcome': '환영',
+  'menu.commonCode': '공통코드',
+  'menu.i18n': '다국어',
   'menu.login': '로그인',
   'menu.exception': '예외',
   'menu.exception.403': '403',

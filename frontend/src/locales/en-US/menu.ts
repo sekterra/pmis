@@ -1,5 +1,7 @@
 export default {
   'menu.welcome': 'Welcome',
+  'menu.commonCode': 'Common codes',
+  'menu.i18n': 'Messages',
   'menu.login': 'Login',
   'menu.exception': 'Exception',
   'menu.exception.403': '403',

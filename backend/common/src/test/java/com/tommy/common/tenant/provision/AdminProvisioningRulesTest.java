@@ -49,7 +49,7 @@ class AdminProvisioningRulesTest {
 		TenantAdminWriter.CreationPlan created = TenantAdminWriter.plan(null, generated);
 		assertFalse(created.alreadyPresent());
 		assertTrue(created.temporaryPassword() == generated);
-		ReissuedPassword reissued = new ReissuedPassword("it-ab", generated);
+		ReissuedPassword reissued = new ReissuedPassword("it-ab", generated, "admin@example.com");
 		assertFalse(reissued.toString().contains(generated.reveal()));
 	}
 

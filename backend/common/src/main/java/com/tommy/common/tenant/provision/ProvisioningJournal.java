@@ -28,7 +28,8 @@ public class ProvisioningJournal {
 				""", (resultSet, row) -> new TenantState(
 				resultSet.getLong("tenant_pk"),
 				resultSet.getString("schema_name"),
-				resultSet.getString("tenant_status_code")), tenantCode).stream().findFirst());
+				resultSet.getString("tenant_status_code"),
+				tenantCode), tenantCode).stream().findFirst());
 	}
 
 	public Optional<ProvisioningState> findProvisioning(long tenantPk) {

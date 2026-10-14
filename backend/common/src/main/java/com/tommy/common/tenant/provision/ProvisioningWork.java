@@ -9,6 +9,7 @@ public final class ProvisioningWork {
 	private int retryCount;
 	private TemporaryPassword temporaryPassword;
 	private boolean adminAlreadyPresent;
+	private String adminLoginId;
 
 	public ProvisioningWork(ProvisionTenantCommand command, String schemaName) {
 		this.command = command;
@@ -61,6 +62,14 @@ public final class ProvisioningWork {
 
 	public void setAdminAlreadyPresent(boolean adminAlreadyPresent) {
 		this.adminAlreadyPresent = adminAlreadyPresent;
+	}
+
+	public String adminLoginId() {
+		return adminLoginId;
+	}
+
+	public void setAdminLoginId(String adminLoginId) {
+		this.adminLoginId = adminLoginId;
 	}
 
 }

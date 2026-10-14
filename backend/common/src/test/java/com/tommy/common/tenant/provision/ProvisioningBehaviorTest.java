@@ -90,7 +90,7 @@ class ProvisioningBehaviorTest {
 	void temporaryPasswordIsMasked() {
 		TemporaryPassword password = TemporaryPassword.generate();
 		ProvisioningResult result = new ProvisioningResult("it-ab", "t_it_ab", "PROVISIONING",
-				ProvisioningStepCode.MIGRATED, "RUNNING", password, false);
+				ProvisioningStepCode.MIGRATED, "RUNNING", password, false, null);
 		assertFalse(password.toString().contains(password.reveal()));
 		assertEquals("TemporaryPassword[masked]", password.toString());
 		assertFalse(result.toString().contains(password.reveal()));

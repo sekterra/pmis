@@ -2,13 +2,13 @@ spring:
   application:
     name: common
   profiles:
-    active: ${SPRING_PROFILES_ACTIVE:local}
-  config:
-    import: optional:file:./config/application-local.yaml
+    group:
+      local:
+        - dev
   datasource:
-    url: ${MDM_DB_URL}
-    username: ${MDM_DB_USERNAME}
-    password: ${MDM_DB_PASSWORD}
+    url: ${MDM_DB_URL:${mdm.db.url:}}
+    username: ${MDM_DB_USERNAME:${mdm.db.username:}}
+    password: ${MDM_DB_PASSWORD:${mdm.db.password:}}
   jpa:
     open-in-view: false
     hibernate:
@@ -24,6 +24,11 @@ spring:
     default-schema: pmis
     create-schemas: false
     clean-disabled: true
+
+logging:
+  level:
+    com.zaxxer.hikari.HikariConfig: WARN
+    com.zaxxer.hikari.pool.HikariPool: WARN
 
 mdm:
   security:

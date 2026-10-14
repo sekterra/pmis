@@ -47,15 +47,37 @@ public class TenantUpgradeService {
 		List<UpgradeTenantResult> results = new ArrayList<>();
 		List<String> skipped = new ArrayList<>();
 		advisoryLock.runWithUpgradeBatchLock(() -> {
+			List<ProvisioningJournal.TenantState> targets = new ArrayList<>();
 			for (ProvisioningJournal.TenantState tenant : journal.listTenants()) {
-				if (!"ACTIVE".equals(tenant.statusCode())) {
-					skipped.add(tenant.tenantCode());
-					continue;
+				if ("ACTIVE".equals(tenant.statusCode())) {
+					targets.add(tenant);
 				}
-				results.add(upgradeOne(tenant, executedByUserPk));
+				else {
+					skipped.add(tenant.tenantCode());
+				}
 			}
+			results.addAll(upgradeLocked(targets, executedByUserPk));
 		});
 		return new UpgradeBatchResult(results, skipped);
+	}
+
+	public UpgradeBatchResult upgradeTenants(List<String> tenantCodes, Long executedByUserPk) {
+		List<ProvisioningJournal.TenantState> targets = new ArrayList<>();
+		for (String tenantCode : tenantCodes) {
+			targets.add(journal.findTenant(tenantCode)
+					.orElseThrow(() -> new ApiException(404, "TENANT.NOT_FOUND", "테넌트를 찾을 수 없습니다.", 2)));
+		}
+		List<UpgradeTenantResult> results = new ArrayList<>();
+		advisoryLock.runWithUpgradeBatchLock(() -> results.addAll(upgradeLocked(targets, executedByUserPk)));
+		return new UpgradeBatchResult(results, List.of());
+	}
+
+	private List<UpgradeTenantResult> upgradeLocked(List<ProvisioningJournal.TenantState> tenants, Long executedByUserPk) {
+		List<UpgradeTenantResult> results = new ArrayList<>();
+		for (ProvisioningJournal.TenantState tenant : tenants) {
+			results.add(upgradeOne(tenant, executedByUserPk));
+		}
+		return results;
 	}
 
 	private UpgradeTenantResult upgradeOne(ProvisioningJournal.TenantState tenant, Long executedByUserPk) {

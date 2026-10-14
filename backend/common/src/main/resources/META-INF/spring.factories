@@ -1,0 +1,5 @@
+org.springframework.context.ApplicationContextInitializer=\
+com.tommy.common.global.config.DbConnectionRequirements
+
+org.springframework.boot.diagnostics.FailureAnalyzer=\
+com.tommy.common.global.config.DatasourceFailureAnalyzer

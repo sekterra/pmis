@@ -4,10 +4,12 @@ public final class ReissuedPassword {
 
 	private final String tenantCode;
 	private final TemporaryPassword temporaryPassword;
+	private final String adminLoginId;
 
-	public ReissuedPassword(String tenantCode, TemporaryPassword temporaryPassword) {
+	public ReissuedPassword(String tenantCode, TemporaryPassword temporaryPassword, String adminLoginId) {
 		this.tenantCode = tenantCode;
 		this.temporaryPassword = temporaryPassword;
+		this.adminLoginId = adminLoginId;
 	}
 
 	public String tenantCode() {
@@ -16,6 +18,10 @@ public final class ReissuedPassword {
 
 	public TemporaryPassword temporaryPassword() {
 		return temporaryPassword;
+	}
+
+	public String adminLoginId() {
+		return adminLoginId;
 	}
 
 	@Override
