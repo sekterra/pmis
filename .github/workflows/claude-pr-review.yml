@@ -1,0 +1,97 @@
+
+name: Claude PR Review
+
+on:
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  claude-review:
+    name: Claude Code Review
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    # Review only PRs originating from this repository.
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.draft == false &&
+      (
+        github.event.pull_request.author_association == 'OWNER' ||
+        github.event.pull_request.author_association == 'MEMBER' ||
+        github.event.pull_request.author_association == 'COLLABORATOR'
+      )
+
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Review PR with Claude
+        uses: anthropics/claude-code-action@v1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+          anthropic_federation_rule_id: REPLACE_WITH_PR_RULE_ID
+          anthropic_organization_id: 7ed23c1e-7495-4546-8f50-f570e73e94e9
+          anthropic_service_account_id: svac_01QW3ac7i8KqC7Y6KL5RsTAK
+          anthropic_workspace_id: wrkspc_01VAgknBUpC3N9K4KjcFyjCG
+
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+
+            You are the lead reviewer for the PMIS project.
+
+            Review the changes submitted by Cursor AI.
+
+            Review criteria:
+            1. Requirements implementation completeness
+            2. Architecture and coding standards
+            3. Code correctness and potential bugs
+            4. Security vulnerabilities
+            5. Unit test quality
+            6. Unintended file modifications
+
+            Review instructions:
+            - Inspect the PR changes.
+            - Identify concrete issues with evidence.
+            - Do not modify any source files.
+            - Do not create commits.
+            - Do not merge the PR.
+            - Write the review in Korean.
+
+            Post a summary comment to the PR.
+
+            Use the following structure:
+
+            검토 결과: 통과 / 수정 필요
+
+            1. 요구사항 충족 여부
+            2. 설계 및 코드 품질
+            3. 테스트 검토
+            4. 발견된 문제
+            5. Cursor 수정 지시사항
+
+            If no critical issues are found,
+            clearly state that the technical
+            review has passed.
+
+          claude_args: |
+            --max-turns 8
+            --allowedTools "Read,Grep,Glob,Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr comment:*),mcp__github_inline_comment__create_inline_comment"
