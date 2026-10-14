@@ -31,21 +31,3 @@ jobs:
 
       - name: Analyze PMIS with Claude
         uses: anthropics/claude-code-action@v1
-        with:
-          anthropic_federation_rule_id: fdrl_01HJmZxgJaiJEVNTDmKzYKEK
-          anthropic_organization_id: 7ed23c1e-7495-4546-8f50-f570e73e94e9
-          anthropic_service_account_id: svac_01QW3ac7i8KqC7Y6KL5RsTAK
-          anthropic_workspace_id: wrkspc_01VAgknBUpC3N9K4KjcFyjCG
-          prompt: |
-            Analyze the current PMIS repository.
-
-            Tasks:
-            1. Identify the project structure.
-            2. Identify the main technology stack.
-            3. Identify the main application modules.
-            4. Summarize the findings in Korean.
-
-            Do not modify any files.
-            Do not create commits or pull requests.
-          claude_args: |
-            --max-turns 5
