@@ -13,41 +13,31 @@ on:
 
 permissions:
   contents: read
+  pull-requests: write
+  id-token: write
 
 jobs:
-  claude-review:
+  review:
     name: Claude Code Review
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-
-    # Review only PRs originating from this repository.
     if: >-
       github.event.pull_request.head.repo.full_name == github.repository &&
-      github.event.pull_request.draft == false &&
-      (
-        github.event.pull_request.author_association == 'OWNER' ||
-        github.event.pull_request.author_association == 'MEMBER' ||
-        github.event.pull_request.author_association == 'COLLABORATOR'
-      )
-
-    permissions:
-      contents: read
-      pull-requests: write
-      id-token: write
+      github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
-      - name: Checkout repository
+      - name: Checkout PR source
         uses: actions/checkout@v4
         with:
           persist-credentials: false
-          fetch-depth: 0
+          fetch-depth: 1
 
-      - name: Review PR with Claude
+      - name: Claude Code Review
         uses: anthropics/claude-code-action@v1
         with:
-          show_full_output: true
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
+          # Replace with your PR-specific WIF rule ID.
           anthropic_federation_rule_id: REPLACE_WITH_PR_RULE_ID
           anthropic_organization_id: 7ed23c1e-7495-4546-8f50-f570e73e94e9
           anthropic_service_account_id: svac_01QW3ac7i8KqC7Y6KL5RsTAK
@@ -57,42 +47,45 @@ jobs:
             REPO: ${{ github.repository }}
             PR NUMBER: ${{ github.event.pull_request.number }}
 
-            You are the lead reviewer for the PMIS project.
+            You are the PMIS development review agent.
 
-            Review the changes submitted by Cursor AI.
+            Cursor AI has completed a development task
+            and submitted this pull request.
 
-            Review criteria:
-            1. Requirements implementation completeness
-            2. Architecture and coding standards
-            3. Code correctness and potential bugs
-            4. Security vulnerabilities
-            5. Unit test quality
-            6. Unintended file modifications
+            Review the PR against:
+            1. Requirements and linked GitHub Issues
+            2. Existing architecture and coding standards
+            3. Correctness and potential defects
+            4. Security and error handling
+            5. Test implementation and completeness
+            6. Unintended or unauthorized file changes
 
-            Review instructions:
-            - Inspect the PR changes.
-            - Identify concrete issues with evidence.
-            - Do not modify any source files.
-            - Do not create commits.
-            - Do not merge the PR.
+            Important:
+            - Inspect the actual PR diff.
+            - Read linked Issues when available.
+            - Do not claim unexecuted tests have passed.
+            - Do not modify files.
+            - Do not create commits or merge the PR.
+            - Do not invent missing requirements.
             - Write the review in Korean.
 
-            Post a summary comment to the PR.
+            Post one summary comment to the PR
+            using gh pr comment.
 
-            Use the following structure:
+            Required output:
 
-            검토 결과: 통과 / 수정 필요
+            ## Claude 개발 검토 결과
+            - 판정: 통과 / 수정 필요 / 확인 필요
+            - 요구사항 충족 여부
+            - 아키텍처 및 개발 표준 준수
+            - 테스트 검증 결과
+            - 발견된 문제 및 근거
+            - Cursor 수정 지시사항
+            - 다음 단계 진행 가능 여부
 
-            1. 요구사항 충족 여부
-            2. 설계 및 코드 품질
-            3. 테스트 검토
-            4. 발견된 문제
-            5. Cursor 수정 지시사항
-
-            If no critical issues are found,
-            clearly state that the technical
-            review has passed.
+            If verification evidence is insufficient,
+            mark the result as "확인 필요".
 
           claude_args: |
-            --max-turns 8
-            --allowedTools "Read,Grep,Glob,Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr comment:*),mcp__github_inline_comment__create_inline_comment"
+            --max-turns 20
+            --allowedTools "Read,Grep,Glob,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)"
