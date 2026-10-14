@@ -32,7 +32,7 @@
 
 요청 본문 검증 실패는 `400 COMMON.VALIDATION_FAILED`와 `fieldErrors`다. 읽을 수 없는 JSON도 같은 코드다.
 
-테넌트는 요청마다 식별한다. 개발 프로필(`dev`)에서만 `X-Tenant-Code` 헤더를 쓴다. 테넌트가 없거나 사용 중이 아니면 `TENANT.NOT_FOUND` 또는 `TENANT.INACTIVE`다.
+테넌트는 요청마다 식별한다. 개발 프로필(`dev`)에서만 `X-Tenant-Code` 헤더를 쓴다. `local` 프로필은 `dev`를 포함하므로 로컬 `gradlew.bat bootRun`에서도 같은 헤더를 쓴다. 프로필 없이 실행한 jar에서는 이 헤더를 쓰지 않는다. 로컬 파일 위치는 `doc/local-setup.md`다. 테넌트가 없거나 사용 중이 아니면 `TENANT.NOT_FOUND` 또는 `TENANT.INACTIVE`다.
 
 Access 토큰은 `Authorization: Bearer`다. 관리 API는 `@RequirePermission(menu, action)`이다. 권한 코드는 `메뉴코드:기능코드`다. 예: `COMMON_CODE:UPDATE`. 인증이 없으면 `401 AUTH.UNAUTHORIZED`, 토큰 만료는 `401 AUTH.TOKEN_EXPIRED`, 서명·kid·aud·typ 불일치는 `401 AUTH.TOKEN_REJECTED`, 권한이 없으면 `403 AUTH.FORBIDDEN`, 계정이 `ACTIVE`가 아니거나 `use_yn='N'`이면 `401 AUTH.ACCOUNT_DISABLED`다. `mdm.security.permit-all`은 `dev`에서만 켤 수 있고 기본은 끈다.
 

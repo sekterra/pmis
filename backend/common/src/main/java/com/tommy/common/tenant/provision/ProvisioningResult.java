@@ -9,10 +9,11 @@ public final class ProvisioningResult {
 	private final String executionStatus;
 	private final TemporaryPassword temporaryPassword;
 	private final boolean adminAlreadyPresent;
+	private final String adminLoginId;
 
 	public ProvisioningResult(String tenantCode, String schemaName, String tenantStatus,
 			ProvisioningStepCode currentStep, String executionStatus, TemporaryPassword temporaryPassword,
-			boolean adminAlreadyPresent) {
+			boolean adminAlreadyPresent, String adminLoginId) {
 		this.tenantCode = tenantCode;
 		this.schemaName = schemaName;
 		this.tenantStatus = tenantStatus;
@@ -20,6 +21,7 @@ public final class ProvisioningResult {
 		this.executionStatus = executionStatus;
 		this.temporaryPassword = temporaryPassword;
 		this.adminAlreadyPresent = adminAlreadyPresent;
+		this.adminLoginId = adminLoginId;
 	}
 
 	public String tenantCode() {
@@ -48,6 +50,10 @@ public final class ProvisioningResult {
 
 	public boolean adminAlreadyPresent() {
 		return adminAlreadyPresent;
+	}
+
+	public String adminLoginId() {
+		return adminLoginId;
 	}
 
 	@Override

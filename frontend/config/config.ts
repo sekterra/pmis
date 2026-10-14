@@ -4,8 +4,11 @@ import { join } from 'node:path';
 import { defineConfig } from '@umijs/max';
 import defaultSettings from './defaultSettings';
 import proxy from './proxy';
+import tenantRoutes from './routes';
+import platformRoutes from './routes.platform';
 
-import routes from './routes';
+const appMode = process.env.APP_MODE === 'platform' ? 'platform' : 'tenant';
+const routes = appMode === 'platform' ? platformRoutes : tenantRoutes;
 
 const { UMI_ENV = 'dev' } = process.env;
 
@@ -36,6 +39,12 @@ const PUBLIC_PATH: string = '/';
 export default defineConfig({
   alias: {
     '@root': join(__dirname, '..'),
+    '@/core/i18n/extra': join(
+      __dirname,
+      appMode === 'platform'
+        ? '../src/core/i18n/extra.platform.ts'
+        : '../src/core/i18n/extra.ts',
+    ),
   },
   /**
    * @name 开启 hash 模式
@@ -114,7 +123,7 @@ export default defineConfig({
    * @name layout 插件
    * @doc https://umijs.org/docs/max/layout-menu
    */
-  title: 'Ant Design Pro',
+  title: appMode === 'platform' ? 'PMIS Platform Console' : 'PMIS',
   layout: {
     locale: true,
     ...defaultSettings,
@@ -135,7 +144,7 @@ export default defineConfig({
   locale: {
     default: 'ko-KR',
     antd: true,
-    baseNavigator: true,
+    baseNavigator: false,
   },
   /**
    * @name antd 插件
@@ -177,10 +186,8 @@ export default defineConfig({
    */
   headScripts: [
     // 解决首次加载时白屏的问题
-    { src: join(PUBLIC_PATH, 'scripts/loading.js'), async: true },
+    { src: `${PUBLIC_PATH}scripts/loading.js`, async: true },
   ],
-
-  plugins: ['@umijs/request-record'],
 
   tailwindcss: {},
   utoopack: {
@@ -193,7 +200,6 @@ export default defineConfig({
       },
     },
   },
-  requestRecord: {},
   exportStatic: {},
   define: {
     'process.env.CI': process.env.CI,

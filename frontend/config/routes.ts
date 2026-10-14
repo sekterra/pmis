@@ -9,10 +9,26 @@ export default [
         component: './user/login',
       },
       {
+        path: '/user/password',
+        component: './user/password',
+      },
+      {
         path: '/user',
         redirect: '/user/login',
       },
     ],
+  },
+  {
+    path: '/mdm/common-code',
+    name: 'commonCode',
+    icon: 'table',
+    component: './mdm/common-code',
+  },
+  {
+    path: '/mdm/i18n',
+    name: 'i18n',
+    icon: 'global',
+    component: './mdm/i18n',
   },
   {
     path: '/welcome',

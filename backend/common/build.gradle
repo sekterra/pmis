@@ -44,6 +44,13 @@ dependencies {
 	testAnnotationProcessor 'org.projectlombok:lombok'
 }
 
+tasks.named('bootRun') {
+	def requestedProfile = System.getenv('SPRING_PROFILES_ACTIVE')
+	if (requestedProfile == null || requestedProfile.isBlank()) {
+		systemProperty 'spring.profiles.active', 'local'
+	}
+}
+
 tasks.named('test') {
 	useJUnitPlatform {
 		excludeTags 'integration'

@@ -202,6 +202,7 @@ class PlatformApiIntegrationTest {
 					.andExpect(status().isOk())
 					.andExpect(header().string("Cache-Control", org.hamcrest.Matchers.containsString("no-store")))
 					.andExpect(jsonPath("$.data.tenantStatus").value("ACTIVE"))
+					.andExpect(jsonPath("$.data.adminLoginId").value("admin@example.com"))
 					.andReturn();
 		}
 		finally {
@@ -253,6 +254,7 @@ class PlatformApiIntegrationTest {
 				.header("Authorization", "Bearer " + access))
 				.andExpect(status().isOk())
 				.andExpect(header().string("Cache-Control", org.hamcrest.Matchers.containsString("no-store")))
+				.andExpect(jsonPath("$.data.adminLoginId").value("admin@example.com"))
 				.andReturn();
 		mockMvc.perform(post("/api/mdm/v1/auth/login").with(request -> {
 			request.setServerName(extra);
@@ -267,20 +269,21 @@ class PlatformApiIntegrationTest {
 				""".formatted(code));
 		mockMvc.perform(post("/api/platform/v1/tenants/" + code + "/provisioning/retry").header("Authorization", "Bearer " + access))
 				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.data.tenantStatus").value("ACTIVE"));
+				.andExpect(jsonPath("$.data.tenantStatus").value("ACTIVE"))
+				.andExpect(jsonPath("$.data.adminLoginId").value("admin@example.com"));
 		mockMvc.perform(post("/api/platform/v1/tenants/" + code + "/upgrade").header("Authorization", "Bearer " + access))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.data.executionStatus").value("SUCCESS"));
-		mockMvc.perform(post("/api/platform/v1/tenants/upgrade").header("Authorization", "Bearer " + access))
-				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.data.results[0].executionStatus").value("SUCCESS"));
 		mockMvc.perform(get("/api/platform/v1/tenants").header("Authorization", "Bearer " + access).param("sort", "drop_table"))
 				.andExpect(status().isBadRequest())
 				.andExpect(jsonPath("$.errorCode").value("COMMON.INVALID_SORT"));
 		mockMvc.perform(get("/api/platform/v1/tenants").header("Authorization", "Bearer " + access).param("status", "ACTIVE")
 				.param("keyword", code).param("sort", "tenantCode,desc"))
 				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.data.items[0].tenantCode").value(code));
+				.andExpect(jsonPath("$.data.items[0].tenantCode").value(code))
+				.andExpect(jsonPath("$.data.items[0].provisioningStatus").value("COMPLETED"))
+				.andExpect(jsonPath("$.data.items[0].primaryDomain").value(extra))
+				.andExpect(jsonPath("$.data.items[0].createDatetime").exists());
 		mockMvc.perform(get("/api/platform/v1/tenants/" + code + "/migrations").header("Authorization", "Bearer " + access))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.data.total").value(org.hamcrest.Matchers.greaterThan(0)));

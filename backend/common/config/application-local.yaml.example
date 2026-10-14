@@ -1,4 +1,16 @@
-MDM_DB_URL: jdbc:postgresql://HOST:PORT/pmis
-MDM_DB_USERNAME:
-MDM_DB_PASSWORD:
-MDM_FLYWAY_ENABLED:
+# 로컬 개발 전용. 이 파일을 config/application-local.yaml 로 복사한 뒤 값을 채운다.
+# 환경변수 MDM_DB_URL, MDM_DB_USERNAME, MDM_DB_PASSWORD 가 있으면 이 파일보다 우선한다.
+# 작업 디렉터리는 backend/common 이다.
+
+server:
+  port: 8080
+
+mdm:
+  db:
+    url: jdbc:postgresql://<host>:<port>/pmis
+    username: <여기에 입력>
+    password: <여기에 입력>
+
+spring:
+  flyway:
+    enabled: false

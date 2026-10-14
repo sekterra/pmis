@@ -21,6 +21,7 @@ class TestcontainersConfiguration {
 		registry.add("spring.datasource.username", () -> System.getenv("MDM_TEST_DB_USERNAME"));
 		registry.add("spring.datasource.password", () -> System.getenv("MDM_TEST_DB_PASSWORD"));
 		registry.add("spring.flyway.enabled", () -> "false");
+		registry.add("spring.datasource.hikari.maximum-pool-size", () -> "5");
 	}
 
 	private static boolean isPresent(String name) {
