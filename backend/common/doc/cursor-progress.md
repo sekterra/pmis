@@ -876,3 +876,31 @@
   - 통합 테스트는 `POST /tenants/upgrade`를 호출하지 않는다. 일괄 업그레이드 검증은 `it-` 코드 목록만 `upgradeTenants`에 넘긴다
   - 실제 테넌트처럼 넣는 행은 접두 `zz`와 스키마 `t_zz_`다. 정리는 그 테스트가 만든 행만 한다. `it-` / `t_it_` 잔여 정리도 그 패턴만 지운다
   - `findTenant`는 조회한 테넌트 코드를 `TenantState`에 넣는다. 이전 3인자 생성자는 코드를 null로 두었다
+
+## [git baseline] 현재 상태 GitHub 반영 - 2026-10-18
+- 브랜치: `baseline/f4-be8.6` (`origin/main` 기준, 원격 `origin/baseline/f4-be8.6`)
+- 커밋 목록:
+  - `b4aaba3` chore: 산출물 zip 및 Claude outputs 추적 해제
+  - `4df826a` feat(backend): MDM 서버 8.6단계까지 현재 상태 반영
+  - `6139616` feat(frontend): F4단계까지 현재 상태 반영
+- 추적을 끊은 파일:
+  - `Claude outputs/cursor-handoff-prompts.md`
+  - `Claude outputs/erd-model-org-user-20261009.json`
+  - `Claude outputs/erd-model-pmis-core-20261009.json`
+  - `Claude outputs/fe-structure-proposal.md`
+  - `common.zip`
+  - `frontend.zip`
+  - `frontend-backup-F0.zip`
+  - `frontend-backup-F0.1.zip`
+  - 디스크 파일은 그대로 두었다
+- 점검에서 제외한 파일 종류:
+  - `backend/common/config/application-local.yaml`
+  - `frontend/.env.local`과 `.env.example`, `.env.local.example`을 뺀 `.env*`
+  - `node_modules`, `dist`, `build`, `.gradle`, `.idea`, `backend/.idea`, `.umi`
+  - 5MB 이상 파일, `*.zip`, `*.jar`(`gradle/wrapper/gradle-wrapper.jar`는 허용), `*.pem`, `*.key`
+  - 위 종류는 추가 목록에 없었다. 루트에 남은 기타 파일이 없어 `chore: 기타 루트 파일` 커밋은 만들지 않았다
+- 질문/확인 필요: 없음
+- 가정한 사항:
+  - 개발 스냅샷은 `feature/claude-review-test`의 `f93a1f1`에 이미 커밋되어 있었다. `origin/main`에서 브랜치를 만든 뒤 그 커밋과 공통 조상 사이의 파일 차이만 작업 트리에 적용했다. merge, rebase, reset은 하지 않았다
+  - `origin/main`이 그 이후 추가한 파일(`.gitignore`, `AGENTS.md`, `docs`, `.github`)과 개발 커밋이 같은 경로를 고치지 않아 패치가 충돌 없이 적용되었다
+  - `jdbc:postgresql://` 뒤가 `.invalid` 또는 `.example`인 테스트 주소, 마스킹 테스트의 `password=` 더미 문자열, JSX `password={...}` 속성은 실제 접속 정보가 아니라고 보았다
