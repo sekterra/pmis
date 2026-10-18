@@ -11,5 +11,6 @@ export default {
   'app.error.retry': '다시 시도',
   'app.error.reload': '페이지 다시 불러오기',
   'app.error.home': '홈으로',
-  'app.request.offline': '네트워크를 사용할 수 없습니다. 연결을 확인한 뒤 다시 시도하세요.',
+  'app.request.offline':
+    '네트워크를 사용할 수 없습니다. 연결을 확인한 뒤 다시 시도하세요.',
 };

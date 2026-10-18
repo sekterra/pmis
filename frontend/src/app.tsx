@@ -1,76 +1,134 @@
 import type { Settings as LayoutSettings } from '@ant-design/pro-components';
-import { SettingDrawer } from '@ant-design/pro-components';
 import type { RequestConfig, RunTimeLayoutConfig } from '@umijs/max';
-import { history, Link } from '@umijs/max';
+import { history, Link, useModel } from '@umijs/max';
+import { App } from 'antd';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
-import React from 'react';
-
-// Initialize dayjs plugins globally
-dayjs.extend(relativeTime);
-
+import React, { useEffect } from 'react';
 import {
-  AvatarDropdown,
   ErrorBoundary,
+  FeedbackBridge,
   Footer,
-  LangDropdown,
+  LanguageSelect,
   OfflineBanner,
+  RouteGuard,
+  UserMenu,
 } from '@/components';
-import { currentUser as queryCurrentUser } from '@/services/ant-design-pro/api';
+import BrandMark from '@/components/BrandMark';
+import { recoverSession, startSession } from '@/core/auth/actions';
+import { subscribeAuthBroadcast } from '@/core/auth/broadcast';
+import { authMode, homePath } from '@/core/auth/mode';
+import { refreshAccess } from '@/core/auth/refresh';
+import { clearAccessToken } from '@/core/auth/token';
+import { loadPublicI18n } from '@/core/i18n/apply';
+import {
+  createRequestConfig,
+  registerRequestRuntime,
+} from '@/core/request/runtime';
+import * as tenantSession from '@/services/mdm/auth';
+import type { Me } from '@/services/mdm/data';
+import * as platformSession from '@/services/platform/auth';
 import defaultSettings from '../config/defaultSettings';
-import { errorConfig } from './requestErrorConfig';
+
+const sessionApi =
+  authMode.mode === 'platform' ? platformSession : tenantSession;
+
+dayjs.extend(relativeTime);
 
 const loginPath = '/user/login';
 
-/**
- * @see https://umijs.org/docs/api/runtime-config#getinitialstate
- * */
+registerRequestRuntime({
+  refresh: () =>
+    refreshAccess(sessionApi.refresh, {
+      sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+      onFailure: () => {
+        const { pathname, search, hash } = history.location;
+        if (pathname !== loginPath) {
+          history.replace(
+            `${loginPath}?redirect=${encodeURIComponent(pathname + search + hash)}`,
+          );
+        }
+      },
+    }),
+  goLogin: () => {
+    const { pathname, search, hash } = history.location;
+    if (pathname !== loginPath) {
+      history.replace(
+        `${loginPath}?redirect=${encodeURIComponent(pathname + search + hash)}`,
+      );
+    }
+  },
+  goPassword: () => {
+    if (history.location.pathname !== '/user/password') {
+      history.replace('/user/password');
+    }
+  },
+  onAccountDisabled: () => {
+    void sessionApi
+      .logout()
+      .catch(() => undefined)
+      .finally(() => {
+        clearAccessToken();
+        history.replace(loginPath);
+      });
+  },
+});
+
 export async function getInitialState(): Promise<{
   settings?: Partial<LayoutSettings>;
-  currentUser?: API.CurrentUser;
+  currentUser?: Me;
   loading?: boolean;
-  fetchUserInfo?: () => Promise<API.CurrentUser | undefined>;
-  settingDrawerOpen?: boolean;
+  fetchUserInfo?: () => Promise<Me | undefined>;
 }> {
   const fetchUserInfo = async () => {
     try {
-      const msg = await queryCurrentUser({
-        skipErrorHandler: true,
-      });
-      return msg.data;
-    } catch (_error) {
-      const { pathname, search, hash } = history.location;
-      if (!pathname.startsWith('/exception')) {
-        history.replace(
-          `${loginPath}?redirect=${encodeURIComponent(pathname + search + hash)}`,
-        );
-      }
+      return await sessionApi.me();
+    } catch {
+      return undefined;
     }
-    return undefined;
   };
-  // 如果不是登录页面，执行
-  const { location } = history;
-  if (location.pathname !== loginPath && !location.pathname.startsWith('/exception')) {
-    const currentUser = await fetchUserInfo();
-    return {
-      fetchUserInfo,
-      currentUser,
-      settings: defaultSettings as Partial<LayoutSettings>,
-      settingDrawerOpen: false,
-    };
-  }
   return {
     fetchUserInfo,
+    loading: true,
     settings: defaultSettings as Partial<LayoutSettings>,
-    settingDrawerOpen: false,
   };
 }
 
-// ProLayout 支持的api https://procomponents.ant.design/components/layout
-export const layout: RunTimeLayoutConfig = ({
-  initialState,
-  setInitialState,
-}) => {
+function SessionBootstrap() {
+  const { setInitialState } = useModel('@@initialState');
+  useEffect(() => {
+    let cancelled = false;
+    void startSession({
+      pathname: history.location.pathname,
+      search: history.location.search,
+      loadI18n: loadPublicI18n,
+      recover: () =>
+        recoverSession({
+          refresh: sessionApi.refresh,
+          loadMe: sessionApi.me,
+          sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+        }),
+    }).then(({ user, next }) => {
+      if (cancelled) {
+        return;
+      }
+      if (next) {
+        history.replace(next);
+      }
+      setInitialState((current) => ({
+        ...current,
+        currentUser: user ?? undefined,
+        loading: false,
+      }));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [setInitialState]);
+  return null;
+}
+
+export const layout: RunTimeLayoutConfig = ({ initialState }) => {
   return {
     menuItemRender: (item, dom) => {
       if (item.path) {
@@ -82,106 +140,50 @@ export const layout: RunTimeLayoutConfig = ({
       }
       return dom;
     },
-    actionsRender: () => {
-      // `locale: false` opts out of the language switcher. ProLayout's own
-      // `locale` prop is a locale string, so narrow to the boolean toggle here.
-      const localeEnabled =
-        (initialState?.settings as { locale?: boolean })?.locale !== false;
-      return [localeEnabled && <LangDropdown key="lang" />].filter(Boolean);
-    },
+    actionsRender: () => [<LanguageSelect key="lang" />],
     avatarProps: {
-      src: initialState?.currentUser?.avatar,
-      title: 'ProUser',
-      render: (_, avatarChildren) => (
-        <AvatarDropdown>{avatarChildren}</AvatarDropdown>
-      ),
+      title: initialState?.currentUser?.displayName,
+      render: (_, avatarChildren) => <UserMenu>{avatarChildren}</UserMenu>,
     },
-    // waterMarkProps: {
-    //   content: initialState?.currentUser?.name,
-    // },
     footerRender: () => <Footer />,
-    onPageChange: () => {
-      const { location } = history;
-      // 如果没有登录，重定向到 login
-      if (
-        !initialState?.currentUser &&
-        location.pathname !== loginPath &&
-        !location.pathname.startsWith('/exception')
-      ) {
-        history.replace(
-          `${loginPath}?redirect=${encodeURIComponent(location.pathname + location.search + location.hash)}`,
-        );
-      }
-    },
-    bgLayoutImgList: [
-      {
-        src: 'https://mdn.alipayobjects.com/yuyan_qk0oxh/afts/img/D2LWSqNny4sAAAAAAAAAAAAAFl94AQBr',
-        left: 85,
-        bottom: 100,
-        height: '303px',
-      },
-      {
-        src: 'https://mdn.alipayobjects.com/yuyan_qk0oxh/afts/img/C2TWRpJpiC0AAAAAAAAAAAAAFl94AQBr',
-        bottom: -68,
-        right: -45,
-        height: '303px',
-      },
-      {
-        src: 'https://mdn.alipayobjects.com/yuyan_qk0oxh/afts/img/F6vSTbj8KpYAAAAAAAAAAAAAFl94AQBr',
-        bottom: 0,
-        left: 0,
-        width: '331px',
-      },
-    ],
+    menuHeaderRender: () => (
+      <Link to={homePath()}>
+        <BrandMark />
+      </Link>
+    ),
     ErrorBoundary,
-    menuHeaderRender: undefined,
-    // 自定义 403 页面
-    // unAccessible: <div>unAccessible</div>,
-    // 增加一个 loading 的状态
-    childrenRender: (children) => {
-      // if (initialState?.loading) return <PageLoading />;
-      return (
-        <>
-          {children}
-          <SettingDrawer
-            disableUrlParams
-            enableDarkTheme
-            collapse={initialState?.settingDrawerOpen}
-            onCollapseChange={(open) => {
-              setInitialState((s) => ({
-                ...s,
-                settingDrawerOpen: open,
-              }));
-            }}
-            settings={initialState?.settings}
-            onSettingChange={(settings) => {
-              setInitialState((s) => ({
-                ...s,
-                settings,
-              }));
-            }}
-          />
-        </>
-      );
-    },
+    childrenRender: (children) => children,
     ...initialState?.settings,
   };
 };
 
-/**
- * @name request 配置，可以配置错误处理
- * 它基于 axios 提供了一套统一的网络请求和错误处理方案。
- * @doc https://umijs.org/docs/max/request#配置
- */
-export const request: RequestConfig = {
-  ...errorConfig,
-};
+export const request: RequestConfig = createRequestConfig();
+
+export function innerProvider(container: React.ReactNode) {
+  return (
+    <>
+      <SessionBootstrap />
+      <RouteGuard>{container}</RouteGuard>
+    </>
+  );
+}
+
+function AuthBroadcast(): React.ReactElement | null {
+  useEffect(() => {
+    return subscribeAuthBroadcast(() => {
+      history.replace(loginPath);
+    });
+  }, []);
+  return null;
+}
 
 export function rootContainer(container: React.ReactNode) {
   return (
-    <>
+    <App>
+      <FeedbackBridge />
+      <AuthBroadcast />
       <OfflineBanner />
       <ErrorBoundary>{container}</ErrorBoundary>
-    </>
+    </App>
   );
 }

@@ -1,0 +1,31 @@
+.layout {
+  display: flex;
+  gap: 16px;
+  align-items: stretch;
+}
+
+.panel {
+  min-width: 0;
+  padding: 16px;
+  background: #fff;
+  border: 1px solid #f0f0f0;
+  border-radius: 8px;
+}
+
+.groups {
+  flex: 1 1 380px;
+}
+
+.codes {
+  flex: 1.4 1 520px;
+}
+
+.inactive {
+  opacity: 0.45;
+}
+
+@media (max-width: 991px) {
+  .layout {
+    flex-direction: column;
+  }
+}
