@@ -1,0 +1,10 @@
+*.zip
+Claude outputs/
+backend/.idea/
+.idea/
+.vscode/
+.env
+.env.*
+!.env.example
+!.env.local.example
+backend/common/config/application-local.yaml
