@@ -22,6 +22,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import javax.sql.DataSource;
 
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -62,6 +63,17 @@ class TenantProvisioningIntegrationTest {
 	private final List<String> tenantCodes = new ArrayList<>();
 	private final List<String> schemas = new ArrayList<>();
 	private HikariDataSource pool;
+
+	@BeforeAll
+	static void removeLeftoverItTenants() throws Exception {
+		if (!TestcontainersConfiguration.isConfigured()) {
+			return;
+		}
+		try (Connection connection = openConnection()) {
+			IntegrationDatabase.requirePmis(connection);
+			removeItPrefixed(connection);
+		}
+	}
 
 	@AfterEach
 	void cleanup() throws Exception {
@@ -303,15 +315,6 @@ class TenantProvisioningIntegrationTest {
 	@Test
 	void upgradesActiveTenantsAndContinuesAfterFailure() throws Exception {
 		org.junit.jupiter.api.Assumptions.assumeTrue(TestcontainersConfiguration.isConfigured());
-		try (Connection connection = openConnection()) {
-			IntegrationDatabase.requirePmis(connection);
-			try (Statement statement = connection.createStatement();
-					ResultSet resultSet = statement.executeQuery(
-							"SELECT count(*) FROM pmis.tenant WHERE tenant_status_code = 'ACTIVE'")) {
-				assertTrue(resultSet.next());
-				assertEquals(0, resultSet.getInt(1), "ACTIVE 테넌트가 이미 있어 일괄 업그레이드를 실행하지 않습니다.");
-			}
-		}
 		String suffixA = suffix();
 		String suffixB = suffix();
 		String suffixS = suffix();
@@ -342,8 +345,8 @@ class TenantProvisioningIntegrationTest {
 		};
 		TenantUpgradeService service = new TenantUpgradeService(new PgTenantAdvisoryLock(dataSource), journal(dataSource),
 				migrator, new com.tommy.common.tenant.provision.TenantSeedRunner(dataSource), directory());
-		TenantUpgradeService.UpgradeBatchResult result = service.upgradeAll(null);
-		assertTrue(result.skippedTenantCodes().contains(codeS));
+		TenantUpgradeService.UpgradeBatchResult result = service.upgradeTenants(List.of(codeA, codeB), null);
+		assertFalse(result.results().stream().anyMatch(item -> codeS.equals(item.tenantCode())));
 		assertEquals("SUCCESS", statusOf(result, codeA));
 		assertEquals("FAILED", statusOf(result, codeB));
 		assertEquals(31, tableCount(schemaA));
@@ -370,7 +373,7 @@ class TenantProvisioningIntegrationTest {
 						""");
 			}
 		}
-		TenantUpgradeService.UpgradeBatchResult again = service.upgradeAll(null);
+		TenantUpgradeService.UpgradeBatchResult again = service.upgradeTenants(List.of(codeA, codeB), null);
 		assertEquals("SUCCESS", statusOf(again, codeA));
 		assertEquals("FAILED", statusOf(again, codeB));
 		assertEquals("CHANGED", scalarInSchema(schemaA, """
@@ -411,6 +414,7 @@ class TenantProvisioningIntegrationTest {
 		assertEquals(ProvisioningStepCode.COMPLETED, created.currentStep());
 		assertEquals("SUCCESS", created.executionStatus());
 		assertFalse(created.adminAlreadyPresent());
+		assertEquals("admin.user@example.com", created.adminLoginId());
 		assertFalse(created.toString().contains(plain), "프로비저닝 결과 문자열에 평문이 있습니다.");
 		assertFalse(logs.list.stream().anyMatch(event -> String.valueOf(event.getFormattedMessage()).contains(plain)),
 				"로그에 임시 비밀번호가 있습니다.");
@@ -455,6 +459,7 @@ class TenantProvisioningIntegrationTest {
 		ProvisioningResult existed = fullService(dataSource, hasher).provision(adminCommand(code));
 		assertTrue(existed.adminAlreadyPresent());
 		assertTrue(existed.temporaryPassword() == null);
+		assertEquals("admin.user@example.com", existed.adminLoginId());
 		assertEquals("ACTIVE", existed.tenantStatus());
 		assertEquals("1", scalarInSchema(schema, "SELECT count(*)::text FROM user_account"));
 		assertEquals("1", scalarInSchema(schema, """
@@ -605,7 +610,7 @@ class TenantProvisioningIntegrationTest {
 			dataSource.setJdbcUrl(System.getenv("MDM_TEST_DB_URL"));
 			dataSource.setUsername(System.getenv("MDM_TEST_DB_USERNAME"));
 			dataSource.setPassword(System.getenv("MDM_TEST_DB_PASSWORD"));
-			dataSource.setMaximumPoolSize(10);
+			dataSource.setMaximumPoolSize(5);
 			dataSource.setPoolName("tenant-provision-it");
 			pool = dataSource;
 		}
@@ -638,7 +643,7 @@ class TenantProvisioningIntegrationTest {
 			try (ResultSet resultSet = statement.executeQuery()) {
 				assertTrue(resultSet.next());
 				return new ProvisioningResult(tenantCode, resultSet.getString(1), resultSet.getString(2),
-						ProvisioningStepCode.valueOf(resultSet.getString(3)), resultSet.getString(4), null, false);
+						ProvisioningStepCode.valueOf(resultSet.getString(3)), resultSet.getString(4), null, false, null);
 			}
 		}
 	}
@@ -780,6 +785,42 @@ class TenantProvisioningIntegrationTest {
 		}
 	}
 
+	@Test
+	void leavesANonTestActiveTenantUntouched() throws Exception {
+		org.junit.jupiter.api.Assumptions.assumeTrue(TestcontainersConfiguration.isConfigured());
+		String keepSuffix = suffix();
+		String keepCode = "zz" + keepSuffix;
+		String keepSchema = "t_zz_" + keepSuffix;
+		String suffix = suffix();
+		String code = "it-" + suffix;
+		String schema = "t_it_" + suffix;
+		track(code, schema);
+		try (Connection connection = openConnection()) {
+			IntegrationDatabase.requirePmis(connection);
+			createNamedSchema(connection, keepSchema, "^t_zz_[a-z0-9]{16}$");
+			createSchema(connection, schema);
+			insertTenant(connection, keepCode, keepSchema, "ACTIVE");
+			insertTenant(connection, code, schema, "ACTIVE");
+		}
+		String before = tenantSnapshot(keepCode);
+		DataSource dataSource = pool();
+		TenantUpgradeService service = new TenantUpgradeService(new PgTenantAdvisoryLock(dataSource), journal(dataSource),
+				new FlywayTenantSchemaMigrator(dataSource), new com.tommy.common.tenant.provision.TenantSeedRunner(dataSource), directory());
+		try {
+			service.upgradeTenants(List.of(code), null);
+			assertEquals(before, tenantSnapshot(keepCode));
+			assertEquals(0, migrationCount(keepCode, "UPGRADE"));
+			assertEquals("ACTIVE", tenantStatus(keepCode));
+		}
+		finally {
+			try (Connection connection = openConnection()) {
+				IntegrationDatabase.requirePmis(connection);
+				deleteTenant(connection, keepCode);
+				dropNamedSchema(connection, keepSchema, "^t_zz_[a-z0-9]{16}$");
+			}
+		}
+	}
+
 	private static void createSchema(Connection connection, String schema) throws Exception {
 		if (!schema.matches(SCHEMA_PATTERN)) {
 			throw new IllegalArgumentException("테스트 스키마명이 아닙니다.");
@@ -818,6 +859,73 @@ class TenantProvisioningIntegrationTest {
 				"DELETE FROM pmis." + table + " WHERE tenant_pk = ?")) {
 			statement.setLong(1, tenantPk);
 			statement.executeUpdate();
+		}
+	}
+
+	private static void createNamedSchema(Connection connection, String schema, String pattern) throws Exception {
+		if (!schema.matches(pattern)) {
+			throw new IllegalArgumentException("테스트 스키마명이 아닙니다.");
+		}
+		try (Statement statement = connection.createStatement()) {
+			statement.execute("CREATE SCHEMA " + schema);
+		}
+	}
+
+	private static void dropNamedSchema(Connection connection, String schema, String pattern) throws Exception {
+		if (!schema.matches(pattern)) {
+			throw new IllegalArgumentException("테스트 스키마명이 아닙니다.");
+		}
+		try (Statement statement = connection.createStatement()) {
+			statement.execute("DROP SCHEMA IF EXISTS " + schema + " CASCADE");
+		}
+	}
+
+	private static void removeItPrefixed(Connection connection) throws Exception {
+		List<String> codes = new ArrayList<>();
+		List<String> schemas = new ArrayList<>();
+		try (PreparedStatement statement = connection.prepareStatement("""
+				SELECT tenant_code, schema_name FROM pmis.tenant
+				WHERE tenant_code ~ '^it-[a-z0-9]{16}$' AND schema_name ~ '^t_it_[a-z0-9]{16}$'
+				""")) {
+			try (ResultSet resultSet = statement.executeQuery()) {
+				while (resultSet.next()) {
+					codes.add(resultSet.getString(1));
+					schemas.add(resultSet.getString(2));
+				}
+			}
+		}
+		for (String tenantCode : codes) {
+			deleteTenant(connection, tenantCode);
+		}
+		for (String schema : schemas) {
+			dropSchema(connection, schema);
+		}
+		try (Statement statement = connection.createStatement();
+				ResultSet resultSet = statement.executeQuery("""
+						SELECT nspname FROM pg_namespace WHERE nspname ~ '^t_it_[a-z0-9]{16}$'
+						""")) {
+			List<String> leftover = new ArrayList<>();
+			while (resultSet.next()) {
+				leftover.add(resultSet.getString(1));
+			}
+			for (String schema : leftover) {
+				dropSchema(connection, schema);
+			}
+		}
+	}
+
+	private String tenantSnapshot(String tenantCode) throws Exception {
+		try (Connection connection = openConnection();
+				PreparedStatement statement = connection.prepareStatement("""
+						SELECT tenant_status_code, schema_name, COALESCE(schema_version, ''), tenant_name
+						FROM pmis.tenant WHERE tenant_code = ?
+						""")) {
+			statement.setString(1, tenantCode);
+			try (ResultSet resultSet = statement.executeQuery()) {
+				assertTrue(resultSet.next());
+				return resultSet.getString(1) + "|" + resultSet.getString(2) + "|" + resultSet.getString(3) + "|"
+						+ resultSet.getString(4);
+			}
 		}
 	}
 

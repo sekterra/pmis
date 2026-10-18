@@ -52,7 +52,8 @@ class CodeApiForbiddenIntegrationTest {
 	private JwtTokenService jwtTokenService;
 
 	@DynamicPropertySource
-	static void jwtKey(DynamicPropertyRegistry registry) {
+	static void datasource(DynamicPropertyRegistry registry) {
+		TestcontainersConfiguration.registerDatasource(registry);
 		TestJwtKey.register(registry);
 	}
 

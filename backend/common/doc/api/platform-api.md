@@ -72,6 +72,12 @@ Refresh 쿠키 이름은 `mdm_platform_refresh`, Path는 `/api/platform/v1/auth`
 
 스키마명은 요청으로 받지 않는다. 도메인은 소문자 호스트명이다. 첫 도메인은 `primary_yn='Y'`, `verified_yn='Y'`다. 도메인 소유 검증은 하지 않는다. 사용 중인 `domain_name` 중복은 `409 TENANT.DUPLICATE`다. 논리 삭제한 이름은 `use_yn='Y'` 부분 유니크라 다시 등록된다. 정렬 허용 필드는 `tenantCode`, `tenantName`, `tenantStatusCode`, `createDatetime`이고 마이그레이션은 `startedDatetime`, `executionStatusCode`다. 페이지는 1부터다.
 
+목록 항목은 기존 필드에 `provisioningStatus`(최신 `tenant_provisioning.current_step_code`, 없으면 null), `primaryDomain`(활성이고 primary인 도메인, 없으면 null), `createDatetime`(UTC ISO-8601)을 더한다. `createDatetime` 정렬은 `tenant.create_datetime`이다.
+
+생성, 프로비저닝 재시도, 비밀번호 재발급 응답은 `adminLoginId`를 포함한다. 값은 `user_account.login_id`다. 생성 시 로그인 아이디는 관리자 이메일을 앞뒤 공백 제거 후 소문자로 저장한 값이고, 응답은 그 컬럼을 다시 읽는다. 계정이 이미 있어 임시 비밀번호가 null이어도 `adminLoginId`는 있다. 생성과 재발급은 `Cache-Control: no-store`다.
+
+`POST /tenants/upgrade`는 ACTIVE 전체를 목록으로 만들어 업그레이드한다. 그 외 상태는 `skippedTenantCodes`다.
+
 불가능한 상태 변경은 `409 TENANT.INVALID_STATUS_TRANSITION`이다. `TERMINATED`로 바꾸는 API는 없다. 변경 작업의 `update_user_pk`와 `tenant_status_history.change_user_pk`는 운영자 JWT `sub`다.
 
 응답 본문, 로그, 마이그레이션 `error_message`에 임시 비밀번호, Access, Refresh, 쿠키를 남기지 않는다. 생성과 재발급 응답에만 임시 비밀번호가 한 번 들어간다.

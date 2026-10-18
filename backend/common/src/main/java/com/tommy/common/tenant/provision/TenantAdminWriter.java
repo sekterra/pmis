@@ -32,12 +32,18 @@ public class TenantAdminWriter {
 		TenantSchemaWork.run(dataSource, work.schemaName(), connection -> create(connection, work));
 	}
 
-	public TemporaryPassword reissue(long tenantPk, String schemaName, Long executorPk) {
-		TemporaryPassword[] created = new TemporaryPassword[1];
+	public IssuedAdminPassword reissue(long tenantPk, String schemaName, Long executorPk) {
+		IssuedAdminPassword[] created = new IssuedAdminPassword[1];
 		long[] userPk = new long[1];
 		TenantSchemaWork.run(dataSource, schemaName, connection -> created[0] = replacePassword(connection, tenantPk, executorPk, userPk));
 		accountStatusCache.evict(schemaName, userPk[0]);
 		return created[0];
+	}
+
+	public String storedAdminLoginId(String schemaName) {
+		String[] loginId = new String[1];
+		TenantSchemaWork.run(dataSource, schemaName, connection -> loginId[0] = selectStoredAdminLoginId(connection));
+		return loginId[0];
 	}
 
 	static CreationPlan plan(Long existingUserPk, TemporaryPassword generated) {
@@ -50,9 +56,11 @@ public class TenantAdminWriter {
 	private void create(Connection connection, ProvisioningWork work) throws SQLException {
 		TenantProfile profile = loadProfile(connection, work.tenantPk());
 		String loginId = loginId(profile.adminEmail());
-		CreationPlan plan = plan(findUserPk(connection, loginId), null);
+		Long existingUserPk = findUserPk(connection, loginId);
+		CreationPlan plan = plan(existingUserPk, null);
 		if (plan.alreadyPresent()) {
 			work.setAdminAlreadyPresent(true);
+			work.setAdminLoginId(readLoginId(connection, existingUserPk));
 			return;
 		}
 		int validDays = SecurityPolicyValues.positiveDays(readValidDays(connection));
@@ -66,16 +74,18 @@ public class TenantAdminWriter {
 		insertPasswordHistory(connection, userPk, hash, "INITIAL", null);
 		insertUserRole(connection, userPk, rolePk);
 		work.setTemporaryPassword(password);
+		work.setAdminLoginId(readLoginId(connection, userPk));
 	}
 
-	private TemporaryPassword replacePassword(Connection connection, long tenantPk, Long executorPk, long[] userPkOut)
+	private IssuedAdminPassword replacePassword(Connection connection, long tenantPk, Long executorPk, long[] userPkOut)
 			throws SQLException {
 		int validDays = SecurityPolicyValues.positiveDays(readValidDays(connection));
 		String loginId = loginId(loadAdminEmail(connection, tenantPk));
-		Long userPk = findAdminUserPk(connection, loginId);
-		if (userPk == null) {
+		AdminAccount account = findAdminAccount(connection, loginId);
+		if (account == null) {
 			throw new ApiException(404, "TENANT.NOT_FOUND", "최초 관리자 계정이 없습니다.", 2);
 		}
+		long userPk = account.userPk();
 		userPkOut[0] = userPk;
 		TemporaryPassword password = TemporaryPassword.generate();
 		String hash = passwordHasher.hash(password.reveal());
@@ -107,7 +117,7 @@ public class TenantAdminWriter {
 		}
 		insertPasswordHistory(connection, userPk, hash, "RESET", executorPk);
 		revokeRefreshTokens(connection, userPk, "ADMIN");
-		return password;
+		return new IssuedAdminPassword(password, readLoginId(connection, userPk));
 	}
 
 	private static TenantProfile loadProfile(Connection connection, long tenantPk) throws SQLException {
@@ -201,7 +211,7 @@ public class TenantAdminWriter {
 		}
 	}
 
-	private static Long findAdminUserPk(Connection connection, String loginId) throws SQLException {
+	private static AdminAccount findAdminAccount(Connection connection, String loginId) throws SQLException {
 		try (PreparedStatement statement = connection.prepareStatement("""
 				SELECT u.user_pk
 				FROM user_account u
@@ -214,7 +224,38 @@ public class TenantAdminWriter {
 				if (!resultSet.next()) {
 					return null;
 				}
-				return resultSet.getLong(1);
+				return new AdminAccount(resultSet.getLong(1));
+			}
+		}
+	}
+
+	private static String readLoginId(Connection connection, long userPk) throws SQLException {
+		try (PreparedStatement statement = connection.prepareStatement(
+				"SELECT login_id FROM user_account WHERE user_pk = ?")) {
+			statement.setLong(1, userPk);
+			try (ResultSet resultSet = statement.executeQuery()) {
+				if (!resultSet.next()) {
+					throw new ApiException(404, "TENANT.NOT_FOUND", "최초 관리자 계정이 없습니다.", 2);
+				}
+				return resultSet.getString(1);
+			}
+		}
+	}
+
+	private static String selectStoredAdminLoginId(Connection connection) throws SQLException {
+		try (PreparedStatement statement = connection.prepareStatement("""
+				SELECT u.login_id
+				FROM user_account u
+				JOIN user_role ur ON ur.user_pk = u.user_pk AND ur.use_yn = 'Y'
+				JOIN role r ON r.role_pk = ur.role_pk AND r.role_code = 'TENANT_ADMIN' AND r.use_yn = 'Y'
+				ORDER BY u.user_pk
+				LIMIT 1
+				""")) {
+			try (ResultSet resultSet = statement.executeQuery()) {
+				if (!resultSet.next()) {
+					return null;
+				}
+				return resultSet.getString(1);
 			}
 		}
 	}
@@ -341,6 +382,12 @@ public class TenantAdminWriter {
 	}
 
 	record CreationPlan(boolean alreadyPresent, TemporaryPassword temporaryPassword) {
+	}
+
+	public record IssuedAdminPassword(TemporaryPassword temporaryPassword, String adminLoginId) {
+	}
+
+	private record AdminAccount(long userPk) {
 	}
 
 	private record TenantProfile(String tenantCode, String tenantName, String defaultLanguageCode, String timezoneId,
