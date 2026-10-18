@@ -61,11 +61,11 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           # 아래 4개 값은 기존 claude-pr-review.yml 에 있던 값을 그대로 옮긴다.
-          anthropic_organization_id: REPLACE_WITH_ORG_ID
-          anthropic_service_account_id: REPLACE_WITH_SERVICE_ACCOUNT_ID
-          anthropic_workspace_id: REPLACE_WITH_WORKSPACE_ID
+          anthropic_organization_id: 7ed23c1e-7495-4546-8f50-f570e73e94e9
+          anthropic_service_account_id: svac_01QW3ac7i8KqC7Y6KL5RsTAK
+          #anthropic_workspace_id: REPLACE_WITH_WORKSPACE_ID
           # PR 실행(sub: repo:sekterra/pmis:pull_request)을 허용하는 rule 의 ID.
-          anthropic_federation_rule_id: REPLACE_WITH_PR_RULE_ID
+          anthropic_federation_rule_id: fdrl_01HJmZxgJaiJEVNTDmKzYKEK
           prompt: |
             너는 PMIS 프로젝트의 PR 리뷰 에이전트다. 설계 담당 Claude의 검토 역할을 맡는다.
 
