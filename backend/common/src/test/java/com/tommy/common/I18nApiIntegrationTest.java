@@ -38,6 +38,8 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
@@ -63,6 +65,12 @@ import com.tommy.common.tenant.provision.TenantProvisioningService;
 class I18nApiIntegrationTest {
 
 	private static final String SCHEMA_PATTERN = "^t_it_[a-z0-9]{16}$";
+
+	@DynamicPropertySource
+	static void datasource(DynamicPropertyRegistry registry) {
+		TestcontainersConfiguration.registerDatasource(registry);
+		TestJwtKey.register(registry);
+	}
 
 	@Autowired
 	private MockMvc mockMvc;

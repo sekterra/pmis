@@ -39,3 +39,4 @@ out/
 ### Local secrets ###
 .env
 config/application-local.yaml
+config/*.local.*

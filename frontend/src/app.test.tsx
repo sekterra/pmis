@@ -1,146 +1,77 @@
+import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-// Mock all heavy dependencies before importing app
 const mockReplace = vi.fn();
-const mockHistory = {
-  location: {
-    pathname: '/welcome',
-    search: '',
-    hash: '',
-  },
-  replace: mockReplace,
-};
-
-const mockQueryCurrentUser = vi.fn();
+const mockRefresh = vi.fn();
+const mockMe = vi.fn();
 
 vi.mock('@umijs/max', () => ({
-  history: mockHistory,
-  Link: ({ children }: any) => children,
+  history: {
+    location: { pathname: '/welcome', search: '', hash: '' },
+    replace: mockReplace,
+  },
+  Link: ({ children }: { children?: ReactNode }) => children,
+  request: vi.fn(),
+  useLocation: () => ({ pathname: '/welcome', search: '' }),
+  useModel: () => ({ initialState: {}, loading: false }),
+  useEffect: () => undefined,
 }));
 
-vi.mock('@/services/ant-design-pro/api', () => ({
-  currentUser: mockQueryCurrentUser,
+vi.mock('@/core/i18n/apply', () => ({
+  loadPublicI18n: vi.fn(async () => undefined),
+}));
+
+vi.mock('@/services/mdm/auth', () => ({
+  refresh: (...args: unknown[]) => mockRefresh(...args),
+  me: (...args: unknown[]) => mockMe(...args),
+  logout: vi.fn(),
 }));
 
 vi.mock('@/components', () => ({
-  AvatarDropdown: () => null,
-  DocLink: () => null,
-  ErrorBoundary: ({ children }: any) => children,
+  BrandMark: () => null,
+  ErrorBoundary: ({ children }: { children?: ReactNode }) => children,
+  FeedbackBridge: () => null,
   Footer: () => null,
-  LangDropdown: () => null,
+  LanguageSelect: () => null,
   OfflineBanner: () => null,
-  VersionDropdown: () => null,
+  RouteGuard: ({ children }: { children?: ReactNode }) => children,
+  UserMenu: () => null,
 }));
 
-vi.mock('@ant-design/pro-components', () => ({
-  SettingDrawer: () => null,
-}));
-
-vi.mock('@ant-design/icons', () => ({
-  LinkOutlined: () => null,
-}));
-
-vi.mock('./requestErrorConfig', () => ({
-  errorConfig: {},
+vi.mock('antd', () => ({
+  App: ({ children }: { children?: ReactNode }) => children,
 }));
 
 vi.mock('../config/defaultSettings', () => ({
-  default: { navTheme: 'light' },
+  default: { title: 'PMIS' },
 }));
 
-describe('app getInitialState', () => {
+describe('app startup', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockHistory.location = {
-      pathname: '/welcome',
-      search: '',
-      hash: '',
-    };
+    mockRefresh.mockResolvedValue({
+      accessToken: 'access',
+      tokenType: 'Bearer',
+      expiresIn: 900,
+      passwordChangeRequired: false,
+    });
+    mockMe.mockResolvedValue({
+      userPk: 1,
+      loginId: 'admin@example.com',
+      displayName: '관리자',
+      supportLanguageCode: 'ko-KR',
+      timezoneId: 'Asia/Seoul',
+      roleCodes: ['TENANT_ADMIN'],
+      passwordChangeRequired: false,
+    });
   });
 
-  it('should fetch currentUser when not on login page', async () => {
+  it('returns before session recovery so the first screen can paint', async () => {
     const { getInitialState } = await import('./app');
-    mockQueryCurrentUser.mockResolvedValue({
-      data: {
-        name: 'Test User',
-        access: 'admin',
-      },
-    });
-
     const state = await getInitialState();
-
-    expect(mockQueryCurrentUser).toHaveBeenCalled();
-    expect(state.currentUser).toEqual({
-      name: 'Test User',
-      access: 'admin',
-    });
-    expect(state.settingDrawerOpen).toBe(false);
-    expect(state.fetchUserInfo).toBeDefined();
-  });
-
-  it('should redirect to login when currentUser fetch fails (401)', async () => {
-    const { getInitialState } = await import('./app');
-    mockQueryCurrentUser.mockRejectedValue(new Error('401 Unauthorized'));
-
-    const state = await getInitialState();
-
-    expect(mockReplace).toHaveBeenCalledWith(
-      expect.stringContaining('/user/login?redirect='),
-    );
+    expect(state.loading).toBe(true);
     expect(state.currentUser).toBeUndefined();
-  });
-
-  it('should not fetch currentUser on login page', async () => {
-    const { getInitialState } = await import('./app');
-    mockHistory.location = {
-      pathname: '/user/login',
-      search: '',
-      hash: '',
-    };
-
-    const state = await getInitialState();
-
-    expect(mockQueryCurrentUser).not.toHaveBeenCalled();
-    expect(state.currentUser).toBeUndefined();
-    expect(state.fetchUserInfo).toBeDefined();
-  });
-
-  it('should encode redirect path correctly on 401', async () => {
-    const { getInitialState } = await import('./app');
-    mockHistory.location = {
-      pathname: '/admin/users',
-      search: '?page=2',
-      hash: '#section',
-    };
-    mockQueryCurrentUser.mockRejectedValue(new Error('401'));
-
-    await getInitialState();
-
-    expect(mockReplace).toHaveBeenCalledWith(
-      `/user/login?redirect=${encodeURIComponent('/admin/users?page=2#section')}`,
-    );
-  });
-
-  it('should include default settings in initial state', async () => {
-    const { getInitialState } = await import('./app');
-    mockQueryCurrentUser.mockResolvedValue({
-      data: { name: 'User' },
-    });
-
-    const state = await getInitialState();
-
-    expect(state.settings).toEqual({ navTheme: 'light' });
-  });
-
-  it('fetchUserInfo should return user data on success', async () => {
-    const { getInitialState } = await import('./app');
-    mockQueryCurrentUser.mockResolvedValue({
-      data: { name: 'Fetched User', access: 'user' },
-    });
-
-    const state = await getInitialState();
-
-    const user = await state.fetchUserInfo?.();
-    expect(user).toEqual({ name: 'Fetched User', access: 'user' });
+    expect(mockRefresh).not.toHaveBeenCalled();
+    expect(mockReplace).not.toHaveBeenCalled();
   });
 });

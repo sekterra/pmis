@@ -22,19 +22,17 @@
 값은 적지 않는다. 이름만 이 프로세스에 설정한다.
 
 1. 데이터베이스 이름이 `pmis`인지 조회만 한다. `SELECT current_database();` 결과가 `pmis`여야 한다.
-2. 이 프로세스에만 다음 환경변수를 넣는다.
-   - `MDM_DB_URL`
-   - `MDM_DB_USERNAME`
-   - `MDM_DB_PASSWORD`
+2. 접속은 `config/application-local.yaml`의 `mdm.db.url`, `mdm.db.username`, `mdm.db.password` 또는 같은 값의 환경변수 `MDM_DB_URL`, `MDM_DB_USERNAME`, `MDM_DB_PASSWORD`로 준다. 환경변수가 있으면 파일보다 우선한다. 값은 적지 않는다.
+3. 이 프로세스에만 다음 환경변수를 넣는다.
    - `MDM_BOOTSTRAP_ADMIN_LOGIN` (필수)
    - `MDM_BOOTSTRAP_ADMIN_NAME` (선택. 없으면 로그인 아이디)
    - `MDM_BOOTSTRAP_ADMIN_EMAIL` (선택. 없으면 로그인 아이디)
-3. 웹 서버 없이 한 번 실행한다.
+4. `backend/common`에서 웹 서버 없이 한 번 실행한다. `bootRun`은 프로필을 지정하지 않으면 `local`이다.
 
 ```text
---bootstrap-platform-admin
+gradlew.bat bootRun --args="--bootstrap-platform-admin"
 ```
 
-4. 표준 출력 한 줄을 그 자리에서만 확인한다. 표준 출력을 로그 파일로 돌리지 않는다.
-5. 그 비밀번호로 플랫폼에 로그인한 뒤 바로 비밀번호를 바꾼다.
-6. `platform_admin` 행이 이미 있으면 계정은 만들지 않고 0이 아닌 코드로 끝난다. 다시 실행해도 기존 행은 바꾸지 않는다.
+5. 표준 출력 한 줄을 그 자리에서만 확인한다. 표준 출력을 로그 파일로 돌리지 않는다.
+6. 그 비밀번호로 플랫폼에 로그인한 뒤 바로 비밀번호를 바꾼다.
+7. `platform_admin` 행이 이미 있으면 계정은 만들지 않고 0이 아닌 코드로 끝난다. 다시 실행해도 기존 행은 바꾸지 않는다.

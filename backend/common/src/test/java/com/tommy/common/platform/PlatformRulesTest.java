@@ -19,8 +19,8 @@ class PlatformRulesTest {
 
 	@Test
 	void checksPlatformPasswordAndMasksTemporaryPassword() {
-		assertFalse(PasswordPolicy.violations("Short1!", "ops@example.com", 12, 3).isEmpty());
-		assertTrue(PasswordPolicy.violations("N3w-Policy-Pass1", "ops@example.com", 12, 3).isEmpty());
+		assertFalse(PasswordPolicy.violations("Abcdef1!xyz", "ops@example.com", 12, 3).isEmpty());
+		assertTrue(PasswordPolicy.violations("Abcdef1!xyzz", "ops@example.com", 12, 3).isEmpty());
 		TemporaryPassword password = TemporaryPassword.generate(20);
 		assertEquals(20, password.reveal().length());
 		assertTrue(PasswordPolicy.violations(password.reveal(), "ops@example.com", 12, 4).isEmpty());

@@ -820,3 +820,87 @@
 - 가정한 사항:
   - `@ConditionalOnWebApplication` 기본값(서블릿 또는 리액티브)으로 충분하다. 이 애플리케이션의 웹 기동은 서블릿이다
   - 부트스트랩 SQL을 스키마 파라미터로 바꾸지 않는다. 공유 `pmis.platform_admin` 삽입 테스트는 하지 않는다
+
+## [8.5단계] 로컬 접속 파일을 local 프로필에서만 읽기 - 2026-10-11
+- 변경/추가 파일:
+  - 수정: `src/main/resources/application.yaml` (`local`은 `dev`를 포함하고, `spring.datasource.*`는 `MDM_DB_*`가 `mdm.db.*`보다 우선). jar 기본 프로필은 두지 않는다
+  - 수정: `src/main/resources/application-local.yaml` (`local`일 때만 `optional:file:./config/application-local.yaml`. Flyway 기본은 꺼짐)
+  - 추가: `DbConnectionRequirements`, `DatasourceFailureAnalyzer`, `META-INF/spring.factories`
+  - 수정: `build.gradle` (`bootRun`은 `SPRING_PROFILES_ACTIVE`가 비어 있을 때만 `local`)
+  - 수정: `.gitignore` (`config/application-local.yaml`, `config/*.local.*`)
+  - 수정: `config/application-local.yaml.example` (자리표시자만)
+  - 추가: `doc/local-setup.md`
+  - 수정: `doc/platform-admin-bootstrap.md`, `doc/api/mdm-api.md`
+  - 테스트: `LocalConfigTest`. 통합 테스트 5곳은 `MDM_TEST_DB_*`로 데이터소스를 등록한다
+  - 만들지 않음: 새 라이브러리, 시크릿 매니저, 값이 든 `config/application-local.yaml`. 통합 테스트 DB 설정은 파일로 옮기지 않았다
+- 검증 결과:
+  - `gradlew.bat test --offline`: 단위 53 통과 (기존 48, `LocalConfigTest` 5), 실패 0
+  - `gradlew.bat integrationTest --offline --no-daemon`: 29 통과, 실패 0, skip 0. 값은 기록하지 않는다
+  - 첫 통합 실행은 DB 연결 한도로 프로비저닝 테스트가 끊겼고, 이어서 `ACTIVE` 테넌트 2건이 남아 일괄 업그레이드 테스트가 거절됐다. 코드가 `it-` 16자이고 스키마가 `t_it_` 16자인 행과 스키마만 지운 뒤 다시 실행했다. 그 외 행은 없었다
+  - 통과 후 `pmis.tenant` 0행, `it_`/`t_it_` 스키마 0개
+  - `config/application-local.yaml`은 없다. 실제 DB로 `bootRun`은 하지 않았다. 비어 있는 설정으로 사용자가 기동한다
+  - `git check-ignore`가 `config/application-local.yaml`을 제외한다. `config/application-local.yaml.example`은 제외되지 않는다
+  - Flyway는 켜지 않았다. 부트스트랩은 실행하지 않았다
+- ERD 반영 내역: 없음
+- 질문/확인 필요:
+  - `doc/api/platform-api.md`는 비밀번호 길이 기본값을 12로 적고, `application.yaml`과 `MdmSecurityProperties`는 10이다. 이 단계에서는 고치지 않았다
+- 가정한 사항:
+  - 로컬 파일 키는 `mdm.db.url`, `mdm.db.username`, `mdm.db.password`다. 환경변수 이름은 `MDM_DB_URL`, `MDM_DB_USERNAME`, `MDM_DB_PASSWORD`를 유지하고 `spring.datasource.*`에 묶는다
+  - 파일 경로는 작업 디렉터리의 `config/application-local.yaml`이다. `bootRun`의 작업 디렉터리는 `backend/common`다. IDE도 그 디렉터리여야 파일을 찾는다. 저장소 루트에서 실행하면 파일을 못 찾고 환경변수만 쓴다
+  - `bootRun`은 환경변수 `SPRING_PROFILES_ACTIVE`가 비어 있을 때만 시스템 프로퍼티로 `local`을 넣는다. `--args`의 프로필이 그 프로퍼티보다 우선한다
+  - 비밀번호가 공백이면 접속 설정이 없는 것으로 본다. 오류 문구에는 값을 넣지 않는다
+  - Hikari 설정 로그는 WARN이다. 분석기가 잡지 못한 예외의 원인 체인에는 URL이 남을 수 있다
+  - Spring Boot 4.1은 `ApplicationContextInitializer`와 `FailureAnalyzer`를 `META-INF/spring.factories`로 읽는다
+
+## [8.6단계] 플랫폼 API 보완, 운영자 비밀번호 12, 통합 테스트 격리 - 2026-10-11
+- 변경/추가 파일:
+  - 수정: `TenantAdminWriter`, `TenantAdminPasswordService`, `ProvisioningWork`, `ProvisioningResult`, `ReissuedPassword`, `ProvisioningJournal`
+  - 수정: `PlatformTenantService`(목록 열, `adminLoginId`), `TenantUpgradeService`(`upgradeTenants`)
+  - 수정: `application.yaml`, `MdmSecurityProperties` 플랫폼 비밀번호 최소 길이 12
+  - 수정: `doc/api/platform-api.md`
+  - 테스트: `PlatformRulesTest`, `PlatformApiIntegrationTest`, `AuthApiIntegrationTest`, `TenantProvisioningIntegrationTest`, `ProvisioningBehaviorTest`, `AdminProvisioningRulesTest`, `TestcontainersConfiguration`
+  - 테넌트 공통코드 `SECURITY_POLICY`의 길이 10은 바꾸지 않았다. 부트스트랩은 실행하지 않았다
+- 관리자 로그인 아이디:
+  - 생성 시 `TenantAdminWriter`가 관리자 이메일의 앞뒤 공백을 빼고 소문자로 만든 값을 `user_account.login_id`에 저장한다
+  - 응답 `adminLoginId`는 그 행의 `login_id` 컬럼을 `user_pk`로 다시 읽는다. 계정이 이미 있으면 임시 비밀번호는 null이고, 같은 행의 `login_id`를 넣는다
+  - 관리자 단계가 실행되지 않으면 활성 `TENANT_ADMIN` 중 가장 작은 `user_pk`의 `login_id`를 읽는다
+- 검증 결과:
+  - `gradlew.bat test integrationTest --offline --no-daemon`: 단위 53 통과, 통합 30 통과(기존 29와 비테스트 테넌트 격리 1), 실패 0, skip 0
+  - 시작과 종료 모두 `pmis.tenant` 0행, 행 지문 SHA-256 `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`(빈 목록). 다른 접두 행은 없었다
+  - 연결 한도: 스프링 테스트 컨텍스트가 캐시에 남고 컨텍스트마다 Hikari 기본 10연결을 잡아, 이전 실행에서 `sorry, too many clients already`가 났다. 풀을 2로 줄이면 잠금 연결과 작업 연결이 겹쳐 30초 타임아웃이 났다. 통합 테스트 풀만 5로 두었다
+- ERD 반영 내역: 없음
+- 질문/확인 필요: 없음
+- 가정한 사항:
+  - `createDatetime`은 타임존 없는 `timestamp`를 UTC로 보고 ISO-8601로 낸다. `provisioningStatus`는 `provisioning_pk`가 가장 큰 행의 `current_step_code`다. `primaryDomain`은 활성이고 primary인 도메인 하나다
+  - `upgradeTenants`는 받은 코드만 업그레이드하고 건너뛰지 않는다. `POST /tenants/upgrade`는 여전히 ACTIVE 전체를 모아 그 메서드의 잠금 안에서 실행하고, 그 외 상태는 `skippedTenantCodes`다
+  - 통합 테스트는 `POST /tenants/upgrade`를 호출하지 않는다. 일괄 업그레이드 검증은 `it-` 코드 목록만 `upgradeTenants`에 넘긴다
+  - 실제 테넌트처럼 넣는 행은 접두 `zz`와 스키마 `t_zz_`다. 정리는 그 테스트가 만든 행만 한다. `it-` / `t_it_` 잔여 정리도 그 패턴만 지운다
+  - `findTenant`는 조회한 테넌트 코드를 `TenantState`에 넣는다. 이전 3인자 생성자는 코드를 null로 두었다
+
+## [git baseline] 현재 상태 GitHub 반영 - 2026-10-18
+- 브랜치: `baseline/f4-be8.6` (`origin/main` 기준, 원격 `origin/baseline/f4-be8.6`)
+- 커밋 목록:
+  - `b4aaba3` chore: 산출물 zip 및 Claude outputs 추적 해제
+  - `4df826a` feat(backend): MDM 서버 8.6단계까지 현재 상태 반영
+  - `6139616` feat(frontend): F4단계까지 현재 상태 반영
+- 추적을 끊은 파일:
+  - `Claude outputs/cursor-handoff-prompts.md`
+  - `Claude outputs/erd-model-org-user-20261009.json`
+  - `Claude outputs/erd-model-pmis-core-20261009.json`
+  - `Claude outputs/fe-structure-proposal.md`
+  - `common.zip`
+  - `frontend.zip`
+  - `frontend-backup-F0.zip`
+  - `frontend-backup-F0.1.zip`
+  - 디스크 파일은 그대로 두었다
+- 점검에서 제외한 파일 종류:
+  - `backend/common/config/application-local.yaml`
+  - `frontend/.env.local`과 `.env.example`, `.env.local.example`을 뺀 `.env*`
+  - `node_modules`, `dist`, `build`, `.gradle`, `.idea`, `backend/.idea`, `.umi`
+  - 5MB 이상 파일, `*.zip`, `*.jar`(`gradle/wrapper/gradle-wrapper.jar`는 허용), `*.pem`, `*.key`
+  - 위 종류는 추가 목록에 없었다. 루트에 남은 기타 파일이 없어 `chore: 기타 루트 파일` 커밋은 만들지 않았다
+- 질문/확인 필요: 없음
+- 가정한 사항:
+  - 개발 스냅샷은 `feature/claude-review-test`의 `f93a1f1`에 이미 커밋되어 있었다. `origin/main`에서 브랜치를 만든 뒤 그 커밋과 공통 조상 사이의 파일 차이만 작업 트리에 적용했다. merge, rebase, reset은 하지 않았다
+  - `origin/main`이 그 이후 추가한 파일(`.gitignore`, `AGENTS.md`, `docs`, `.github`)과 개발 커밋이 같은 경로를 고치지 않아 패치가 충돌 없이 적용되었다
+  - `jdbc:postgresql://` 뒤가 `.invalid` 또는 `.example`인 테스트 주소, 마스킹 테스트의 `password=` 더미 문자열, JSX `password={...}` 속성은 실제 접속 정보가 아니라고 보았다

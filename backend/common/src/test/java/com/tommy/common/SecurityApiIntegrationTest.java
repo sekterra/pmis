@@ -30,6 +30,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.tommy.common.code.entity.CodeGroup;
@@ -67,6 +69,12 @@ class SecurityApiIntegrationTest {
 
 	@Autowired
 	private AccountStatusCache accountStatusCache;
+
+	@DynamicPropertySource
+	static void datasource(DynamicPropertyRegistry registry) {
+		TestcontainersConfiguration.registerDatasource(registry);
+		TestJwtKey.register(registry);
+	}
 
 	private String codeA;
 	private String schemaA;

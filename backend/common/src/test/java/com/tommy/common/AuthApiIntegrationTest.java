@@ -26,6 +26,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
@@ -66,6 +68,12 @@ class AuthApiIntegrationTest {
 
 	private final List<String> tenantCodes = new ArrayList<>();
 	private final List<String> schemas = new ArrayList<>();
+
+	@DynamicPropertySource
+	static void datasource(DynamicPropertyRegistry registry) {
+		TestcontainersConfiguration.registerDatasource(registry);
+		TestJwtKey.register(registry);
+	}
 
 	@AfterEach
 	void cleanup() throws Exception {
@@ -236,7 +244,7 @@ class AuthApiIntegrationTest {
 				""");
 		execute(schema, "DELETE FROM common_code WHERE code_value = 'PASSWORD_EXPIRE_DAYS'");
 		execute(schema, "UPDATE common_code SET ext_attr1 = '12' WHERE code_value = 'PASSWORD_MIN_LENGTH'");
-		assertEquals("SUCCESS", upgradeService.upgradeAll(null).results().stream()
+		assertEquals("SUCCESS", upgradeService.upgradeTenants(List.of(code), null).results().stream()
 				.filter(result -> code.equals(result.tenantCode())).findFirst().orElseThrow().executionStatus());
 		assertEquals("90", scalar(schema, "SELECT ext_attr1 FROM common_code WHERE code_value = 'PASSWORD_EXPIRE_DAYS'"));
 		assertEquals("12", scalar(schema, "SELECT ext_attr1 FROM common_code WHERE code_value = 'PASSWORD_MIN_LENGTH'"));

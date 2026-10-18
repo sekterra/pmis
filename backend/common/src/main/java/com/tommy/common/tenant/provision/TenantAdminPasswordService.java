@@ -31,10 +31,16 @@ public class TenantAdminPasswordService {
 		if (!"ACTIVE".equals(tenant.statusCode())) {
 			throw new ApiException(409, "TENANT.INACTIVE", "사용 중인 테넌트만 임시 비밀번호를 다시 발급할 수 있습니다.", 2);
 		}
-		TemporaryPassword[] created = new TemporaryPassword[1];
+		TenantAdminWriter.IssuedAdminPassword[] created = new TenantAdminWriter.IssuedAdminPassword[1];
 		advisoryLock.runWithTenantLock(tenant.schemaName(),
 				() -> created[0] = adminWriter.reissue(tenant.tenantPk(), tenant.schemaName(), executorPk));
-		return new ReissuedPassword(tenantCode, created[0]);
+		return new ReissuedPassword(tenantCode, created[0].temporaryPassword(), created[0].adminLoginId());
+	}
+
+	public String storedAdminLoginId(String tenantCode) {
+		ProvisioningJournal.TenantState tenant = journal.findTenant(tenantCode)
+				.orElseThrow(() -> new ApiException(404, "TENANT.NOT_FOUND", "테넌트를 찾을 수 없습니다.", 2));
+		return adminWriter.storedAdminLoginId(tenant.schemaName());
 	}
 
 }

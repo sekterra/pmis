@@ -1,6 +1,9 @@
 package com.tommy.common.platform;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -74,25 +77,34 @@ public class PlatformTenantService {
 		List<Object> args = new ArrayList<>();
 		StringBuilder where = new StringBuilder(" WHERE 1 = 1");
 		if (status != null && !status.isBlank()) {
-			where.append(" AND tenant_status_code = ?");
+			where.append(" AND t.tenant_status_code = ?");
 			args.add(status.trim());
 		}
 		if (keyword != null && !keyword.isBlank()) {
-			where.append(" AND (lower(tenant_code) LIKE ? ESCAPE '\\' OR lower(tenant_name) LIKE ? ESCAPE '\\')");
+			where.append(" AND (lower(t.tenant_code) LIKE ? ESCAPE '\\' OR lower(t.tenant_name) LIKE ? ESCAPE '\\')");
 			String pattern = "%" + keyword.trim().toLowerCase(Locale.ROOT).replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%";
 			args.add(pattern);
 			args.add(pattern);
 		}
-		Long total = jdbcTemplate.queryForObject("SELECT count(*) FROM pmis.tenant" + where, Long.class, args.toArray());
+		Long total = jdbcTemplate.queryForObject("SELECT count(*) FROM pmis.tenant t" + where, Long.class, args.toArray());
 		List<Object> pageArgs = new ArrayList<>(args);
 		pageArgs.add(pageable.getPageSize());
 		pageArgs.add(pageable.getOffset());
 		List<TenantSummary> items = jdbcTemplate.query("""
-				SELECT tenant_code, tenant_name, schema_name, tenant_status_code, default_language_code, timezone_id
-				FROM pmis.tenant
+				SELECT t.tenant_code, t.tenant_name, t.schema_name, t.tenant_status_code, t.default_language_code, t.timezone_id,
+				       (SELECT p.current_step_code FROM pmis.tenant_provisioning p
+				        WHERE p.tenant_pk = t.tenant_pk
+				        ORDER BY p.provisioning_pk DESC
+				        LIMIT 1),
+				       (SELECT d.domain_name FROM pmis.tenant_domain d
+				        WHERE d.tenant_pk = t.tenant_pk AND d.primary_yn = 'Y' AND d.use_yn = 'Y'
+				        LIMIT 1),
+				       t.create_datetime
+				FROM pmis.tenant t
 				""" + where + " ORDER BY " + orderBy(pageable, TENANT_COLUMNS) + " LIMIT ? OFFSET ?",
 				(resultSet, row) -> new TenantSummary(resultSet.getString(1), resultSet.getString(2), resultSet.getString(3),
-						resultSet.getString(4), resultSet.getString(5), resultSet.getString(6)),
+						resultSet.getString(4), resultSet.getString(5), resultSet.getString(6), resultSet.getString(7),
+						resultSet.getString(8), utcIso(resultSet.getObject(9, LocalDateTime.class))),
 				pageArgs.toArray());
 		return new PageResponse<>(items, total == null ? 0 : total, pageable.getPageNumber() + 1, pageable.getPageSize());
 	}
@@ -130,8 +142,7 @@ public class PlatformTenantService {
 		insertDomains(tenantPk, domains, operatorPk);
 		tenantDirectory.evict(command.tenantCode());
 		String password = result.temporaryPassword() == null ? null : result.temporaryPassword().reveal();
-		return new CreatedTenant(result.tenantCode(), result.schemaName(), result.tenantStatus(),
-				result.currentStep() == null ? null : result.currentStep().name(), result.executionStatus(), password);
+		return created(result, password);
 	}
 
 	public CreatedTenant retry(String tenantCode, long operatorPk, HttpServletRequest request) {
@@ -153,13 +164,12 @@ public class PlatformTenantService {
 				String.valueOf(loaded.get("admin_email")), operatorPk));
 		tenantDirectory.evict(tenantCode);
 		String password = result.temporaryPassword() == null ? null : result.temporaryPassword().reveal();
-		return new CreatedTenant(result.tenantCode(), result.schemaName(), result.tenantStatus(),
-				result.currentStep() == null ? null : result.currentStep().name(), result.executionStatus(), password);
+		return created(result, password);
 	}
 
 	public ReissuedPasswordView reissue(String tenantCode, long operatorPk, HttpServletRequest request) {
 		var reissued = passwordService.reissue(tenantCode, operatorPk);
-		return new ReissuedPasswordView(reissued.tenantCode(), reissued.temporaryPassword().reveal());
+		return new ReissuedPasswordView(reissued.tenantCode(), reissued.temporaryPassword().reveal(), reissued.adminLoginId());
 	}
 
 	public void changeStatus(String tenantCode, String toStatus, String changeReason, long operatorPk, HttpServletRequest request) {
@@ -379,6 +389,22 @@ public class PlatformTenantService {
 		return value == null || value.isBlank() ? null : value.trim();
 	}
 
+	private CreatedTenant created(com.tommy.common.tenant.provision.ProvisioningResult result, String password) {
+		String adminLoginId = result.adminLoginId();
+		if (adminLoginId == null || adminLoginId.isBlank()) {
+			adminLoginId = passwordService.storedAdminLoginId(result.tenantCode());
+		}
+		return new CreatedTenant(result.tenantCode(), result.schemaName(), result.tenantStatus(),
+				result.currentStep() == null ? null : result.currentStep().name(), result.executionStatus(), password, adminLoginId);
+	}
+
+	private static String utcIso(LocalDateTime value) {
+		if (value == null) {
+			return null;
+		}
+		return value.atOffset(ZoneOffset.UTC).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME);
+	}
+
 	private static String trim(String value) {
 		return value == null ? null : value.trim();
 	}
@@ -392,7 +418,7 @@ public class PlatformTenantService {
 	}
 
 	public record TenantSummary(String tenantCode, String tenantName, String schemaName, String tenantStatusCode,
-			String defaultLanguageCode, String timezoneId) {
+			String defaultLanguageCode, String timezoneId, String provisioningStatus, String primaryDomain, String createDatetime) {
 	}
 
 	public record DomainView(String domainName, String domainTypeCode, String primaryYn, String useYn) {
@@ -412,14 +438,14 @@ public class PlatformTenantService {
 	}
 
 	public record CreatedTenant(String tenantCode, String schemaName, String tenantStatus, String provisioningStep, String executionStatus,
-			String temporaryPassword) {
+			String temporaryPassword, String adminLoginId) {
 		@Override
 		public String toString() {
 			return "CreatedTenant[tenantCode=" + tenantCode + ", temporaryPassword=masked]";
 		}
 	}
 
-	public record ReissuedPasswordView(String tenantCode, String temporaryPassword) {
+	public record ReissuedPasswordView(String tenantCode, String temporaryPassword, String adminLoginId) {
 		@Override
 		public String toString() {
 			return "ReissuedPasswordView[tenantCode=" + tenantCode + ", temporaryPassword=masked]";
