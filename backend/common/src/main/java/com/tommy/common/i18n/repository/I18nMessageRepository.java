@@ -12,6 +12,8 @@ public interface I18nMessageRepository extends JpaRepository<I18nMessage, Long>,
 
 	List<I18nMessage> findByNamespaceNamespacePkAndUseYn(Long namespacePk, String useYn);
 
+	Optional<I18nMessage> findByNamespaceNamespacePkAndMessageKey(Long namespacePk, String messageKey);
+
 	Optional<I18nMessage> findByNamespaceNamespacePkAndMessageKeyAndUseYn(Long namespacePk, String messageKey, String useYn);
 
 	boolean existsByNamespaceNamespacePkAndMessageKeyAndUseYn(Long namespacePk, String messageKey, String useYn);

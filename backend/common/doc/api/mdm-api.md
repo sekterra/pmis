@@ -322,7 +322,7 @@ JWKS 예:
 
 메뉴 이름 키는 네임스페이스 `menu`의 `message_key`이고 값은 `menu_code`와 같다. 예: `SYSTEM`, `I18N`, `COMPANY`. 언어는 `lang`, 없으면 `Accept-Language`의 첫 언어, 없으면 테넌트 기본 언어다. 그다음 지원 언어의 대체 언어 체인과 테넌트 기본 언어, 메시지 `default_message`를 기존 번들 캐시로 고른다. 키가 없거나 번들 결과가 비어 있으면 `menu.menu_name`을 쓴다.
 
-오류는 인증 없음 `401 AUTH.UNAUTHORIZED`, 비밀번호 변경 강제 `403 AUTH.PASSWORD_CHANGE_REQUIRED`, 토큰의 테넌트와 헤더가 다름 `400 TENANT.HOST_MISMATCH`다. 메뉴 관리 API는 없다.
+오류는 인증 없음 `401 AUTH.UNAUTHORIZED`, 비밀번호 변경 강제 `403 AUTH.PASSWORD_CHANGE_REQUIRED`, 토큰의 테넌트와 헤더가 다름 `400 TENANT.HOST_MISMATCH`다.
 
 계정 없음, 비밀번호 불일치, 비활성, 잠금은 모두 `401 AUTH.INVALID_CREDENTIALS`다. 비밀번호 정책 위반은 `400 AUTH.PASSWORD_POLICY`와 `fieldErrors`다. 현재와 같으면 `400 AUTH.PASSWORD_SAME`, 최근 재사용은 `400 AUTH.PASSWORD_REUSED`다.
 
@@ -337,6 +337,63 @@ JWKS 예:
 7. 비밀번호 변경이 필요 없으면 `GET /api/mdm/v1/auth/me` 다음에 `GET /api/mdm/v1/menus/my`를 호출하고, 그 목록에 있는 `routePath`만 라우트로 연다.
 
 프론트 구조는 정하지 않는다. 로컬은 개발 서버 프록시, 운영은 테넌트 Host 아래 같은 사이트를 전제로 한다.
+
+## 메뉴 관리
+
+권한 메뉴 코드는 `MENU`다. 조회 `READ`, 등록 `CREATE`, 수정·정렬·복구 `UPDATE`, 삭제 `DELETE`.
+
+| 메서드 | 경로 | 권한 |
+| --- | --- | --- |
+| GET | `/api/mdm/v1/menus` | MENU READ |
+| GET | `/api/mdm/v1/menus/tree` | MENU READ |
+| GET | `/api/mdm/v1/menus/{menuPk}` | MENU READ |
+| POST | `/api/mdm/v1/menus` | MENU CREATE |
+| PUT | `/api/mdm/v1/menus/{menuPk}` | MENU UPDATE |
+| PUT | `/api/mdm/v1/menus/sort-orders` | MENU UPDATE |
+| DELETE | `/api/mdm/v1/menus/{menuPk}` | MENU DELETE |
+| POST | `/api/mdm/v1/menus/{menuPk}/restore` | MENU UPDATE |
+
+`{menuPk}`는 숫자만 받는다. `GET /menus/my`는 이 경로와 겹치지 않는다.
+
+목록 필터는 `keyword`(코드, 기본 이름), `solutionCode`, `menuTypeCode`, `parentMenuCode`, `visibleYn`, `useYn`이다. `useYn`을 생략하면 사용 중지를 포함한다. 정렬은 `menuCode`, `menuName`, `sortOrder`, `levelNo`, `menuPk`다.
+
+`GET /menus/tree?solutionCode=&includeInactive=`는 페이지 없는 배열이다. `sortOrder`, `menuCode` 순으로 자식을 앞에 둔다. 항목은 `depth`(levelNo), `childCount`, `permissionCount`(사용 중인 권한 수), `children`다. 메뉴와 권한 수를 각각 한 번 조회해 조립한다. 부모가 결과에 없는 노드는 넣지 않는다.
+
+단건은 목록 항목에 `description`, `translations`, `permissions`(permissionCode, actionCode, useYn)를 더한다.
+
+등록 예:
+
+```json
+{"solutionCode":"MDM","menuCode":"OPS_BOARD","menuName":"게시판","menuTypeCode":"PAGE","parentMenuCode":"SYSTEM","routePath":"/ops/board","sortOrder":1,"visibleYn":"Y","translations":[{"supportLanguageCode":"ko-KR","messageText":"게시판"}]}
+```
+
+`menuCode`는 `^[A-Z][A-Z0-9_]{0,99}$`(1~100자)다. S05 코드가 이 식에 맞는다. 등록 후 바꿀 수 없고, 논리 삭제된 코드도 다시 쓰지 못한다. `solutionCode`는 `^[A-Z][A-Z0-9_]{1,49}$`다. `PAGE`의 `routePath`는 `/`로 시작하고 `//`, `..`, `\`, `://`, 공백이 없다. 사용 중인 다른 PAGE와 같으면 `409 MENU.DUPLICATE_ROUTE`다. `iconName`은 `^[A-Za-z][A-Za-z0-9]*$`다. 상위는 같은 솔루션의 사용 중인 GROUP이다. 아니면 `400 MENU.PARENT_NOT_GROUP`다. `levelNo`와 `menuPath`는 서버가 계산한다. 시드와 같이 코드 경로(`/SYSTEM/I18N`)다. 깊이는 4를 넘기면 `400 MENU.TOO_DEEP`다.
+
+PAGE를 등록하면 같은 트랜잭션에서 `READ`, `CREATE`, `UPDATE`, `DELETE`, `EXPORT` 권한을 만든다. 코드는 `메뉴코드:기능코드`다. 같은 메뉴·기능 행이 있으면 되살리지 않고 건너뛴다. GROUP에는 권한을 만들지 않는다.
+
+수정은 `menuName`, `iconName`, `sortOrder`, `visibleYn`, `description`, `translations`, PAGE의 `routePath`, `parentMenuCode`만 된다. `menuCode`, `solutionCode`, `menuTypeCode`를 보내면 `400 COMMON.VALIDATION_FAILED`다. 상위가 바뀌지 않으면 상위의 사용 여부를 다시 보지 않는다. 자기 자신이나 자손 아래는 `409 MENU.PARENT_CYCLE`다. 이동하면 자손의 `levelNo`, `menuPath`를 한 문장으로 고친다.
+
+정렬은 `[{"menuCode","sortOrder"}]` 최대 200건이다. 없는 코드는 `404 MENU.NOT_FOUND`이고 전부 롤백한다.
+
+사용 중인 하위가 있으면 `409 MENU.HAS_CHILD`다. S05 메뉴 INSERT에 있는 코드는 `409 MENU.PROTECTED`다. 이름, 정렬, 표시, 번역은 고칠 수 있다. 삭제 가능한 PAGE를 지우면 그 메뉴의 permission과 role_permission을 `use_yn='N'`으로 회수한다. 복구는 상위가 사용 중이어야 하고(`409 MENU.PARENT_INACTIVE`) 권한 행은 되살리지 않는다.
+
+메뉴 이름 번역은 `i18n_entity_text`가 아니라 네임스페이스 `menu`, 키=`menu_code`, 유형 `MENU` 메시지다. `menus/my`가 이미 이 키를 읽기 때문이다. 요청에 없는 언어는 유지한다. 단건만 `translations`를 준다. 네임스페이스가 없거나 키가 겹치면 기존 `I18N.*`를 쓴다.
+
+등록을 뺀 변경은 커밋 후 권한 캐시와 `menu` 번들 캐시를 비운다. 그래서 권한 부여·회수·삭제 직후 `menus/my`가 바뀐다.
+
+새 PAGE의 `routePath`는 프런트 `menuRoutes.ts`에 연결되기 전까지 이동해도 404 화면이다.
+
+| 코드 | HTTP | 의미 |
+| --- | --- | --- |
+| MENU.DUPLICATE | 409 | 메뉴 코드 중복(삭제 포함) |
+| MENU.DUPLICATE_ROUTE | 409 | 사용 중인 PAGE 경로 중복 |
+| MENU.PARENT_NOT_GROUP | 400 | 상위가 같은 솔루션의 사용 중 GROUP이 아님 |
+| MENU.TOO_DEEP | 400 | 깊이 4 초과 |
+| MENU.PARENT_CYCLE | 409 | 자기 자신·자손 아래 이동 |
+| MENU.NOT_FOUND | 404 | 메뉴 없음 |
+| MENU.HAS_CHILD | 409 | 사용 중인 하위 |
+| MENU.PROTECTED | 409 | 시드 메뉴 삭제 |
+| MENU.PARENT_INACTIVE | 409 | 복구 시 상위가 사용 중이 아님 |
 
 ## 조직·사람
 
@@ -512,7 +569,7 @@ JWKS 예:
 
 `GET/PUT /api/mdm/v1/users/{userPk}/roles`
 
-목록 필터는 `keyword`(로그인 아이디, 연결된 사람 이름), `userStatusCode`, `accountTypeCode`, `roleCode`(현재 유효한 역할), `useYn`이다. 정렬은 `loginId`, `userStatusCode`, `lastLoginDatetime`, `createDatetime`, `userPk`다. 항목은 `userPk`, `loginId`, `accountTypeCode`, `userStatusCode`, `personPk`, `personName`(컬럼만), `lastLoginDatetime`, `mustChangePasswordYn`, `roleCodes`, `useYn`이다. `roleCodes`는 페이지 사용자 PK를 한 번의 `IN` 조회로 채운다. 상세는 `supportLanguageCode`, `timezoneId`, `description`, `loginFailCount`, `lockedDatetime`, `passwordChangedDatetime`, `passwordExpireDatetime`, 감사 컬럼, 역할 배열을 더한다. `password_hash`는 주지 않는다.
+목록 필터는 `keyword`(로그인 아이디, 연결된 사람 이름), `userStatusCode`, `accountTypeCode`, `roleCode`(현재 유효한 역할), `useYn`이다. 정렬은 `loginId`, `userStatusCode`, `lastLoginDatetime`, `createDatetime`, `userPk`다. 항목은 `userPk`, `loginId`, `accountTypeCode`, `userStatusCode`, `personPk`, `personName`(컬럼만), `lastLoginDatetime`, `mustChangePasswordYn`, `roleCodes`, `useYn`이다. `roleCodes`는 페이지 사용자 PK를 한 번의 `IN` 조회로 채운다. 상세는 `supportLanguageCode`, `timezoneId`, `description`, `loginFailCount`, `lockedDatetime`, `lockType`, `passwordChangedDatetime`, `passwordExpireDatetime`, 감사 컬럼, 역할 배열을 더한다. `lockType`은 `LOCKED`이면서 `lockedDatetime`이 없으면 `ADMIN`, `lockedDatetime`이 있으면 `AUTO`, 그 외에는 null이다. 상태 API로 건 잠금은 `lockedDatetime=null`이라 `LOCK_MINUTES`가 지나도 풀리지 않는다. `password_hash`는 주지 않는다.
 
 ```json
 {

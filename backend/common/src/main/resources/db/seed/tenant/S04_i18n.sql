@@ -508,7 +508,16 @@ JOIN (VALUES
     ('PERMISSION.DUPLICATE', '이미 있는 권한입니다.'),
     ('PERMISSION.MENU_NOT_PAGE', '페이지 메뉴만 권한을 가질 수 있습니다.'),
     ('PERMISSION.PROTECTED', 'READ 권한은 삭제할 수 없습니다.'),
-    ('PERMISSION.INACTIVE', '사용 중이 아닌 권한입니다.')
+    ('PERMISSION.INACTIVE', '사용 중이 아닌 권한입니다.'),
+    ('MENU.DUPLICATE', '이미 있는 메뉴 코드입니다.'),
+    ('MENU.DUPLICATE_ROUTE', '이미 있는 화면 경로입니다.'),
+    ('MENU.PARENT_NOT_GROUP', '상위 메뉴는 사용 중인 그룹이어야 합니다.'),
+    ('MENU.TOO_DEEP', '메뉴 깊이를 넘었습니다.'),
+    ('MENU.PARENT_CYCLE', '자기 자신이나 자손 아래로는 옮길 수 없습니다.'),
+    ('MENU.NOT_FOUND', '메뉴를 찾을 수 없습니다.'),
+    ('MENU.HAS_CHILD', '사용 중인 하위 메뉴가 있습니다.'),
+    ('MENU.PROTECTED', '보호된 메뉴입니다.'),
+    ('MENU.PARENT_INACTIVE', '상위 메뉴가 사용 중이 아닙니다.')
 ) AS v(message_key, default_message) ON TRUE
 WHERE n.namespace_code = 'error'
   AND NOT EXISTS (
@@ -563,7 +572,25 @@ JOIN (VALUES
     ('PERMISSION.PROTECTED', 'ko-KR', 'READ 권한은 삭제할 수 없습니다.'),
     ('PERMISSION.PROTECTED', 'en-US', 'A READ permission cannot be deleted.'),
     ('PERMISSION.INACTIVE', 'ko-KR', '사용 중이 아닌 권한입니다.'),
-    ('PERMISSION.INACTIVE', 'en-US', 'The permission is not active.')
+    ('PERMISSION.INACTIVE', 'en-US', 'The permission is not active.'),
+    ('MENU.DUPLICATE', 'ko-KR', '이미 있는 메뉴 코드입니다.'),
+    ('MENU.DUPLICATE', 'en-US', 'The menu code already exists.'),
+    ('MENU.DUPLICATE_ROUTE', 'ko-KR', '이미 있는 화면 경로입니다.'),
+    ('MENU.DUPLICATE_ROUTE', 'en-US', 'The page route already exists.'),
+    ('MENU.PARENT_NOT_GROUP', 'ko-KR', '상위 메뉴는 사용 중인 그룹이어야 합니다.'),
+    ('MENU.PARENT_NOT_GROUP', 'en-US', 'The parent menu must be an active group.'),
+    ('MENU.TOO_DEEP', 'ko-KR', '메뉴 깊이를 넘었습니다.'),
+    ('MENU.TOO_DEEP', 'en-US', 'The menu is too deep.'),
+    ('MENU.PARENT_CYCLE', 'ko-KR', '자기 자신이나 자손 아래로는 옮길 수 없습니다.'),
+    ('MENU.PARENT_CYCLE', 'en-US', 'A menu cannot move under itself or its descendant.'),
+    ('MENU.NOT_FOUND', 'ko-KR', '메뉴를 찾을 수 없습니다.'),
+    ('MENU.NOT_FOUND', 'en-US', 'The menu was not found.'),
+    ('MENU.HAS_CHILD', 'ko-KR', '사용 중인 하위 메뉴가 있습니다.'),
+    ('MENU.HAS_CHILD', 'en-US', 'The menu still has an active child.'),
+    ('MENU.PROTECTED', 'ko-KR', '보호된 메뉴입니다.'),
+    ('MENU.PROTECTED', 'en-US', 'The menu is protected.'),
+    ('MENU.PARENT_INACTIVE', 'ko-KR', '상위 메뉴가 사용 중이 아닙니다.'),
+    ('MENU.PARENT_INACTIVE', 'en-US', 'The parent menu is not active.')
 ) AS v(message_key, support_language_code, message_text)
     ON v.message_key = m.message_key
 WHERE n.namespace_code = 'error'

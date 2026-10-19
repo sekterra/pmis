@@ -997,3 +997,26 @@
   - 설정 호스트는 앞뒤 공백을 제거하고 소문자로 맞추며 숫자 포트는 뺀다
   - `dev` 기본 호스트는 `localhost,127.0.0.1`이다. 비어 있으면 플랫폼 API 호스트 제한을 하지 않는다
 
+## [9.3단계] 메뉴 관리 API와 관리자 잠금 - 2026-10-19
+
+- 변경 파일:
+  - `UserAccountService`, `UserResponse`: 관리자 잠금은 `locked_datetime=null`, 단건에 `lockType`(ADMIN/AUTO)
+  - `menu` 패키지: `MenuAdminController`, `MenuAdminService`, `MenuRules`, `MenuTree`, `SeedMenuCodes`, DTO
+  - `I18nMessageService.upsertMenuName`: 메뉴 이름은 네임스페이스 `menu` 메시지
+  - `S04_i18n.sql`: `MENU.*` 오류 문구
+  - `doc/api/mdm-api.md`, `doc/auth-design.md`
+  - `MenuApiIntegrationTest`, `MenuRulesTest`
+- 검증 결과:
+  - `gradlew.bat test`: 76 통과, 실패 0, skip 0
+  - `gradlew.bat integrationTest`: 42 통과, 실패 0, skip 0. 대상 DB 이름은 `pmis`였다
+- ERD 반영 내역: 없음. DDL 변경 없음
+- 질문/확인 필요:
+  - ERD `menu_path` 예시는 PK 경로(`/1/5/12`)다. 시드와 같이 코드 경로(`/SYSTEM/I18N`)를 썼다
+  - 상위 메뉴는 같은 `solutionCode`의 GROUP만 허용했다. ERD는 여러 솔루션을 한 트리에 둘 수 있다고만 적혀 있다
+  - `solutionCode`가 `i18n_namespace`에 있는지는 검사하지 않았다
+  - 새 PAGE 코드를 요구하는 기존 API가 없어, 삭제 직후 403은 `menus/my`에서 빠지는 것과 `role_permission` 회수로 확인했다
+- 가정한 사항:
+  - 보호 메뉴는 S05의 menu INSERT에 있는 코드다. 파일을 못 읽으면 `solutionCode=MDM`을 보호한다
+  - 메뉴 이름 번역은 지시서대로 `i18n_entity_text`가 아니라 네임스페이스 `menu`다
+  - 등록 때는 권한 캐시를 비우지 않는다. 수정·정렬·삭제·복구 때 권한 캐시와 menu 번들 캐시를 비운다
+

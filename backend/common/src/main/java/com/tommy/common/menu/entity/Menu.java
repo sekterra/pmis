@@ -73,4 +73,70 @@ public class Menu {
 
 	private Long updateUserPk;
 
+	public static Menu create(String solutionCode, String menuCode, String menuName, String menuTypeCode, Long parentMenuPk,
+			String routePath, String iconName, int levelNo, String menuPath, Integer sortOrder, String visibleYn, String description,
+			Long userPk) {
+		Menu menu = new Menu();
+		menu.solutionCode = solutionCode;
+		menu.menuCode = menuCode;
+		menu.menuName = menuName;
+		menu.menuTypeCode = menuTypeCode;
+		menu.parentMenuPk = parentMenuPk;
+		menu.routePath = routePath;
+		menu.iconName = iconName;
+		menu.levelNo = levelNo;
+		menu.menuPath = menuPath;
+		menu.sortOrder = sortOrder;
+		menu.visibleYn = visibleYn;
+		menu.description = description;
+		menu.useYn = "Y";
+		menu.createDatetime = LocalDateTime.now();
+		menu.createUserPk = userPk;
+		menu.updateDatetime = menu.createDatetime;
+		menu.updateUserPk = userPk;
+		return menu;
+	}
+
+	public void change(String menuName, String routePath, String iconName, Integer sortOrder, String visibleYn, String description,
+			Long userPk) {
+		this.menuName = menuName;
+		this.routePath = routePath;
+		this.iconName = iconName;
+		this.sortOrder = sortOrder;
+		this.visibleYn = visibleYn;
+		this.description = description;
+		touch(userPk);
+	}
+
+	public void place(Long parentMenuPk, int levelNo, String menuPath, Long userPk) {
+		this.parentMenuPk = parentMenuPk;
+		this.levelNo = levelNo;
+		this.menuPath = menuPath;
+		touch(userPk);
+	}
+
+	public void sort(Integer sortOrder, Long userPk) {
+		this.sortOrder = sortOrder;
+		touch(userPk);
+	}
+
+	public void deactivate(Long userPk) {
+		this.useYn = "N";
+		touch(userPk);
+	}
+
+	public void activate(Long userPk) {
+		this.useYn = "Y";
+		touch(userPk);
+	}
+
+	public boolean inUse() {
+		return "Y".equals(useYn);
+	}
+
+	private void touch(Long userPk) {
+		this.updateDatetime = LocalDateTime.now();
+		this.updateUserPk = userPk;
+	}
+
 }

@@ -99,7 +99,7 @@ Access JWT만 다음 클레임을 가진다. 역할과 permission은 넣지 않�
 
 `FAIL_EXPIRED`는 쓰지 않는다. 만료는 로그인 성공 뒤 변경 강제다. IP는 `X-Forwarded-For`의 첫 값(프록시를 신뢰할 때만)이고, 아니면 `remoteAddr`다. User-Agent는 500자로 자른다. 비밀번호, 토큰, 쿠키 값은 이력과 로그에 남기지 않는다.
 
-성공 시 `login_fail_count=0`, `last_login_datetime`을 갱신한다. 자동 잠금 시간이 지났으면 상태를 `ACTIVE`로 되돌리고 `locked_datetime`을 비운다.
+성공 시 `login_fail_count=0`, `last_login_datetime`을 갱신한다. `locked_datetime`이 있는 자동 잠금만 `LOCK_MINUTES`가 지나면 상태를 `ACTIVE`로 되돌리고 `locked_datetime`을 비운다. 관리자 잠금은 `locked_datetime`이 비어 있어 시간이 지나도 풀리지 않는다.
 
 응답 `data`:
 
@@ -178,7 +178,7 @@ Refresh는 `Set-Cookie`만 있다.
 | ACCESS_TOKEN_MINUTES | 15 | Access 수명 |
 | REFRESH_TOKEN_DAYS | 14 | Refresh 수명 |
 
-잠금: 실패마다 `login_fail_count`를 올린다. 횟수에 도달하면 `user_status_code=LOCKED`, `locked_datetime=지금`이다. `LOCK_MINUTES`가 지난 뒤의 성공한 로그인만 상태를 `ACTIVE`로 되돌린다. 그 전에는 `FAIL_LOCKED`로 기록하고 응답은 같은 로그인 실패다. 관리자 해제는 이미 있는 비밀번호 재발급이 잠금을 푼다. 별도 해제 API는 8.1 범위가 아니다.
+잠금: 실패마다 `login_fail_count`를 올린다. 횟수에 도달하면 `user_status_code=LOCKED`, `locked_datetime=지금`이다. `LOCK_MINUTES`가 지난 뒤의 성공한 로그인은 이 자동 잠금만 `ACTIVE`로 되돌린다. `LOCKED`이면서 `locked_datetime`이 NULL이면 관리자 잠금이라 시간이 지나도 `FAIL_LOCKED`로 거절한다. 관리자 해제는 상태 API의 `ACTIVE` 또는 비밀번호 재발급이다.
 
 플랫폼 운영자는 테넌트 공통코드가 없다. 같은 기본값을 `mdm.security.platform.*` 설정으로 둔다. 테넌트 정책과 숫자를 공유하지 않는다.
 

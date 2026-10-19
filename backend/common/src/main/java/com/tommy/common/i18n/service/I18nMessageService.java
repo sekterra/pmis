@@ -120,6 +120,43 @@ public class I18nMessageService {
 		return response(message, true);
 	}
 
+	@Transactional
+	public void upsertMenuName(String menuCode, String menuName, List<MessageTextRequest> translations) {
+		I18nNamespace namespace = requireNamespace("menu");
+		I18nMessage message = messageRepository.findByNamespaceNamespacePkAndMessageKey(namespace.getNamespacePk(), menuCode)
+				.orElse(null);
+		if (message == null) {
+			message = messageRepository.save(I18nMessage.create(namespace, menuCode, "MENU", menuName, null));
+		}
+		else {
+			if (!message.inUse()) {
+				message.activate();
+			}
+			message.change("MENU", menuName, message.getParamDescription());
+		}
+		upsert(message, translations);
+		flush();
+		bundles.evictNamespace("menu");
+	}
+
+	@Transactional(readOnly = true)
+	public List<MessageTextResponse> menuTexts(String menuCode) {
+		I18nNamespace namespace = namespaceRepository.findByNamespaceCode("menu").orElse(null);
+		if (namespace == null) {
+			return List.of();
+		}
+		I18nMessage message = messageRepository
+				.findByNamespaceNamespacePkAndMessageKeyAndUseYn(namespace.getNamespacePk(), menuCode, "Y")
+				.orElse(null);
+		if (message == null) {
+			return List.of();
+		}
+		return textRepository.findByMessageMessagePk(message.getMessagePk()).stream()
+				.map(text -> new MessageTextResponse(text.getSupportLanguageCode(), text.getMessageText(),
+						text.getTranslationStatusCode(), text.machineTranslated(), text.getVersionNo()))
+				.toList();
+	}
+
 	private void upsert(I18nMessage message, List<MessageTextRequest> translations) {
 		if (translations == null) {
 			return;

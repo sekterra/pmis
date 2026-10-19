@@ -36,6 +36,7 @@ class AuthRulesTest {
 	@Test
 	void restartsLockCountAfterExpiry() {
 		Instant lockedAt = Instant.parse("2026-10-10T00:00:00Z");
+		assertFalse(LoginLockRules.expired(null, 30, lockedAt.plus(Duration.ofDays(1))));
 		assertFalse(LoginLockRules.expired(lockedAt, 30, lockedAt.plus(Duration.ofMinutes(29))));
 		assertTrue(LoginLockRules.expired(lockedAt, 30, lockedAt.plus(Duration.ofMinutes(30))));
 		assertFalse(LoginLockRules.expired(lockedAt, 0, lockedAt.plus(Duration.ofDays(1))));

@@ -19,6 +19,7 @@ public record UserResponse(
 		String description,
 		Integer loginFailCount,
 		LocalDateTime lockedDatetime,
+		String lockType,
 		LocalDateTime passwordChangedDatetime,
 		LocalDateTime passwordExpireDatetime,
 		LocalDateTime createDatetime,
