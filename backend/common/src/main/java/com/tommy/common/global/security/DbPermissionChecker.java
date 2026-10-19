@@ -86,11 +86,31 @@ public class DbPermissionChecker implements PermissionChecker {
 	}
 
 	public void evict(String schema, long userPk) {
-		cache.remove((schema == null ? "" : schema) + "\n" + userPk);
+		cache.remove(key(schema, userPk));
+	}
+
+	public void evictUsers(String schema, java.util.Collection<Long> userPks) {
+		if (userPks == null) {
+			return;
+		}
+		for (Long userPk : userPks) {
+			if (userPk != null) {
+				evict(schema, userPk);
+			}
+		}
+	}
+
+	public void evictAll(String schema) {
+		String prefix = (schema == null ? "" : schema) + "\n";
+		cache.keySet().removeIf(key -> key.startsWith(prefix));
+	}
+
+	private static String key(String schema, long userPk) {
+		return (schema == null ? "" : schema) + "\n" + userPk;
 	}
 
 	private Set<String> codes(String schema, long userPk) {
-		String key = schema + "\n" + userPk;
+		String key = key(schema, userPk);
 		long now = System.currentTimeMillis();
 		Cached current = cache.get(key);
 		if (current != null && current.expiresAt() > now) {

@@ -482,3 +482,91 @@ WHERE n.namespace_code = 'error'
   AND NOT EXISTS (
       SELECT 1 FROM i18n_message_text t
       WHERE t.message_pk = m.message_pk AND t.support_language_code = v.support_language_code);
+
+INSERT INTO i18n_message (namespace_pk, message_key, message_type_code, default_message)
+SELECT n.namespace_pk, v.message_key, 'ERROR', v.default_message
+FROM i18n_namespace n
+JOIN (VALUES
+    ('ASSIGNMENT.ALREADY_ENDED', '이미 종료된 소속입니다.'),
+    ('ASSIGNMENT.INACTIVE', '사용 중이 아닌 소속은 종료할 수 없습니다.'),
+    ('USER.DUPLICATE_LOGIN_ID', '이미 있는 로그인 아이디입니다.'),
+    ('USER.PERSON_ALREADY_LINKED', '이미 계정이 연결된 사람입니다.'),
+    ('USER.NOT_FOUND', '사용자를 찾을 수 없습니다.'),
+    ('USER.INACTIVE', '사용 중이 아닌 계정입니다.'),
+    ('USER.INVALID_STATUS_TRANSITION', '바꿀 수 없는 상태입니다.'),
+    ('USER.SELF_OPERATION_FORBIDDEN', '본인 계정은 이렇게 바꿀 수 없습니다.'),
+    ('USER.LAST_ADMIN', '마지막 관리자 계정입니다.'),
+    ('USER.NO_PASSWORD_ACCOUNT', '비밀번호가 없는 계정입니다.'),
+    ('ROLE.NOT_FOUND', '역할을 찾을 수 없습니다.'),
+    ('ROLE.INACTIVE', '사용 중이 아닌 역할입니다.'),
+    ('ROLE.INVALID_DATE', '시작일은 종료일보다 늦을 수 없습니다.'),
+    ('ROLE.DUPLICATE', '이미 있는 역할 코드입니다.'),
+    ('ROLE.PROTECTED', '보호된 역할입니다.'),
+    ('ROLE.IN_USE', '부여 중인 역할입니다.'),
+    ('ROLE.READ_REQUIRED', '같은 메뉴의 READ 권한이 필요합니다.'),
+    ('PERMISSION.NOT_FOUND', '권한을 찾을 수 없습니다.'),
+    ('PERMISSION.DUPLICATE', '이미 있는 권한입니다.'),
+    ('PERMISSION.MENU_NOT_PAGE', '페이지 메뉴만 권한을 가질 수 있습니다.'),
+    ('PERMISSION.PROTECTED', 'READ 권한은 삭제할 수 없습니다.'),
+    ('PERMISSION.INACTIVE', '사용 중이 아닌 권한입니다.')
+) AS v(message_key, default_message) ON TRUE
+WHERE n.namespace_code = 'error'
+  AND NOT EXISTS (
+      SELECT 1 FROM i18n_message m
+      WHERE m.namespace_pk = n.namespace_pk AND m.message_key = v.message_key);
+
+INSERT INTO i18n_message_text (message_pk, support_language_code, message_text, translation_status_code)
+SELECT m.message_pk, v.support_language_code, v.message_text, 'APPROVED'
+FROM i18n_message m
+JOIN i18n_namespace n ON n.namespace_pk = m.namespace_pk
+JOIN (VALUES
+    ('ASSIGNMENT.ALREADY_ENDED', 'ko-KR', '이미 종료된 소속입니다.'),
+    ('ASSIGNMENT.ALREADY_ENDED', 'en-US', 'The assignment has already ended.'),
+    ('ASSIGNMENT.INACTIVE', 'ko-KR', '사용 중이 아닌 소속은 종료할 수 없습니다.'),
+    ('ASSIGNMENT.INACTIVE', 'en-US', 'An inactive assignment cannot be ended.'),
+    ('USER.DUPLICATE_LOGIN_ID', 'ko-KR', '이미 있는 로그인 아이디입니다.'),
+    ('USER.DUPLICATE_LOGIN_ID', 'en-US', 'The login id already exists.'),
+    ('USER.PERSON_ALREADY_LINKED', 'ko-KR', '이미 계정이 연결된 사람입니다.'),
+    ('USER.PERSON_ALREADY_LINKED', 'en-US', 'The person is already linked to an account.'),
+    ('USER.NOT_FOUND', 'ko-KR', '사용자를 찾을 수 없습니다.'),
+    ('USER.NOT_FOUND', 'en-US', 'The user was not found.'),
+    ('USER.INACTIVE', 'ko-KR', '사용 중이 아닌 계정입니다.'),
+    ('USER.INACTIVE', 'en-US', 'The account is not active.'),
+    ('USER.INVALID_STATUS_TRANSITION', 'ko-KR', '바꿀 수 없는 상태입니다.'),
+    ('USER.INVALID_STATUS_TRANSITION', 'en-US', 'The status cannot be changed that way.'),
+    ('USER.SELF_OPERATION_FORBIDDEN', 'ko-KR', '본인 계정은 이렇게 바꿀 수 없습니다.'),
+    ('USER.SELF_OPERATION_FORBIDDEN', 'en-US', 'This operation is not allowed on the signed-in account.'),
+    ('USER.LAST_ADMIN', 'ko-KR', '마지막 관리자 계정입니다.'),
+    ('USER.LAST_ADMIN', 'en-US', 'The last administrator account cannot be changed this way.'),
+    ('USER.NO_PASSWORD_ACCOUNT', 'ko-KR', '비밀번호가 없는 계정입니다.'),
+    ('USER.NO_PASSWORD_ACCOUNT', 'en-US', 'The account has no password.'),
+    ('ROLE.NOT_FOUND', 'ko-KR', '역할을 찾을 수 없습니다.'),
+    ('ROLE.NOT_FOUND', 'en-US', 'The role was not found.'),
+    ('ROLE.INACTIVE', 'ko-KR', '사용 중이 아닌 역할입니다.'),
+    ('ROLE.INACTIVE', 'en-US', 'The role is not active.'),
+    ('ROLE.INVALID_DATE', 'ko-KR', '시작일은 종료일보다 늦을 수 없습니다.'),
+    ('ROLE.INVALID_DATE', 'en-US', 'The start date must not be after the end date.'),
+    ('ROLE.DUPLICATE', 'ko-KR', '이미 있는 역할 코드입니다.'),
+    ('ROLE.DUPLICATE', 'en-US', 'The role code already exists.'),
+    ('ROLE.PROTECTED', 'ko-KR', '보호된 역할입니다.'),
+    ('ROLE.PROTECTED', 'en-US', 'The role is protected.'),
+    ('ROLE.IN_USE', 'ko-KR', '부여 중인 역할입니다.'),
+    ('ROLE.IN_USE', 'en-US', 'The role is still granted.'),
+    ('ROLE.READ_REQUIRED', 'ko-KR', '같은 메뉴의 READ 권한이 필요합니다.'),
+    ('ROLE.READ_REQUIRED', 'en-US', 'The same menu requires READ.'),
+    ('PERMISSION.NOT_FOUND', 'ko-KR', '권한을 찾을 수 없습니다.'),
+    ('PERMISSION.NOT_FOUND', 'en-US', 'The permission was not found.'),
+    ('PERMISSION.DUPLICATE', 'ko-KR', '이미 있는 권한입니다.'),
+    ('PERMISSION.DUPLICATE', 'en-US', 'The permission already exists.'),
+    ('PERMISSION.MENU_NOT_PAGE', 'ko-KR', '페이지 메뉴만 권한을 가질 수 있습니다.'),
+    ('PERMISSION.MENU_NOT_PAGE', 'en-US', 'Only a page menu can have a permission.'),
+    ('PERMISSION.PROTECTED', 'ko-KR', 'READ 권한은 삭제할 수 없습니다.'),
+    ('PERMISSION.PROTECTED', 'en-US', 'A READ permission cannot be deleted.'),
+    ('PERMISSION.INACTIVE', 'ko-KR', '사용 중이 아닌 권한입니다.'),
+    ('PERMISSION.INACTIVE', 'en-US', 'The permission is not active.')
+) AS v(message_key, support_language_code, message_text)
+    ON v.message_key = m.message_key
+WHERE n.namespace_code = 'error'
+  AND NOT EXISTS (
+      SELECT 1 FROM i18n_message_text t
+      WHERE t.message_pk = m.message_pk AND t.support_language_code = v.support_language_code);

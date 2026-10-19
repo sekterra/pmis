@@ -92,10 +92,16 @@ public class DeptService {
 						dept.getSortOrder()))
 				.toList();
 		List<Long> order = DeptTreeOrder.preorder(nodes).stream().map(DeptTreeOrder.Node::deptPk).toList();
+		java.util.Map<Long, Dept> byId = new java.util.HashMap<>();
+		for (Dept dept : rows) {
+			byId.put(dept.getDeptPk(), dept);
+		}
 		List<DeptResponse> result = new ArrayList<>();
 		for (Long deptPk : order) {
-			rows.stream().filter(dept -> dept.getDeptPk().equals(deptPk)).findFirst()
-					.ifPresent(dept -> result.add(response(dept, false)));
+			Dept dept = byId.get(deptPk);
+			if (dept != null) {
+				result.add(response(dept, false));
+			}
 		}
 		return result;
 	}
@@ -148,7 +154,11 @@ public class DeptService {
 		Long beforeParentPk = dept.getParentDept() == null ? null : dept.getParentDept().getDeptPk();
 		String oldPath = dept.getDeptPath();
 		int oldLevel = dept.getLevelNo() == null ? DeptPaths.level(oldPath) : dept.getLevelNo();
-		Dept parent = parent(dept.getCompany(), request.parentDeptCode(), dept);
+		String requestedParent = OrgExceptions.trimToNull(request.parentDeptCode());
+		String currentParent = dept.getParentDept() == null ? null : dept.getParentDept().getDeptCode();
+		Dept parent = java.util.Objects.equals(requestedParent, currentParent)
+				? dept.getParentDept()
+				: parent(dept.getCompany(), request.parentDeptCode(), dept);
 		Long afterParentPk = parent == null ? null : parent.getDeptPk();
 		boolean renamed = !beforeName.equals(request.deptName().trim());
 		boolean moved = !java.util.Objects.equals(beforeParentPk, afterParentPk);

@@ -950,3 +950,31 @@
   - 주 소속 요약이 페이지 크기와 무관함은 저장소 목으로 확인했다. SQL 통계는 남기지 않았다
   - 과거 조직도는 재구성하지 않는다
 
+## [9.2단계] 사용자·역할·권한 관리 API - 2026-10-19
+- 변경/추가 파일:
+  - `doc/api/mdm-api.md`, `doc/auth-design.md`
+  - `src/main/resources/db/seed/tenant/S04_i18n.sql`
+  - `DbPermissionChecker`, `DeptService`, `PersonAssignmentService`, `OrgExceptions`
+  - `access` 패키지의 사용자·역할·권한 API
+  - `menu.repository.MenuRepository`
+  - `AccessSliceTest`, `AccessApiIntegrationTest`
+- 사용자 계정, 사용자 역할, 역할, 역할 권한, 권한 API를 추가했다. 메뉴 CRUD는 만들지 않았다. 테넌트 DDL은 바꾸지 않았다
+- 9.1 수정: 같은 상위 부서 코드는 `DEPT.PARENT_INACTIVE`를 다시 보지 않는다. 이미 종료된 소속은 `ASSIGNMENT.ALREADY_ENDED`, 사용 중지가 아니면 `ASSIGNMENT.INACTIVE`다. 부서 트리는 `deptPk` 맵으로 순서를 유지한다
+- 검증 결과:
+  - `gradlew.bat test`: 71 통과, 실패 0, skip 0
+  - `gradlew.bat integrationTest`: 39 통과, 실패 0, skip 0. 대상 DB 이름은 `pmis`였다
+  - 접근 통합 테스트는 끝난 뒤 `it-`이 아닌 `pmis.tenant` 행 수가 시작과 같음을 확인한다. `t_it_` 스키마는 테스트가 삭제한다
+- ERD 반영 내역: 없음. ERD는 수정하지 않았다
+- 질문/확인 필요:
+  - 관리자 잠금은 `locked_datetime=지금`이라 `LoginLockRules`가 `LOCK_MINUTES` 뒤에 맞는 비밀번호면 잠금을 푼다. 8.2 로그인 잠금은 바꾸지 않았다
+  - `roleCode`는 `^[A-Z][A-Z0-9_]{1,49}$`(2~50자)로 받았다. DB 체크는 `^[A-Z][A-Z0-9_]*$`라 한 글자도 허용한다
+- 가정한 사항:
+  - `S05`에 `USER`, `ROLE`, `PERMISSION`의 READ/CREATE/UPDATE/DELETE/EXPORT가 있어 권한 행을 추가하지 않았다. 복구는 `UPDATE`다
+  - 목록 `useYn` 생략은 사용 중지를 포함한다
+  - 사용자 수정에서 `personPk`를 비우면 연결을 해제한다
+  - `userCount`는 현재 유효한 부여이면서 사용자 `use_yn='Y'`인 수다
+  - 역할·사용자 목록의 집계 횟수는 저장소 목으로 확인했다. SQL 통계는 없다
+  - 401/403은 보안 필터가 있는 통합 테스트에서 확인했다. 슬라이스만으로는 필터를 올리지 않는다
+  - 비밀번호 해시가 없는 계정은 프로비전에 없어 단위 테스트로 `USER.NO_PASSWORD_ACCOUNT`를 확인했다
+  - 권한 캐시 테스트의 사용자 토큰은 `pwd_change_required=false`다. 비밀번호 변경 강제 필터는 토큰 클레임을 본다
+

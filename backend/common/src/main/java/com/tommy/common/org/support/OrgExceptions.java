@@ -16,7 +16,11 @@ public final class OrgExceptions {
 	}
 
 	public static ApiException field(String code, String message, String field) {
-		return new ApiException(400, code, message, 2, List.of(new FieldErrorItem(field, message)));
+		return field(400, code, message, field);
+	}
+
+	public static ApiException field(int status, String code, String message, String field) {
+		return new ApiException(status, code, message, 2, List.of(new FieldErrorItem(field, message)));
 	}
 
 	public static void requireDateOrder(LocalDate start, LocalDate end, String code, String message) {

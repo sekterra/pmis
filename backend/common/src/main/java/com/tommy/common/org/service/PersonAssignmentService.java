@@ -88,6 +88,12 @@ public class PersonAssignmentService {
 	@Transactional
 	public AssignmentResponse end(long assignmentPk, EndAssignmentRequest request) {
 		PersonAssignment assignment = require(assignmentPk);
+		if (!"Y".equals(assignment.getUseYn())) {
+			throw OrgExceptions.of(409, "ASSIGNMENT.INACTIVE", "사용 중이 아닌 소속은 종료할 수 없습니다.");
+		}
+		if (assignment.getEndDate() != null) {
+			throw OrgExceptions.of(409, "ASSIGNMENT.ALREADY_ENDED", "이미 종료된 소속입니다.");
+		}
 		LocalDate endDate = request == null || request.endDate() == null ? clock.today() : request.endDate();
 		String status = request == null || request.assignmentStatusCode() == null || request.assignmentStatusCode().isBlank()
 				? "RESIGNED"

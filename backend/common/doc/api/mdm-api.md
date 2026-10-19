@@ -380,7 +380,7 @@ JWKS 예:
 
 등록은 같은 회사의 사용 중인 상위 부서, 회사 안에서 유일한 `deptCode`, 이름, 유형, 정렬, `validFromDate`(생략 시 오늘), `validToDate`가 시작일 이상이어야 한다. 서버가 `levelNo`와 `deptPath`를 같은 트랜잭션에서 계산하고 `CREATE` 이력을 남긴다. 수정은 코드와 회사를 바꾸지 않는다. 이름이 바뀌면 `RENAME`, 상위가 바뀌면 `MOVE`다. 둘 다 바뀌면 이력 두 줄이다. `effectiveDate` 생략은 오늘이고 `changeReason`은 선택이다.
 
-상위가 자신 또는 하위이면 `409 DEPT.PARENT_CYCLE`이다. 다른 회사 부서이면 `409 DEPT.PARENT_COMPANY_MISMATCH`다. 사용 중이 아니면 `409 DEPT.PARENT_INACTIVE`다. 날짜 순서가 아니면 `400 DEPT.INVALID_DATE`다. 코드 중복은 `409 DEPT.DUPLICATE`다.
+상위가 자신 또는 하위이면 `409 DEPT.PARENT_CYCLE`이다. 다른 회사 부서이면 `409 DEPT.PARENT_COMPANY_MISMATCH`다. 사용 중이 아니면 `409 DEPT.PARENT_INACTIVE`다. 요청한 `parentDeptCode`가 현재 상위 코드와 같으면 그 검사를 다시 하지 않는다. 상위가 종료된 부서의 이름 변경은 성공한다. 상위를 바꾸거나 새로 지정할 때만 사용 중, 같은 회사, 순환을 검사한다. 날짜 순서가 아니면 `400 DEPT.INVALID_DATE`다. 코드 중복은 `409 DEPT.DUPLICATE`다.
 
 삭제는 종료다. 사용 중인 하위 부서는 `409 DEPT.HAS_CHILD`, 현재 소속은 `409 DEPT.HAS_ACTIVE_ASSIGNMENT`다. 통과하면 `validToDate`를 종료일로 두고 `use_yn='N'`, `CLOSE` 이력을 남긴다. 복구는 상위가 사용 중이어야 하고 `validToDate`를 비우며 `use_yn='Y'`, `REOPEN` 이력을 남긴다.
 
@@ -408,7 +408,7 @@ JWKS 예:
 
 `POST /api/mdm/v1/person-assignments/{assignmentPk}/restore`
 
-목록은 과거 소속을 포함하고 기본 정렬은 `startDate` 내림차순이다. `useYn`으로 거른다. 회사는 필수이고 사용 중이어야 한다. 부서는 선택이며 있으면 같은 회사의 사용 중인 부서여야 한다. 시작일은 필수이고 종료일은 시작일 이상이다. `deptHeadYn='Y'`는 부서가 있을 때만 가능하다. `RESIGNED`는 종료일이 필요하다. 종료 API의 `endDate` 생략은 오늘이고 `assignmentStatusCode` 생략은 `RESIGNED`다.
+목록은 과거 소속을 포함하고 기본 정렬은 `startDate` 내림차순이다. `useYn`으로 거른다. 회사는 필수이고 사용 중이어야 한다. 부서는 선택이며 있으면 같은 회사의 사용 중인 부서여야 한다. 시작일은 필수이고 종료일은 시작일 이상이다. `deptHeadYn='Y'`는 부서가 있을 때만 가능하다. `RESIGNED`는 종료일이 필요하다. 종료 API의 `endDate` 생략은 오늘이고 `assignmentStatusCode` 생략은 `RESIGNED`다. 이미 `end_date`가 있으면 `409 ASSIGNMENT.ALREADY_ENDED`다. `use_yn='N'`이면 `409 ASSIGNMENT.INACTIVE`이고, 복구한 뒤 종료한다.
 
 같은 사람, 같은 회사, 같은 부서(둘 다 없음도 같음)의 현재 소속이 둘이면 `409 ASSIGNMENT.DUPLICATE`다. 부서와 회사가 다르면 `409 ASSIGNMENT.DEPT_COMPANY_MISMATCH`다. 사용 중이 아닌 부서는 `400 ASSIGNMENT.DEPT_INACTIVE`, 사용 중이 아닌 회사는 `400 ASSIGNMENT.COMPANY_INACTIVE`다. 사원번호 중복은 `409 ASSIGNMENT.EMPLOYEE_NO_DUPLICATE`다. 날짜 오류는 `400 ASSIGNMENT.INVALID_DATE`, 부서장 플래그 오류는 `400 ASSIGNMENT.DEPT_HEAD_REQUIRES_DEPT`, 퇴사일 누락은 `400 ASSIGNMENT.RESIGNED_REQUIRES_END`다.
 
@@ -447,10 +447,158 @@ JWKS 예:
 | `ASSIGNMENT.INVALID_DATE` | 400 | 소속 날짜 순서 |
 | `ASSIGNMENT.DEPT_HEAD_REQUIRES_DEPT` | 400 | 부서 없이 부서장 |
 | `ASSIGNMENT.RESIGNED_REQUIRES_END` | 400 | 퇴사인데 종료일 없음 |
+| `ASSIGNMENT.ALREADY_ENDED` | 409 | 이미 종료된 소속 |
+| `ASSIGNMENT.INACTIVE` | 409 | 사용 중이 아닌 소속은 종료 불가. 복구 후 종료 |
 
 ### FE 연동 시나리오
 
 1. `GET /api/mdm/v1/departments/tree?companyCode=`로 현재 조직도를 연다.
 2. `POST /api/mdm/v1/people`로 사람을 만들고 `translations`에 필요한 언어만 보낸다.
 3. `POST /api/mdm/v1/people/{personPk}/assignments`로 소속을 만든다. 그 사람의 첫 현재 소속은 주 소속이 된다.
+
+## 사용자·역할·권한
+
+계정, 사용자 역할, 역할, 역할 권한, 권한이다. 메뉴 등록과 수정은 포함하지 않는다. 응답에는 PK와 로그인 아이디를 함께 둔다. 다른 엔티티는 `roleCode`, `menuCode`, `actionCode`, `permissionCode`, `personPk`로 가리킨다.
+
+| API | 메뉴 | 기능 |
+| --- | --- | --- |
+| 사용자 목록·상세·등록·수정·삭제·복구·상태·비밀번호 초기화 | `USER` | `READ` `CREATE` `UPDATE` `DELETE`. 상태, 초기화, 복구는 `UPDATE` |
+| 사용자 역할, 역할, 역할 권한 | `ROLE` | `READ` `CREATE` `UPDATE` `DELETE`. 복구와 권한 교체는 `UPDATE` |
+| 권한 목록·등록·수정·삭제·복구 | `PERMISSION` | `READ` `CREATE` `UPDATE` `DELETE`. 복구는 `UPDATE` |
+
+시드 `S05`에 `USER`, `ROLE`, `PERMISSION`의 `READ` `CREATE` `UPDATE` `DELETE` `EXPORT`가 있고 `TENANT_ADMIN`에 부여되어 있다. 빠진 권한 행은 없다.
+
+목록의 `useYn` 생략은 사용 중지를 포함한다. 페이지는 1부터다. 정렬 화이트리스트 밖은 `400 COMMON.INVALID_SORT`, 페이지 값이 아니면 `400 COMMON.INVALID_PAGE`다. 오늘은 `TenantClock.today()`다.
+
+`role_name`과 `permission_name` 번역은 `i18n_entity_text`다. 상세만 번역을 포함하고 목록은 포함하지 않는다. 알 수 없는 언어는 `400 I18N.LANGUAGE_NOT_FOUND`다.
+
+임시 비밀번호가 있는 응답만 `Cache-Control: no-store`다. 그 응답 객체의 `toString`은 비밀번호를 가린다. 비밀번호 해시, 평문, 토큰은 로그에 남기지 않는다. 역할 변경 로그는 사용자 PK, 역할 코드, `grant`/`revoke`/`period`만 남긴다. 역할 변경 이력 테이블은 없다. 권한 삭제 시 영향 역할 수는 로그에만 남긴다.
+
+권한 캐시와 계정 상태 캐시는 변경이 커밋된 뒤 바로 비운다. 60초를 기다리지 않는다. 사용자 역할과 계정 상태는 그 사용자, 역할 권한은 그 역할의 사용자, 권한 삭제는 스키마 전체다.
+
+### 사용자
+
+`GET/POST /api/mdm/v1/users`
+
+`GET/PUT/DELETE /api/mdm/v1/users/{userPk}`
+
+`PUT /api/mdm/v1/users/{userPk}/status`
+
+`POST /api/mdm/v1/users/{userPk}/password/reset`
+
+`POST /api/mdm/v1/users/{userPk}/restore`
+
+`GET/PUT /api/mdm/v1/users/{userPk}/roles`
+
+목록 필터는 `keyword`(로그인 아이디, 연결된 사람 이름), `userStatusCode`, `accountTypeCode`, `roleCode`(현재 유효한 역할), `useYn`이다. 정렬은 `loginId`, `userStatusCode`, `lastLoginDatetime`, `createDatetime`, `userPk`다. 항목은 `userPk`, `loginId`, `accountTypeCode`, `userStatusCode`, `personPk`, `personName`(컬럼만), `lastLoginDatetime`, `mustChangePasswordYn`, `roleCodes`, `useYn`이다. `roleCodes`는 페이지 사용자 PK를 한 번의 `IN` 조회로 채운다. 상세는 `supportLanguageCode`, `timezoneId`, `description`, `loginFailCount`, `lockedDatetime`, `passwordChangedDatetime`, `passwordExpireDatetime`, 감사 컬럼, 역할 배열을 더한다. `password_hash`는 주지 않는다.
+
+```json
+{
+  "loginId": "staff.user@example.com",
+  "accountTypeCode": "NORMAL",
+  "personPk": 10,
+  "supportLanguageCode": "ko-KR",
+  "timezoneId": "Asia/Seoul",
+  "roleCodes": ["USER"]
+}
+```
+
+등록 응답 예:
+
+```json
+{
+  "userPk": 20,
+  "loginId": "staff.user@example.com",
+  "temporaryPassword": "example-only",
+  "passwordExpireDatetime": "2026-10-22T00:00:00",
+  "mustChangePasswordYn": "Y"
+}
+```
+
+`temporaryPassword` 예시는 형식만 보여 준다. 로그인 아이디는 앞뒤 공백을 자른 뒤 소문자다. 영문, 숫자, `._@-` 3~100자다. 계정 유형 생략은 `NORMAL`이고 `ACCOUNT_TYPE`이어야 한다. `personPk`는 선택이다. 있으면 사용 중인 사람이고 다른 사용 중 계정에 연결되지 않아야 한다. 시스템 계정도 사람을 비울 수 있다. 언어는 사용 중이어야 하고 시간대는 IANA다. `roleCodes`는 사용 중인 역할만, 기간 없이 부여한다. 서버가 임시 비밀번호를 만들어 해시하고 `must_change_password_yn='Y'`, 만료는 `TEMP_PASSWORD_VALID_DAYS`, 상태는 `ACTIVE`, 이력은 `INITIAL`이다.
+
+수정은 `personPk`, `supportLanguageCode`, `timezoneId`, `description`만 바꾼다. `personPk`를 비우면 연결을 해제한다. 로그인 아이디, 계정 유형, 상태, 비밀번호는 바꾸지 않는다. 논리 삭제 계정 수정은 `409 USER.INACTIVE`다.
+
+상태 본문은 `{userStatusCode}`이고 `ACTIVE`, `LOCKED`, `DORMANT`만 된다. `WITHDRAWN`은 삭제만 만든다. `LOCKED`에서 `ACTIVE`는 실패 횟수와 잠금 시각을 지운다. `ACTIVE`에서 `LOCKED`는 잠금 시각을 지금으로 둔다. `LOCKED`와 `DORMANT`는 유효한 refresh를 `ADMIN`으로 철회한다. 같은 상태는 `409 USER.INVALID_STATUS_TRANSITION`이다.
+
+초기화는 등록과 같은 응답이다. 새 임시 비밀번호, 변경 필요, 만료 갱신, 실패 횟수 0, 잠금 시각 null, `LOCKED`면 `ACTIVE`, 이력 `RESET`, refresh `ADMIN` 철회, 계정 상태 캐시 삭제다. `password_hash`가 null이면 `409 USER.NO_PASSWORD_ACCOUNT`다.
+
+삭제는 `use_yn='N'`, 상태 `WITHDRAWN`, refresh 철회다. 복구는 `use_yn='Y'`, `ACTIVE`, 실패 횟수 0, 변경 필요 `Y`다. 기존 해시는 유지한다. 복구 때 다른 사용 중 계정이 같은 사람이면 `409 USER.PERSON_ALREADY_LINKED`다.
+
+로그인한 사용자의 잠금, 휴면, 삭제, 역할 변경, 초기화는 `409 USER.SELF_OPERATION_FORBIDDEN`이다. 권한 없음 `403`이 아니다. 본인 비밀번호 변경은 기존 비밀번호 변경 API다.
+
+사용 중이고 `ACTIVE`이며 현재 유효한 `TENANT_ADMIN`이 그 계정뿐이면 삭제, `LOCKED`, `DORMANT`, `TENANT_ADMIN` 제거는 `409 USER.LAST_ADMIN`이다.
+
+사람 삭제 조건 `PERSON.HAS_ACCOUNT`는 사용 중인 `user_account`와 같다.
+
+역할 조회는 과거, 미래, 철회를 포함한다. `useYn`으로 거른다. 교체 본문은 `[{roleCode, validFromDate, validToDate}]`다. 요청에 있는 역할은 부여하거나 기간을 바꾸고, 빠진 사용 중 부여는 `use_yn='N'`이다. 같은 사용자·역할의 철회 행은 되살리고 새 행을 넣지 않는다. 요청 안 중복 코드는 `400`이다. 시작일이 종료일보다 늦으면 `400 ROLE.INVALID_DATE`다. 사용 중이 아닌 역할은 `400 ROLE.INACTIVE`와 `fieldErrors`다. 없는 역할은 `404 ROLE.NOT_FOUND`다.
+
+로그인 아이디 중복은 `409 USER.DUPLICATE_LOGIN_ID`다. 논리 삭제한 아이디도 다시 쓰지 못한다. 계정 유형이 아니면 `400 ORG.INVALID_CODE_VALUE`다. 사람이 없으면 `404 PERSON.NOT_FOUND`다.
+
+### 역할
+
+`GET/POST /api/mdm/v1/roles`
+
+`GET/PUT/DELETE /api/mdm/v1/roles/{rolePk}`
+
+`POST /api/mdm/v1/roles/{rolePk}/restore`
+
+`GET/PUT /api/mdm/v1/roles/{rolePk}/permissions`
+
+목록 필터는 `keyword`(코드, 이름), `useYn`이다. 정렬은 `roleCode`, `roleName`, `sortOrder`, `rolePk`다. `userCount`는 현재 유효한 부여이면서 사용자 `use_yn='Y'`인 수를 페이지마다 한 번 집계한다.
+
+`roleCode`는 `^[A-Z][A-Z0-9_]{1,49}$`다. 만든 뒤 바꾸지 않는다. 중복은 `409 ROLE.DUPLICATE`이고 논리 삭제 코드도 포함한다. 수정은 이름, 정렬, 설명, 번역이다. `TENANT_ADMIN` 삭제는 `409 ROLE.PROTECTED`다. 이름과 설명 수정은 된다. 사용 중인 부여가 날짜와 관계없이 있으면 `409 ROLE.IN_USE`다.
+
+권한 조회는 사용 중인 권한을 메뉴 정렬, 권한 정렬 순으로 주고 `granted`를 붙인다. 필드 `permissionPk`, `permissionCode`, `menuCode`, `menuName`, `actionCode`, `permissionName`, `granted`다. 메뉴 이름은 `menus/my`와 같이 `lang`, `Accept-Language`, 테넌트 기본 언어 순으로 번들을 보고 없으면 `menu.menu_name`이다. `granted=true`면 부여된 것만 준다. 페이지는 없다.
+
+교체 본문은 `{permissionCodes:[...]}`다. 철회된 `role_permission`은 되살린다. 없거나 사용 중이 아닌 코드는 `404 PERMISSION.NOT_FOUND`와 `fieldErrors`다. READ가 아닌 기능은 같은 메뉴 READ가 요청에 있어야 하고, 없으면 `400 ROLE.READ_REQUIRED`와 메뉴 코드를 `fieldErrors`에 둔다. `TENANT_ADMIN` 권한 교체는 `409 ROLE.PROTECTED`다.
+
+### 권한
+
+`GET/POST /api/mdm/v1/permissions`
+
+`GET/PUT/DELETE /api/mdm/v1/permissions/{permissionPk}`
+
+`POST /api/mdm/v1/permissions/{permissionPk}/restore`
+
+목록 필터는 `menuCode`, `actionCode`, `keyword`, `useYn`이다. 정렬은 `permissionCode`, `menuCode`, `actionCode`, `sortOrder`, `permissionPk`다.
+
+```json
+{
+  "menuCode": "COMPANY",
+  "actionCode": "APPROVE",
+  "permissionName": "회사승인",
+  "sortOrder": 10
+}
+```
+
+메뉴는 사용 중인 `PAGE`여야 한다. `GROUP`은 `400 PERMISSION.MENU_NOT_PAGE`다. `actionCode`는 사용 중인 `PERMISSION_ACTION`이다. 시드에는 `READ`, `CREATE`, `UPDATE`, `DELETE`, `EXPORT`, `APPROVE`가 있다. `permission_code`는 서버가 `menuCode:actionCode`로 만든다. 같은 메뉴·기능은 `409 PERMISSION.DUPLICATE`다. 논리 삭제 코드는 다시 만들지 않고 복구한다. 수정은 이름, 정렬, 설명, 번역만 된다.
+
+`READ` 삭제는 `409 PERMISSION.PROTECTED`다. 그 외 삭제는 `use_yn='N'`이고 해당 `role_permission`도 `use_yn='N'`이다. 복구는 메뉴가 사용 중인 `PAGE`일 때만 되고 역할 부여는 되살리지 않는다.
+
+### 오류
+
+| 코드 | HTTP | 의미 |
+| --- | --- | --- |
+| `USER.DUPLICATE_LOGIN_ID` | 409 | 로그인 아이디 중복. 논리 삭제 포함 |
+| `USER.PERSON_ALREADY_LINKED` | 409 | 사용 중인 다른 계정에 연결된 사람 |
+| `USER.NOT_FOUND` | 404 | 사용자 없음 |
+| `USER.INACTIVE` | 409 | 사용 중이 아니거나 탈퇴 |
+| `USER.INVALID_STATUS_TRANSITION` | 409 | 허용되지 않거나 같은 상태 |
+| `USER.SELF_OPERATION_FORBIDDEN` | 409 | 본인 잠금, 휴면, 삭제, 역할, 초기화 |
+| `USER.LAST_ADMIN` | 409 | 마지막 관리자 |
+| `USER.NO_PASSWORD_ACCOUNT` | 409 | 비밀번호 해시가 없음 |
+| `ROLE.NOT_FOUND` | 404 | 역할 없음 |
+| `ROLE.INACTIVE` | 400 | 사용 중이 아닌 역할 부여 |
+| `ROLE.INVALID_DATE` | 400 | 역할 기간 순서 |
+| `ROLE.DUPLICATE` | 409 | 역할 코드 중복 |
+| `ROLE.PROTECTED` | 409 | `TENANT_ADMIN` 삭제 또는 권한 교체 |
+| `ROLE.IN_USE` | 409 | 부여가 남아 있음 |
+| `ROLE.READ_REQUIRED` | 400 | 같은 메뉴 READ 없음 |
+| `PERMISSION.NOT_FOUND` | 404 | 권한 없음 |
+| `PERMISSION.DUPLICATE` | 409 | 메뉴·기능 중복 |
+| `PERMISSION.MENU_NOT_PAGE` | 400 | 페이지 메뉴가 아님 |
+| `PERMISSION.PROTECTED` | 409 | READ 삭제 |
+| `PERMISSION.INACTIVE` | 409 | 사용 중이 아닌 권한 수정 |
+
 
