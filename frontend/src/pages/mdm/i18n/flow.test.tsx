@@ -445,6 +445,33 @@ describe('i18n flows', () => {
     expect(screen.getByText('다국어')).toBeTruthy();
   });
 
+  it('shows missing language tags from the list summary and does not load each message', async () => {
+    listMessages.mockResolvedValue(
+      pageOf([
+        {
+          ...saveMessage,
+          translatedLanguageCodes: ['ko-KR'],
+          missingLanguageCodes: ['en-US'],
+          translationStatusCodes: ['DRAFT'],
+        },
+      ]),
+    );
+    renderPage();
+    fireEvent.click(await screen.findByText('메뉴'));
+    const missing = await screen.findByText('en-US');
+    expect(missing.closest('.ant-tag')?.className).toContain('ant-tag-warning');
+    expect(screen.getByText('ko-KR').closest('.ant-tag')?.className).not.toContain('ant-tag-warning');
+    expect(screen.getByText('DRAFT')).toBeTruthy();
+    expect(getMessage).not.toHaveBeenCalled();
+  });
+
+  it('shows a dash when the list has no translation summary', async () => {
+    renderPage();
+    fireEvent.click(await screen.findByText('메뉴'));
+    expect(await screen.findByText('—')).toBeTruthy();
+    expect(getMessage).not.toHaveBeenCalled();
+  });
+
   it('keeps the selected namespace when a later list call fails', async () => {
     renderPage();
     fireEvent.click(await screen.findByText('메뉴'));

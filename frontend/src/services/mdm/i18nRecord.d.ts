@@ -34,6 +34,9 @@ export type MessageRecord = {
   paramDescription: string | null;
   useYn: string;
   translations: MessageTextView[];
+  translatedLanguageCodes?: string[];
+  missingLanguageCodes?: string[];
+  translationStatusCodes?: string[];
 };
 
 export type MessageBody = {

@@ -493,4 +493,40 @@ git: `frontend`와 `D:\_project\PMIS` 모두 저장소가 아니다. `git status
 - 권한은 `permission.ts`의 `grantI18n`이 임시로 허용한다. F5에서 본문을 `can('I18N', action)`으로 바꾸면 된다.
 - 좌우 배치 스타일은 공통코드 화면과 같게 이 화면 파일에 두었다. 공통코드 화면은 건드리지 않았다.
 
+## [F4.1단계] 지원 언어·국가 관리 - 2026-10-19
+
+### 변경/추가 파일
+
+- 추가: `src/pages/mdm/language/` (탭 화면, 언어·국가 Drawer, 규칙, 임시 권한, 흐름·규칙 테스트)
+- 추가: `src/services/mdm/languageAdmin.ts`, `languageQuery.ts`, `languageRecord.d.ts`
+- 추가: `doc/f4.1-wireframe.md`, `doc/f4.1-manual-check.md`
+- 수정: `config/routes.ts`에 테넌트 경로 `/mdm/language`. 플랫폼 라우트는 수정하지 않았다
+- 수정: `src/locales/ko-KR`, `en-US`의 `menu.ts`, `pages.ts`
+- 수정: `src/services/mdm/i18nRecord.d.ts`에 목록 요약 3필드를 선택 필드로 추가. `src/pages/mdm/i18n/index.tsx` 번역 상태 열과 `flow.test.tsx`
+- 백엔드는 수정하지 않았다. `src/core/i18n`에 언어 목록 무효화 함수가 없어 새로 만들지 않았다
+
+### 검증 결과
+
+- `npm.cmd run lint`: 통과. biome 134파일, 이어서 `tsc --noEmit`. 종료 코드 0
+- `npx.cmd antd lint ./src`: 통과. 128파일, 이슈 0
+- `npm.cmd run tsc`: 통과. lint 안의 `tsc --noEmit`이 종료 코드 0
+- `npm.cmd run test`: 통과. 28파일, 128개. 약 125초
+- `src/pages/mdm/language/flow.test.tsx`를 3회 반복 실행했다. 매번 21개 통과
+- `npm.cmd run build`: 통과. 테넌트 산출물에 `mdm/language`가 있다
+- `npm.cmd run build:platform`: `dist`와 `src/.umi-production`을 지운 뒤 통과. 산출물에 `mdm/language`가 없고 `tenants`가 있다
+- 개발 서버와 백엔드는 띄우지 않았다
+
+### 질문/확인 필요
+
+- 합의 도식의 국가 탭 검색·사용 여부 필터는 `GET /nations?managed=true`에 해당 파라미터가 없어 만들지 않았다. 열, 페이징, 정렬, Drawer는 구현했다.
+- `src/core/i18n`에는 언어 목록 캐시 무효화 함수가 없다. 이 화면의 목록은 저장·중지·복구 후 다시 조회한다. 로그인·헤더 언어 선택은 다음 `loadPublicI18n`(앱 시작 또는 로케일 변경) 때 바뀌고, F4 번역 탭 언어 목록은 그 화면이 다시 마운트될 때 `fetchLanguages`로 다시 받는다.
+- 사용자가 직접 볼 항목은 `doc/f4.1-manual-check.md` 맨 위에 모았다.
+
+### 가정한 사항
+
+- 권한은 `permission.ts`의 `grantLanguage`가 임시로 허용한다. F5에서 본문을 `can('I18N', action)`으로 바꾸면 된다. `src/access.ts`의 `can()`은 그대로 두었다.
+- 저장 중 버튼은 antd 6이 HTML `disabled` 대신 로딩 상태에서 클릭을 무시한다. 테스트는 요청 1회를 확인한다.
+- 새로 등록하면서 기본 언어로 저장할 때도 확인창을 띄운다. 이미 기본인 언어를 수정할 때는 띄우지 않는다.
+- 403 `AUTH.FORBIDDEN`은 서버 문구를 쓰지 않고 로컬 안내만 보여 준다.
+
 

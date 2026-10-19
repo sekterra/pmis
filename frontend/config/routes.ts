@@ -31,6 +31,12 @@ export default [
     component: './mdm/i18n',
   },
   {
+    path: '/mdm/language',
+    name: 'language',
+    icon: 'global',
+    component: './mdm/language',
+  },
+  {
     path: '/welcome',
     name: 'welcome',
     icon: 'home',

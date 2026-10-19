@@ -1,6 +1,6 @@
 import { PageContainer } from '@ant-design/pro-components';
 import { useAccess, useIntl, useSearchParams } from '@umijs/max';
-import { Alert, App, Button, Descriptions, Empty, Input, Select, Space, Table } from 'antd';
+import { Alert, App, Button, Descriptions, Empty, Input, Select, Space, Table, Tag } from 'antd';
 import type { TableProps } from 'antd';
 import React, { useCallback, useEffect, useState } from 'react';
 import { ApiError } from '@/core/request/errors';
@@ -340,7 +340,36 @@ const I18nPage: React.FC = () => {
     {
       title: text('pages.i18n.translationSummary', '번역 상태'),
       key: 'translationSummary',
-      render: () => text('pages.i18n.translationUnknown', '—'),
+      render: (_value, record) => {
+        if (
+          record.translatedLanguageCodes === undefined &&
+          record.missingLanguageCodes === undefined &&
+          record.translationStatusCodes === undefined
+        ) {
+          return text('pages.i18n.translationUnknown', '—');
+        }
+        const translated = record.translatedLanguageCodes ?? [];
+        const missing = record.missingLanguageCodes ?? [];
+        const statuses = record.translationStatusCodes ?? [];
+        return (
+          <Space size={4} wrap>
+            {translated.map((code) => (
+              <Tag key={code}>{code}</Tag>
+            ))}
+            {missing.map((code) => (
+              <Tag key={`missing-${code}`} color="warning">
+                {code}
+              </Tag>
+            ))}
+            {missing.length === 0 ? (
+              <Tag color="success">{text('pages.i18n.translationComplete', '완료')}</Tag>
+            ) : null}
+            {statuses.map((code) => (
+              <Tag key={`status-${code}`}>{code}</Tag>
+            ))}
+          </Space>
+        );
+      },
     },
     { title: text('pages.i18n.use', '사용 여부'), dataIndex: 'useYn' },
     {
