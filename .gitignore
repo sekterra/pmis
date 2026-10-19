@@ -1,4 +1,5 @@
 *.zip
+*.diff
 Claude outputs/
 backend/.idea/
 .idea/
