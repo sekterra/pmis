@@ -53,3 +53,67 @@
 | 7~7.1 | 공통 API 규약(페이징·정렬·오류), 공통코드 API, 다국어 API, 부분 유니크 V4/V5 |
 | 8~8.4 | 인증 설계, 보안 인프라(JWT RS256, JWKS), 테넌트 사용자 인증, 플랫폼 인증·테넌트 관리 API(공용 V3), `menus/my`·공용 V4 |
 | 8.5~8.7 | local 프로필, 플랫폼 API 보완·통합 테스트 격리, 메시지 목록 번역 요약 필드 |
+
+---
+
+## 9.1단계: 조직·사람 관리 API (회사, 부서, 사람, 사람 소속)
+
+8.7까지 승인. 사용자 결정(2026-10-19): 백엔드 9단계를 9.1(회사·부서·사람), 9.2(사용자·역할), 9.3(파일·팀)으로 나눈다. 이번 단계는 테넌트 스키마 V2의 `company`, `dept`, `dept_history`, `person`, `person_assignment` 에 대한 관리 API이다. 사용자 계정(`user_account`), 역할·권한, 파일, 팀은 범위 밖이다. 이 단계만 수행하고 멈춘다.
+
+````
+기준 문서: doc/erd/erd-model-org-user-*.json(정본, 수정 금지), 테넌트 마이그레이션 V1~V6 (db/migration/tenant, 읽기), doc/api/mdm-api.md(공통 규약: 래퍼, 페이징·정렬, 오류 코드, 권한), doc/auth-design.md, 7단계 공통코드 API와 7.1단계 다국어 API의 코드(같은 패턴을 따른다. 패키지는 기능별로 org(회사·부서)와 person(사람·소속)을 새로 만들거나 기존 패키지 규칙에 맞춘다). ERD와 어긋나거나 모호한 부분은 임의로 정하지 말고 질문 목록에 올린다. DDL(V1~V6)은 원칙적으로 바꾸지 않는다. 꼭 필요하면 구현을 멈추고 질문한다(V7이 필요한 경우 어떤 제약인지와 이유를 적는다).
+
+[결정 사항 - 먼저 doc/api/mdm-api.md 에 "조직·사람" 절 뼈대와 오류 코드 표를 쓰고 구현한다]
+1. URL(복수 kebab-case, PK 경로): /api/mdm/v1/companies, /api/mdm/v1/departments, /api/mdm/v1/people, /api/mdm/v1/people/{personPk}/assignments, /api/mdm/v1/person-assignments/{assignmentPk}. 코드값 참조는 요청·응답에서 코드 문자열을 쓰고(예: nationCode, companyCode) 내부 PK 매핑은 서버가 한다. 응답에는 PK와 코드를 모두 준다. 공통 규약(래퍼, 페이징 page/size/sort, 정렬 화이트리스트, 400 COMMON.INVALID_SORT 등)은 7단계 그대로다.
+2. 권한(@RequirePermission, 기능 코드는 Seed 의 permission_code 형식을 따른다): 회사 COMPANY, 부서 DEPT, 사람과 사람 소속 PERSON. 조회=READ, 등록=CREATE, 수정=UPDATE, 논리 삭제=DELETE, 복구는 7단계 공통코드 복구와 같은 기능 코드를 쓴다(기존 코드를 읽고 맞춘다). Seed 에 COMPANY, DEPT, PERSON 메뉴와 권한 행이 있는지 확인하고, 없거나 빠진 행이 있으면 db/seed/tenant 에 멱등으로 보강한다(기존 값 덮어쓰기 금지).
+3. 코드값 검증: company_type_code(COMPANY_TYPE), dept_type_code(DEPT_TYPE), employment_type_code(EMPLOYMENT_TYPE), assignment_status_code(ASSIGNMENT_STATUS), position_code(POSITION), job_title_code(JOB_TITLE)는 요청에 값이 있으면 해당 공통코드 그룹의 "사용 중이고 유효기간 안인" 코드 값이어야 한다. 아니면 400 ORG.INVALID_CODE_VALUE 와 fieldErrors. POSITION, JOB_TITLE 은 Seed 값이 없고 테넌트가 화면에서 등록하므로 값이 없으면 항상 거절될 수 있다(요청에서 생략하면 된다). 공통코드 조회는 기존 서비스를 재사용하고 규칙을 복제하지 않는다.
+4. 다국어 명칭: company_name, dept_name, person_name 의 언어별 표기는 i18n_entity_text(target_table_name, target_column_name, 대상 키)로 관리한다(V1 DDL과 ERD 설명을 읽고 컬럼 규칙을 확인한다). 등록·수정 요청의 translations 배열 [{supportLanguageCode, text}] 로 (대상, 컬럼, 언어) 기준 upsert 하고 요청에 없는 언어는 유지한다(7단계 공통코드 그룹과 같은 방식). 존재하지 않는 언어는 400 I18N.LANGUAGE_NOT_FOUND. 단건 조회 응답에만 translations 를 담고 목록 응답에는 담지 않는다. 이 화면용 번역 조회가 목록에서 필요해지는 경우는 이번 범위가 아니다.
+5. 감사 사용자: 등록·수정 시 create_user_pk/update_user_pk(그리고 dept_history.change_user_pk)에 현재 로그인한 테넌트 사용자의 user_pk(JWT sub)를 남긴다. 지금 AuditorAware 가 아직 null 을 돌려주고 있으면 이번 단계에서 SecurityContext 의 검증된 테넌트 사용자 토큰의 sub 를 읽도록 구현한다(토큰이 없거나 플랫폼 토큰이면 null). 이미 구현돼 있으면 그대로 쓴다. 어느 쪽인지 보고서에 적는다.
+6. 논리 삭제는 use_yn='N'. 삭제된 행을 다시 쓰려면 복구 API 를 쓴다. 코드 컬럼(company_code, dept_code)은 등록 후 변경 불가이고 DB 의 전체 유니크가 유지된다(삭제된 코드는 재등록 불가, 복구로만 되살림). 이 사실을 문서에 적는다.
+7. 날짜는 DATE, "오늘"은 현재 테넌트의 timezone_id 기준(7.1단계에서 만든 한 곳의 처리를 재사용).
+
+[회사 company]
+- 목록(페이징): keyword(코드·이름·약칭 부분일치), companyTypeCode, useYn(생략 시 사용 중만. 사용 중지 포함은 useYn=ALL 같은 방식이 아니라 기존 7단계 관례를 따른다), 정렬 허용: companyCode, companyName, sortOrder, companyPk. 단건(번역 포함), 등록, 수정, 논리 삭제, 복구.
+- 필드는 ERD(company)를 따른다. nation 은 nationCode 로 받아 nation_pk 로 매핑하고 존재하지 않거나 사용 중지된 국가는 400 I18N.NATION_NOT_FOUND 계열 오류가 아니라 fieldErrors(nationCode) 로 돌려준다(어떤 쪽이 기존 규약과 맞는지 코드를 보고 정하고 문서에 적는다).
+- 규칙: company_code 형식은 대문자·숫자·밑줄·하이픈 1~50자(근거를 문서에 쓰고, ERD 설명과 다르면 질문), 중복 409 COMPANY.DUPLICATE. business_registration_no 는 NULL 제외, use_yn='Y' 범위에서 유일(V6, 중복 409 COMPANY.DUPLICATE_BUSINESS_NO; 하이픈 등 형식은 저장 전 숫자만 남기는 정규화는 하지 않고 입력 그대로 저장하되 앞뒤 공백만 제거). 상위 회사(parentCompanyCode): 자기 자신 금지, 순환 금지(400 COMPANY.PARENT_CYCLE), 사용 중인 회사만.
+- 논리 삭제 거절(409 COMPANY.IN_USE, 사유별 하위 코드는 detail 이 아니라 errorMessage 로 구분하지 말고 오류 코드를 나눈다: COMPANY.HAS_CHILD_COMPANY, COMPANY.HAS_ACTIVE_DEPT, COMPANY.HAS_ACTIVE_ASSIGNMENT). 복구 시 상위 회사가 사용 중이어야 한다(아니면 409 COMPANY.PARENT_INACTIVE).
+- 테넌트 가입 시 만들어진 OWN 회사(프로비저닝)도 같은 규칙으로 수정할 수 있다. 단 company_type_code='OWN' 인 마지막 사용 중 회사를 삭제하는 것은 409 COMPANY.LAST_OWN 으로 막는다.
+
+[부서 dept, dept_history]
+- 목록(페이징, 관리 화면용): companyCode 필터(필수 아님), keyword, deptTypeCode, useYn, parentDeptPk, 정렬 허용: deptCode, deptName, levelNo, sortOrder, deptPk.
+- 트리 조회 GET /departments/tree?companyCode=(필수)&asOfDate=(선택)&includeClosed=: 페이징 없는 배열(코드성 목록 규약). 항목: deptPk, deptCode, deptName, parentDeptPk, levelNo, deptPath, deptTypeCode, sortOrder, validFromDate, validToDate, useYn. 정렬은 deptPath 기준으로 트리 순서가 되게 한다(같은 부모 안에서는 sortOrder, deptCode). asOfDate 가 있으면 valid_from_date <= asOfDate 이고 (valid_to_date IS NULL 또는 valid_to_date >= asOfDate)인 부서만 준다(폐지된 부서도 기간 안이면 포함. use_yn 은 보지 않는다). 없으면 오늘 기준 사용 중인 부서. 부모 이동 이력은 현재 구조만 반영한다(과거 구조 재현은 이번 범위가 아니며 한계로 문서에 적는다).
+- 등록: company, 상위 부서(같은 회사, 사용 중), dept_code(회사 안 유일, 409 DEPT.DUPLICATE), 이름, 유형, 정렬, 유효 시작일(기본 오늘)·종료일(시작일 이하 금지: 종료일>=시작일 검증), 설명, translations. level_no 와 dept_path(예 /1/5/12)는 서버가 계산한다(INSERT 후 PK 로 경로를 채우는 방식. 같은 트랜잭션). dept_history 에 CREATE 행(effective_date=유효 시작일, after_dept_name, after_parent_dept_pk).
+- 수정: dept_code, company 는 변경 불가. 이름이 바뀌면 RENAME 이력(before/after_dept_name), 상위 부서가 바뀌면 MOVE 이력(before/after_parent_dept_pk). 이름과 상위가 동시에 바뀌면 이력 행 2개. 이력의 effective_date 는 요청의 effectiveDate(선택, 기본 오늘), change_reason 은 요청의 changeReason(선택). 이동 시 자기 자신·하위 부서 아래로 이동 금지(400 DEPT.PARENT_CYCLE), 다른 회사 부서 아래로 금지(400 DEPT.PARENT_COMPANY_MISMATCH). 이동하면 이동한 부서와 모든 하위의 level_no 와 dept_path 를 같은 트랜잭션에서 갱신한다(하위 수가 많아도 행마다 쿼리를 내지 말고 경로 접두사 기준의 일괄 UPDATE 를 쓴다).
+- 논리 삭제(폐지): 활성 하위 부서가 있으면 409 DEPT.HAS_CHILD, 현재 소속(end_date IS NULL, use_yn='Y')이 있으면 409 DEPT.HAS_ACTIVE_ASSIGNMENT. 통과하면 valid_to_date = 요청의 effectiveDate(기본 오늘), use_yn='N', CLOSE 이력. 복구: 상위 부서가 사용 중이어야 하고(409 DEPT.PARENT_INACTIVE), valid_to_date=NULL, use_yn='Y', REOPEN 이력.
+- 이력 조회 GET /departments/{deptPk}/history (페이징, 최신순): change_type_code, effective_date, 전후 이름, 전후 상위 부서 PK, 사유, 변경 시각, 변경 사용자 PK. 이력은 수정·삭제 API 가 없다(append-only).
+- 부서 이력은 DEPT_CHANGE_TYPE(CREATE/RENAME/MOVE/CLOSE/REOPEN) 공통코드 값을 쓴다. Seed 에 이 그룹이 없으면 멱등으로 보강한다.
+
+[사람 person, 사람 소속 person_assignment]
+- 사람 목록(페이징): keyword(이름·이메일·휴대전화·사번 부분일치. 사번은 현재 소속의 employee_no), companyCode, deptPk(현재 소속 기준), employmentTypeCode, assignmentStatusCode(주 소속 기준), useYn, 정렬 허용: personName, email, personPk. 각 항목에 "주 소속 요약"(현재 소속 중 primary_yn='Y' 한 건: companyCode, companyName, deptCode, deptName, positionCode, jobTitleCode, employeeNo, assignmentStatusCode, 없으면 null)을 포함한다. 요약은 페이지에 포함된 사람 PK 목록으로 한 번의 IN 조회(또는 조인)로 만든다. 행마다 쿼리를 내지 않는다(N+1 금지. 8.7단계와 같은 방식으로 쿼리 수가 페이지 크기와 무관함을 검증한다).
+- 사람 단건(번역, 현재 소속 목록 포함), 등록, 수정, 논리 삭제, 복구. 필드는 ERD(person)를 따르되 profile_file_pk 는 이번 단계 요청에서 받지 않는다(파일 API 는 9.3. 응답에는 값을 그대로 준다). 이메일은 형식 검증(Bean Validation), 같은 이메일의 중복은 막지 않는다(동명이인·공용 메일 가능, 근거를 문서에 적는다).
+- 사람 논리 삭제 거절: 현재 소속이 있으면 409 PERSON.HAS_ACTIVE_ASSIGNMENT, 연결된 사용 중인 user_account 가 있으면 409 PERSON.HAS_ACCOUNT (user_account 는 읽기 전용으로 확인만 하고 이 단계에서 만들거나 바꾸지 않는다). 복구 가능.
+- 소속 API: GET /people/{personPk}/assignments (배열, 과거 소속 포함, 기본 정렬 start_date 내림차순; useYn 필터), POST /people/{personPk}/assignments, PUT /person-assignments/{assignmentPk}, POST /person-assignments/{assignmentPk}/end (본문 endDate(기본 오늘), assignmentStatusCode(기본 RESIGNED, 허용값은 코드 검증), changeReason 은 받지 않는다), DELETE /person-assignments/{assignmentPk}(잘못 입력한 소속의 논리 삭제), POST .../restore.
+- 소속 규칙: company 필수(사용 중), dept 는 선택이지만 값이 있으면 같은 회사 소속이어야 한다(400 ASSIGNMENT.DEPT_COMPANY_MISMATCH. 사용 중인 부서만). start_date 필수, end_date >= start_date. employee_no 는 같은 회사 안에서 유일(NULL 제외, use_yn='Y', end_date 와 무관한 V2 의 부분 유니크를 확인해 같은 범위로 검사하고 위반은 409 ASSIGNMENT.DUPLICATE_EMPLOYEE_NO). dept_head_yn='Y' 는 dept 가 있을 때만(400). 같은 사람이 같은 회사·같은 부서(둘 다 NULL 포함)에 현재 소속이 둘 생기는 것은 409 ASSIGNMENT.DUPLICATE. 상태 RESIGNED 이면 end_date 가 있어야 한다(요청에 없으면 400).
+- 주소속 규칙: 사람당 현재 소속(end_date IS NULL, use_yn='Y') 중 primary_yn='Y' 는 최대 1건(V2 부분 유니크). 사람의 첫 현재 소속은 primaryYn 요청값과 상관없이 'Y'로 한다. 이후 소속을 primaryYn='Y' 로 등록·수정하면 기존 주소속을 같은 트랜잭션에서 'N' 으로 내린다(409 로 거절하지 않는다). 주소속을 end 하면 다른 현재 소속이 남아 있어도 자동 승격하지 않는다(주소속 없음 상태를 허용하고 문서에 적는다). 소속 변경(부서 이동)은 기존 소속을 end 하고 새 소속을 등록하는 흐름으로 표현한다(이동 전용 API 는 만들지 않는다).
+- 사번이 다른 회사에서 같아도 된다(UK 는 회사별).
+
+[오류 코드와 문구] 위에서 정의한 모든 오류 코드(ORG.*, COMPANY.*, DEPT.*, PERSON.*, ASSIGNMENT.*)의 ko-KR/en-US 문구를 db/seed/tenant 의 error 네임스페이스 Seed 에 멱등으로 추가한다(기존 값 덮어쓰기 금지). 일괄 업그레이드가 기존 테넌트에도 추가하는 것을 테스트로 확인한다.
+
+[문서] doc/api/mdm-api.md 에 위 엔드포인트의 요청·응답 예시, 필터·정렬 필드, 권한 표, 오류 코드 표, 한계(부서 구조의 과거 재현, 코드 재사용 불가)를 추가한다. FE 연동 시나리오에 "조직도 트리 로딩"과 "사람 등록 → 소속 등록" 순서를 쓴다.
+
+[테스트]
+- 단위/슬라이스(MockMvc, DB 없음): 오류 코드 매핑, 검증(날짜 순서, 코드 형식, 이메일), 권한(기본 프로필 403/토큰 없음 401), 정렬 화이트리스트, 트리 정렬 순서와 경로 계산 함수, 이동 시 하위 경로 재계산 함수, 주소속 승격 규칙.
+- 통합(@Tag("integration"), 3.2단계 절차: 접속 정보 비밀 보호, 실행 전 DB 이름 pmis 확인, t_it_<랜덤> 스키마만, 테넌트는 프로비저닝 서비스로 ACTIVE, 테스트 전용 토큰 발급 헬퍼 사용): 
+  (a) 엔티티 validate (V1~V6)
+  (b) 회사: 등록·수정·삭제·복구, 국가 매핑, 사업자번호 부분 유니크(삭제 후 재등록 가능·사용 중 중복 409), 상위 회사 순환 거절, 삭제 거절 4종(하위 회사, 활성 부서, 활성 소속, 마지막 OWN)
+  (c) 부서: 트리 생성과 level_no/dept_path, 이동 시 하위 경로 일괄 갱신, 순환·다른 회사 이동 거절, RENAME/MOVE/CLOSE/REOPEN 이력 행(전후 값, effective_date, 사용자 PK), asOfDate 조회에서 폐지된 부서 포함/제외, 삭제 거절 2종, 복구
+  (d) 사람: 등록·수정·번역 upsert(요청에 없는 언어 유지), 목록의 주 소속 요약과 쿼리 수가 페이지 크기와 무관함, 삭제 거절 2종(활성 소속, 연결된 계정 — 계정 행은 테스트가 직접 INSERT)
+  (e) 소속: 첫 소속의 자동 주소속, 새 주소속 등록 시 기존 주소속 강등, 부서-회사 불일치 거절, 사번 중복(회사별), 중복 소속 거절, RESIGNED 종료일 규칙, end 후 부서 폐지 가능, 삭제·복구
+  (f) 권한: READ 만 있는 사용자가 쓰기 API 403, 권한 없는 사용자 403, 두 테넌트 데이터 분리
+  (g) 감사 사용자 PK 가 토큰의 sub 로 남는다
+  (h) 코드값 검증(유효/무효/기간 밖/사용 중지 코드)
+  (i) 일괄 업그레이드가 새 오류 문구·Seed 를 기존 테넌트에 추가하되 바뀐 값은 보존
+  테스트가 만든 모든 행과 스키마를 정리하고 pmis 업무 테이블 0행(실제 테넌트 행 불변)을 확인한다. 기존 통합 테스트 전부(현재 개수를 보고서에 적는다)도 통과해야 한다.
+- 새 라이브러리는 추가하지 않는다. 공유 DB 에 마이그레이션을 적용하는 일은 이 단계에 없다(테넌트 Seed 는 일괄 업그레이드로 반영되지만, 실제 테넌트에 업그레이드를 실행하지 않는다).
+- 질문이 있으면 해당 부분만 멈추고 진행 기록의 질문 목록에 올린다. 진행 기록은 [9.1단계] 형식으로 doc/cursor-progress.md 에 추가하고, 보고서는 파일 앞쪽 "작업 방식"의 형식으로 docs/reports/9.1.md 와 9.1.diff 를 만든다. 커밋 메시지는 [9.1] 요약. push 는 하지 않는다. 완료 후 멈춘다.
+````
