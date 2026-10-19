@@ -20,7 +20,7 @@ PMIS SaaS 솔루션. Spring Boot(백엔드) + React(Ant Design Pro, 프런트엔
 
 ## 작업 방식 (자세한 흐름은 docs/WORKFLOW.md)
 1. Claude가 지시서를 해당 영역의 `doc/cursor-handoff-prompts.md`(백엔드 `backend/common/doc/`, 프런트엔드 `frontend/doc/`)에 단계 섹션으로 추가한다. 사용자가 "이 파일의 N단계를 수행해줘"라고 하면 그 단계 하나만 하고 멈춘다. 다음 단계를 자동으로 진행하지 않는다. 지시서의 이전 단계 내용은 삭제·수정하지 않는다.
-2. 작업은 현재 브랜치 `main`에서 바로 한다. 브랜치 생성, PR, merge는 하지 않는다. 시작 전 `main`인지, `git pull --ff-only`가 되는지, Claude가 쓰는 파일(각 영역의 `doc/cursor-handoff-prompts.md`, `docs/reviews/` 안, `AGENTS.md`, `docs/WORKFLOW.md`, `.gitignore`) 밖에 미커밋 변경이 없는지 확인하고 어긋나면 멈추고 보고한다. 그 Claude 작성 파일의 미커밋 변경은 먼저 `docs: ...` 커밋으로 따로 커밋한다.
+2. 작업은 현재 브랜치 `main`에서 바로 한다. 브랜치 생성, PR, merge는 하지 않는다. 시작 전 `main`이 아니면 `git switch main`으로 전환하고(이전 `step/...` 브랜치는 삭제하지 않는다, 미커밋 변경은 따라온다), `git pull --ff-only`가 되는지, Claude가 쓰는 파일(각 영역의 `doc/cursor-handoff-prompts.md`, `docs/reviews/` 안, `AGENTS.md`, `docs/WORKFLOW.md`, `.gitignore`) 밖에 미커밋 변경이 없는지 확인하고 어긋나면 멈추고 보고한다. 그 Claude 작성 파일의 미커밋 변경은 먼저 `docs: ...` 커밋으로 따로 커밋한다.
 3. 끝나면 `[<단계>] 요약` 형식으로 로컬 커밋하고, 해당 영역의 `doc/cursor-progress.md`에 `[N단계] 제목 - 날짜`, 변경 파일, 검증 결과, 질문/확인 필요, 가정한 사항을 추가한다. 그리고 `docs/reports/<단계>.md` 보고서와 `docs/reports/<단계>.diff`(시작 커밋..HEAD, 커밋하지 않음)를 만든다.
 4. **push는 사용자가 "push 해줘"라고 요청할 때만** 한다(`git push origin main`만, force 금지).
 5. Claude가 보고서·diff를 읽고 검토해 `docs/reviews/`에 기록하고 다음 지시서를 쓴다.

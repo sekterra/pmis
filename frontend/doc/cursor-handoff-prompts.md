@@ -25,8 +25,9 @@
 ## 작업 방식 (2026-10-19 변경. 아래 옛 단계의 "커밋·브랜치·푸시 금지", "PR" 문구보다 우선한다)
 1. 현재 브랜치 `main`에서 직접 작업하고 커밋한다. `step/...` 브랜치 생성, PR 생성, merge는 하지 않는다.
 2. **push는 사용자가 "push 해줘"라고 요청할 때만** 한다(`git push origin main`만, force push·브랜치 삭제·이력 재작성 금지).
-3. **시작 전 확인** (하나라도 어긋나면 작업하지 말고 상황만 보고하고 멈춘다):
-   - `git branch --show-current` 가 `main`, `git pull --ff-only` 성공.
+3. **시작 전 git 정리와 확인** (정리가 안 되거나 아래가 어긋나면 작업하지 말고 상황만 보고하고 멈춘다):
+   - 현재 브랜치가 `main` 이 아니면(이전 단계의 `step/...` 브랜치가 남아 있는 경우가 많다) 먼저 `git fetch origin` 후 `git switch main` 으로 전환한다. 미커밋 변경은 그대로 따라온다. 전환이 충돌로 거절되면 `git stash push -u`, `git switch main`, 아래 pull, `git stash pop` 순서로 하고, 그래도 안 되면 멈춘다. 이전 `step/...` 브랜치는 삭제하지 않는다.
+   - `git pull --ff-only` 성공(원격에 merge 된 이전 PR 이 있으면 여기서 반영된다).
    - `git status` 에서 Claude 작성 파일 밖의 미커밋 변경이 없다. Claude 작성 파일은 이 지시서 파일, `docs/reviews/` 안의 파일, `AGENTS.md`, `docs/WORKFLOW.md`, `.gitignore` 이다. 이 파일들의 미커밋 변경은 고치지 말고 시작 전에 `docs: Claude 지시서·규칙 갱신` 커밋으로 따로 커밋한다. 커밋 전에 `AGENTS.md`, `docs/WORKFLOW.md` 를 읽는다.
    - 시작 커밋 해시를 `git rev-parse --short HEAD` 로 기록한다.
 4. **커밋**: 이 단계의 변경을 `[<단계>] 요약` 형식으로 커밋한다(여러 개로 나눠도 된다). 진행 기록과 보고서도 포함한다. `.env.local` 등 로컬 설정, zip, `*.diff` 는 커밋하지 않는다(`git status` 로 확인).
@@ -447,4 +448,52 @@ F4 승인(검토 기록 `docs/reviews/2026-10-14-F4.md`), 백엔드 8.7 머지�
 
 ### 기록
 `frontend/doc/cursor-progress.md` 에 `[F4.1단계] 지원 언어·국가 관리 - 날짜` 형식(변경 파일, 검증 결과, 질문/확인 필요, 가정)으로 추가한다. 보고서는 파일 앞쪽 "작업 방식"의 형식으로 `docs/reports/F4.1.md` 에 쓰고 `docs/reports/F4.1.diff` 를 만든다. 커밋 메시지는 `[F4.1] 요약`. push 는 하지 않는다. 완료 후 멈춘다.
+````
+
+---
+
+## F5단계: 서버 메뉴(menus/my)와 실제 권한 연결
+
+F4.1 승인(`docs/reviews/2026-10-19-F4.1.md`). 사용자 결정(2026-10-19): 사이드 메뉴는 서버 `menus/my` 로 만들고, 화면·버튼 권한도 같은 응답의 `actions` 로 판정한다. 대상은 테넌트 앱(`APP_MODE=tenant`)이다. 플랫폼 콘솔은 메뉴가 정적 하나라 바꾸지 않는다. 이 단계만 수행하고 멈춘다.
+
+````
+기준 문서: backend/common/doc/api/mdm-api.md 의 menus/my 절(응답 필드, 노출 규칙, 오류), doc/auth-design.md, 현재 코드 src/access.ts, src/core/menu/types.ts, src/app.tsx(layout, SessionBootstrap), src/core/auth/actions.ts, src/components(RouteGuard, UserMenu, LanguageSelect), config/routes.ts. 명세에 없는 필드·동작은 만들지 말고 질문으로 올린다. 구현 전에 frontend/doc/f5-wireframe.md 에 아래 동작을 텍스트로 정리한다(화면 레이아웃은 바뀌지 않으므로 와이어프레임은 메뉴 트리 예시와 권한 판정 표 정도). 아래 합의와 다른 점이 생기면 구현 전에 멈추고 보고서 "질문"에 올린다.
+
+1. 메뉴 로딩 (src/core/menu)
+   - GET /api/mdm/v1/menus/my 를 호출하는 서비스 함수(src/services/mdm/menu.ts)와 타입(menuCode, parentMenuCode, menuName, menuTypeCode, routePath, iconName, levelNo, sortOrder, actions)을 만든다. 응답은 배열이다(페이징 없음).
+   - 로딩 시점: ① 로그인 성공 후(me 조회 다음) ② 앱 시작 세션 복구 성공 후 ③ 언어 변경 후(메뉴 이름이 요청 언어로 오므로 다시 받는다) ④ 비밀번호 변경 성공 후(강제 변경이 끝나 passwordChangeRequired 가 풀린 시점). 비밀번호 변경이 강제된 상태에서는 호출하지 않는다(서버가 403 AUTH.PASSWORD_CHANGE_REQUIRED). 로그아웃, 401로 인한 로그인 이동, 다른 탭 로그아웃 수신 시 메뉴 상태를 비운다.
+   - 메뉴는 initialState 또는 별도 모듈 상태에 둔다. 토큰이 아니므로 메모리 상태면 충분하다. 브라우저 저장소에 저장하지 않는다.
+   - 로딩 실패(네트워크, 5xx)는 화면을 막지 않는다. 사이드 메뉴 위치에 오류 안내와 [다시 시도] 버튼을 보이고, 권한 판정은 모두 false(가장 안전한 쪽)로 둔다. 401 계열은 기존 요청 계층 규칙(refresh, 로그인 이동)을 그대로 따른다.
+   - 동시에 여러 번 호출되지 않게 한다(진행 중이면 같은 요청을 재사용).
+
+2. 서버 메뉴 → FE 라우트 연결표 (한 곳에만 둔다: src/core/menu/menuRoutes.ts)
+   - 서버 Seed 의 route_path 는 /system/<소문자코드> 라서 FE 라우트와 다르다. 서버 routePath 는 쓰지 않고 FE 가 가진 표로 연결한다.
+   - 표 항목: { menuCode, path, labelKey, primary }. 지금 FE 화면이 있는 것만 둔다: COMMON_CODE → /mdm/common-code, I18N → /mdm/i18n (primary), I18N → /mdm/language (같은 메뉴 코드의 두 번째 화면. 국가 관리도 I18N 권한). 새 화면이 생기면 이 표에 한 줄 추가하는 것으로 끝나게 한다.
+   - 사이드 메뉴 구성: menus/my 응답에 menuCode 가 있는(= READ 가 있는) 항목만 표에서 찾아 보인다. 서버 그룹 메뉴(예: SYSTEM)는 표시 이름을 서버 menuName 으로 쓰고, 그 아래에 화면 항목을 둔다(표의 항목이 속할 부모는 서버 응답의 parentMenuCode 로 정한다). 화면 항목의 이름은 primary 항목이면 서버 menuName, 아니면 로컬 i18n 키(labelKey)를 쓴다. 서버 응답에는 있지만 FE 표에 없는 메뉴(아직 화면이 없는 COMPANY, DEPT 등)는 사이드 메뉴에 보이지 않는다. 그룹의 하위가 FE 에서 하나도 안 남으면 그룹도 숨긴다. 정렬은 서버의 levelNo, sortOrder, menuCode 순을 따르고, 같은 메뉴 코드 안에서는 표 순서를 따른다.
+   - 정적 항목(환영 페이지)은 서버 메뉴와 무관하게 항상 보인다. 비밀번호 변경, 예외 화면은 메뉴가 아니다.
+   - 아이콘은 iconName 을 antd 아이콘 이름으로 매핑하는 작은 표를 두고, 없으면 기본 아이콘을 쓴다(새 라이브러리 금지, 동적 import 로 전체 아이콘을 끌어오지 않는다).
+   - 레이아웃 연결은 app.tsx 의 layout 설정(menuDataRender 등 ProLayout 의 방식)으로 한다. 기존 레이아웃 셸 모양(F1 합의)은 바꾸지 않는다. config/routes.ts 의 mdm 라우트에서 정적 menu 이름 표시에만 의존하던 부분이 있으면 서버 메뉴 방식과 충돌하지 않게 정리하고 어떻게 정리했는지 보고한다.
+
+3. 권한 판정
+   - src/access.ts 의 can(menuCode, action) 을 menus/my 의 actions 로 판정한다: 해당 menuCode 항목이 있고 actions 에 action 이 있으면 true. 메뉴가 아직 로딩되지 않았거나 실패했으면 false.
+   - 임시 허용 3곳(src/pages/mdm/common-code, src/pages/mdm/i18n, src/pages/mdm/language 의 permission.ts 의 grant* 함수)을 실제 can 호출로 바꾼다. 가능하면 세 permission.ts 를 없애고 화면이 useAccess().can 을 직접 쓰게 하되, 화면 코드 변경은 이 교체에 필요한 만큼으로 한정한다. 메뉴 코드/동작: COMMON_CODE, I18N 각각 READ/CREATE/UPDATE/DELETE. 권한 없는 버튼은 숨긴다(기존 규칙). 서버 403 AUTH.FORBIDDEN 안내는 그대로 둔다(화면 상태와 서버 판정이 어긋날 수 있다).
+   - 화면 진입 가드: 경로가 FE 표에 있는 화면인데 해당 메뉴의 READ 가 없으면(주소창으로 직접 접근 포함) 403 예외 화면으로 보낸다. 메뉴가 로딩 중이면 깜박임 없이 로딩 상태를 보여 주고 끝난 뒤 판정한다. 로딩 실패 상태에서는 오류 안내(다시 시도)를 보여 준다. 기존 RouteGuard 와 역할이 겹치면 그 안에서 처리하고 중복 컴포넌트를 만들지 않는다. 표에 없는 경로(환영, 비밀번호, 로그인, 예외)에는 이 가드가 적용되지 않는다.
+
+4. 문구: 새 안내 문구(메뉴 로딩 실패, 다시 시도, 권한 없음 등)는 ko-KR/en-US 로컬 번들의 i18n 키로 만든다.
+
+5. 만들지 않는 것: 서버 route_path 의 사용, 메뉴/역할/권한 관리 화면, 사용자 이름 조회, 플랫폼 콘솔 변경, 새 화면(회사·부서 등), 다크 모드, 새 라이브러리.
+
+테스트(vitest, 서비스 목, 실제 네트워크 호출 0건을 매 테스트 뒤 확인):
+ (a) menus/my 응답 → 사이드 메뉴 구조 변환: 그룹/화면 중첩, 표에 없는 메뉴 제외, 하위가 없는 그룹 숨김, 정렬, primary 가 아닌 항목의 로컬 이름, 언어 변경 후 이름 갱신
+ (b) can 판정: actions 에 있음/없음, 메뉴 없음, 로딩 전·실패 시 false
+ (c) 로딩 시점: 로그인 후 1회, 세션 복구 후 1회, 언어 변경 후 재조회, 비밀번호 변경 강제 상태에서는 호출 없음, 변경 성공 후 호출, 로그아웃·다른 탭 로그아웃 수신 시 비움, 동시 호출 중복 제거
+ (d) 로딩 실패: 오류 안내와 다시 시도, 권한 모두 false, 다시 시도 성공 시 회복, 401 은 기존 규칙
+ (e) 진입 가드: READ 없는 직접 접근 → 403 화면, READ 있음 → 통과, 로딩 중 깜박임 없음, 표에 없는 경로는 가드 제외
+ (f) 화면 권한 연결: READ 만 있는 사용자가 공통코드·다국어·언어/국가 화면에서 등록/수정/삭제 버튼이 보이지 않음, 모두 있는 사용자는 보임(기존 화면 테스트가 임시 허용에 기대고 있으면 can 목으로 바꾸고 바꾼 파일을 보고)
+ (g) Access 토큰·메뉴가 localStorage/sessionStorage 에 저장되지 않음
+ (h) 플랫폼 모드에서 menus/my 를 호출하지 않음
+ 새 흐름 테스트 파일은 3회 반복 실행해 모두 통과함을 기록한다.
+
+검증: lint, antd lint, tsc, test(실행 시간·통과 수), build(테넌트 산출물), build:platform(플랫폼 산출물에 menus/my, 메뉴 연결표가 섞이지 않았는지 문자열 검색으로 확인하고 방법을 기록). 개발 서버와 백엔드는 띄우지 않는다. 사용자가 직접 볼 항목(실제 서버의 menus/my 응답으로 사이드 메뉴가 나오는지, TENANT_ADMIN 과 권한이 적은 사용자 비교, 직접 주소 접근 시 403, 언어 변경 시 메뉴 이름, 사용감)만 frontend/doc/f5-manual-check.md 맨 위에 모으고 나머지는 자동 테스트 이름을 표시한다. 값(주소, 계정, 비밀번호)은 쓰지 않는다.
+진행 기록은 [F5단계] 형식으로 frontend/doc/cursor-progress.md 에 추가한다. 보고서는 파일 앞쪽 "작업 방식"의 형식으로 docs/reports/F5.md 와 F5.diff 를 만든다. 커밋 메시지는 [F5] 요약. push 는 하지 않는다. 완료 후 멈춘다.
 ````

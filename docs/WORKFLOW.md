@@ -18,7 +18,7 @@ PR, 브랜치, 자동 리뷰(GitHub Actions)는 쓰지 않는다. 사용자가 �
 
 ## 2. 개발 (Cursor)
 - 현재 브랜치 `main` 에서 직접 작업한다. 브랜치 생성, PR, push 는 하지 않는다.
-- 시작 전: `main` 인지, `git pull --ff-only` 가 되는지, Claude가 쓰는 파일(각 영역의 `doc/cursor-handoff-prompts.md`, `docs/reviews/` 안, `AGENTS.md`, `docs/WORKFLOW.md`, `.gitignore`) 밖의 미커밋 변경이 없는지 확인한다. 어긋나면 멈추고 보고한다. 그 Claude 작성 파일의 미커밋 변경은 `docs: ...` 커밋으로 먼저 따로 커밋한다.
+- 시작 전: `main` 이 아니면 `git switch main` 으로 전환하고(이전 `step/...` 브랜치는 삭제하지 않는다, 미커밋 변경은 따라온다), `git pull --ff-only` 가 되는지, Claude가 쓰는 파일(각 영역의 `doc/cursor-handoff-prompts.md`, `docs/reviews/` 안, `AGENTS.md`, `docs/WORKFLOW.md`, `.gitignore`) 밖의 미커밋 변경이 없는지 확인한다. 어긋나면 멈추고 보고한다. 그 Claude 작성 파일의 미커밋 변경은 `docs: ...` 커밋으로 먼저 따로 커밋한다.
 - 단계 하나만 수행하고, 커밋 메시지는 `[<단계>] 요약` 형식이다.
 - 끝나면 해당 영역의 `doc/cursor-progress.md` 에 결과를 추가하고, `docs/reports/<단계>.md` 보고서와 `docs/reports/<단계>.diff` (시작 커밋..HEAD, 커밋하지 않음)를 만든다.
 - push 는 사용자가 요청할 때만 `git push origin main` 으로 한다. force push 금지.
