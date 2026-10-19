@@ -25,7 +25,6 @@ import CodeFormDrawer from './CodeFormDrawer';
 import GroupFormDrawer from './GroupFormDrawer';
 import HistoryDrawer from './HistoryDrawer';
 import styles from './index.module.css';
-import { grantCommonCode } from './permission';
 import { codeErrorText, inUse, toCodeTree } from './rules';
 
 type Filters = {
@@ -53,8 +52,7 @@ const CommonCodePage: React.FC = () => {
     intl.formatMessage({ id, defaultMessage });
   const { modal } = App.useApp();
   const access = useAccess() as { can?: (menuCode: string, action: MenuAction) => boolean };
-  const can = (action: MenuAction) =>
-    grantCommonCode(access.can ?? (() => false), action);
+  const can = (action: MenuAction) => access.can?.('COMMON_CODE', action) ?? false;
   const [params, setParams] = useSearchParams();
   const selectedCode = params.get('group') ?? undefined;
 

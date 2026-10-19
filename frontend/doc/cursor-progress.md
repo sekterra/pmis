@@ -529,4 +529,38 @@ git: `frontend`와 `D:\_project\PMIS` 모두 저장소가 아니다. `git status
 - 새로 등록하면서 기본 언어로 저장할 때도 확인창을 띄운다. 이미 기본인 언어를 수정할 때는 띄우지 않는다.
 - 403 `AUTH.FORBIDDEN`은 서버 문구를 쓰지 않고 로컬 안내만 보여 준다.
 
+## [F5단계] 서버 메뉴와 실제 권한 연결 - 2026-10-19
+
+### 변경/추가 파일
+
+- 추가: `src/services/mdm/menu.ts`, `src/core/menu/`(연결표, 사이드 메뉴 조립, 로딩, 가드, 테넌트/플랫폼 런타임)
+- 추가: `doc/f5-wireframe.md`, `doc/f5-manual-check.md`
+- 수정: `src/access.ts`가 `menus/my`의 actions로 판정한다. 공통코드·다국어·언어 화면은 `useAccess().can`을 직접 쓰고 `permission.ts` 3개는 삭제했다
+- 수정: `src/app.tsx`, `RouteGuard`, 로그인·비밀번호 변경·로그아웃·언어 변경이 메뉴를 불러오거나 비운다
+- 수정: `config/routes.ts`의 기준정보 화면은 `hideInMenu`다. 사이드 메뉴는 `menuDataRender`가 서버 메뉴를 앞에 붙인다. 예외 화면도 메뉴에서 뺐다. 환영은 그대로다
+- 수정: `config/config.ts`가 플랫폼 빌드에서 `@/core/menu/runtime`을 빈 구현으로 바꾼다
+- 백엔드는 수정하지 않았다
+
+### 검증 결과
+
+- `npm.cmd run lint`: 통과. biome 139파일, 이어서 `tsc --noEmit`. 종료 코드 0
+- `npx.cmd antd lint ./src`: 통과. 135파일, 이슈 0
+- `npm.cmd run tsc`: 통과
+- `npm.cmd run test`: 통과. 30파일, 141개. 약 93초
+- `src/core/menu/flow.test.tsx`를 3회 반복 실행했다. 매번 11개 통과
+- `npm.cmd run build`: 통과. 테넌트 산출물에 `mdm/common-code`, `mdm/i18n`, `mdm/language`가 있다
+- `npm.cmd run build:platform`: `dist`와 `src/.umi-production`을 지운 뒤 통과. 산출물 전체에서 `menus/my`, `/mdm/common-code`, `/mdm/i18n`, `/mdm/language` 문자열이 없고 `tenants`가 있다
+- 개발 서버와 백엔드는 띄우지 않았다
+
+### 질문/확인 필요
+
+사용자가 직접 볼 항목은 `doc/f5-manual-check.md` 맨 위에 모았다.
+
+### 가정한 사항
+
+- 서버 `routePath`는 쓰지 않고 `src/core/menu/menuRoutes.ts`만 쓴다
+- 모르는 `iconName`은 `AppstoreOutlined`다. 아이콘은 표에 있는 것만 정적 import 한다
+- 메뉴 응답이 401이거나 `AUTH.PASSWORD_CHANGE_REQUIRED`이면 다시 시도 안내를 띄우지 않는다. 401은 기존 로그인 이동을 호출한다
+- 기준정보 라우트의 `name`은 빵 부스러기용으로 남기고, 사이드 메뉴에는 `hideInMenu`로 나오지 않게 했다
+
 

@@ -26,7 +26,6 @@ import { fetchLanguages } from '@/services/mdm/i18n';
 import MessageFormDrawer from './MessageFormDrawer';
 import NamespaceFormDrawer from './NamespaceFormDrawer';
 import styles from './index.module.css';
-import { grantI18n } from './permission';
 import { i18nErrorText, inUse } from './rules';
 
 type Filters = {
@@ -59,7 +58,7 @@ const I18nPage: React.FC = () => {
   const text = (id: string, defaultMessage: string) => intl.formatMessage({ id, defaultMessage });
   const { modal } = App.useApp();
   const access = useAccess() as { can?: (menuCode: string, action: MenuAction) => boolean };
-  const can = (action: MenuAction) => grantI18n(access.can ?? (() => false), action);
+  const can = (action: MenuAction) => access.can?.('I18N', action) ?? false;
   const [params, setParams] = useSearchParams();
   const selectedCode = params.get('ns') ?? undefined;
 

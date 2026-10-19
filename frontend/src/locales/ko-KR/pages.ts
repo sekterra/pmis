@@ -161,4 +161,6 @@ export default {
   'pages.language.timezone': '시간대',
   'pages.language.disableNation': '국가를 사용 중지할까요?',
   'pages.language.disableNationHint': '삭제하면 사용 중지(use_yn=N)됩니다. 데이터는 지워지지 않습니다.',
+  'pages.menu.loadFailed': '메뉴를 불러오지 못했습니다.',
+  'pages.menu.retry': '다시 시도',
 };

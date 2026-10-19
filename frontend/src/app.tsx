@@ -22,6 +22,15 @@ import { refreshAccess } from '@/core/auth/refresh';
 import { clearAccessToken } from '@/core/auth/token';
 import { loadPublicI18n } from '@/core/i18n/apply';
 import {
+  MenuFailureNotice,
+  getMenuSnapshot,
+  menuDataRender,
+  noteAuthenticated,
+  noteLoggedOut,
+  registerUnauthorized,
+  subscribeMenu,
+} from '@/core/menu/runtime';
+import {
   createRequestConfig,
   registerRequestRuntime,
 } from '@/core/request/runtime';
@@ -37,27 +46,23 @@ dayjs.extend(relativeTime);
 
 const loginPath = '/user/login';
 
+function leaveToLogin(): void {
+  noteLoggedOut();
+  const { pathname, search, hash } = history.location;
+  if (pathname !== loginPath) {
+    history.replace(`${loginPath}?redirect=${encodeURIComponent(pathname + search + hash)}`);
+  }
+}
+
+registerUnauthorized(leaveToLogin);
+
 registerRequestRuntime({
   refresh: () =>
     refreshAccess(sessionApi.refresh, {
       sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
-      onFailure: () => {
-        const { pathname, search, hash } = history.location;
-        if (pathname !== loginPath) {
-          history.replace(
-            `${loginPath}?redirect=${encodeURIComponent(pathname + search + hash)}`,
-          );
-        }
-      },
+      onFailure: leaveToLogin,
     }),
-  goLogin: () => {
-    const { pathname, search, hash } = history.location;
-    if (pathname !== loginPath) {
-      history.replace(
-        `${loginPath}?redirect=${encodeURIComponent(pathname + search + hash)}`,
-      );
-    }
-  },
+  goLogin: leaveToLogin,
   goPassword: () => {
     if (history.location.pathname !== '/user/password') {
       history.replace('/user/password');
@@ -69,6 +74,7 @@ registerRequestRuntime({
       .catch(() => undefined)
       .finally(() => {
         clearAccessToken();
+        noteLoggedOut();
         history.replace(loginPath);
       });
   },
@@ -108,7 +114,11 @@ function SessionBootstrap() {
           loadMe: sessionApi.me,
           sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
         }),
-    }).then(({ user, next }) => {
+    }).then(async ({ user, next }) => {
+      if (cancelled) {
+        return;
+      }
+      await noteAuthenticated(user);
       if (cancelled) {
         return;
       }
@@ -119,6 +129,7 @@ function SessionBootstrap() {
         ...current,
         currentUser: user ?? undefined,
         loading: false,
+        menu: getMenuSnapshot(),
       }));
     });
     return () => {
@@ -130,6 +141,13 @@ function SessionBootstrap() {
 
 export const layout: RunTimeLayoutConfig = ({ initialState }) => {
   return {
+    menuDataRender: (menuData) => menuDataRender(menuData ?? []),
+    menuContentRender: (_props, defaultDom) => (
+      <>
+        <MenuFailureNotice />
+        {defaultDom}
+      </>
+    ),
     menuItemRender: (item, dom) => {
       if (item.path) {
         return (
@@ -159,10 +177,21 @@ export const layout: RunTimeLayoutConfig = ({ initialState }) => {
 
 export const request: RequestConfig = createRequestConfig();
 
+function MenuSync() {
+  const { setInitialState } = useModel('@@initialState');
+  useEffect(() => {
+    return subscribeMenu(() => {
+      setInitialState((current) => ({ ...current, menu: getMenuSnapshot() }));
+    });
+  }, [setInitialState]);
+  return null;
+}
+
 export function innerProvider(container: React.ReactNode) {
   return (
     <>
       <SessionBootstrap />
+      <MenuSync />
       <RouteGuard>{container}</RouteGuard>
     </>
   );

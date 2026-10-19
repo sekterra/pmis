@@ -55,7 +55,7 @@ vi.mock('@umijs/max', () => {
       formatMessage: ({ defaultMessage, id }: { defaultMessage?: string; id: string }) =>
         defaultMessage ?? id,
     }),
-    useAccess: () => ({ can: () => false }),
+    useAccess: () => ({ can: () => true }),
     useSearchParams: () => {
       const [params, setParams] = ReactMock.useState(() => {
         const next = new URLSearchParams(searchBag.initial);

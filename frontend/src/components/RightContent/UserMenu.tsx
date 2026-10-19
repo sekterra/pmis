@@ -4,6 +4,7 @@ import type { MenuProps } from 'antd';
 import { Spin } from 'antd';
 import React from 'react';
 import { logoutSession } from '@/core/auth/actions';
+import { getMenuSnapshot } from '@/core/menu/runtime';
 import { AUTH_CHANNEL } from '@/core/auth/broadcast';
 import { logout } from '@/services/mdm/auth';
 import type { Me } from '@/services/mdm/data';
@@ -21,7 +22,11 @@ const UserMenu: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         : new BroadcastChannel(AUTH_CHANNEL);
     await logoutSession(logout, channel);
     channel?.close();
-    setInitialState((current) => ({ ...current, currentUser: undefined }));
+    setInitialState((current) => ({
+      ...current,
+      currentUser: undefined,
+      menu: getMenuSnapshot(),
+    }));
     history.replace('/user/login');
   };
 

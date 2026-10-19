@@ -22,18 +22,21 @@ export default [
     path: '/mdm/common-code',
     name: 'commonCode',
     icon: 'table',
+    hideInMenu: true,
     component: './mdm/common-code',
   },
   {
     path: '/mdm/i18n',
     name: 'i18n',
     icon: 'global',
+    hideInMenu: true,
     component: './mdm/i18n',
   },
   {
     path: '/mdm/language',
     name: 'language',
     icon: 'global',
+    hideInMenu: true,
     component: './mdm/language',
   },
   {
@@ -46,6 +49,7 @@ export default [
     name: 'exception',
     icon: 'warning',
     path: '/exception',
+    hideInMenu: true,
     routes: [
       {
         path: '/exception',

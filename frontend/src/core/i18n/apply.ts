@@ -5,6 +5,7 @@ import dayjs from 'dayjs';
 import 'dayjs/locale/en';
 import 'dayjs/locale/ko';
 import { authMode } from '@/core/auth/mode';
+import { noteLocaleChanged } from '@/core/menu/runtime';
 import { extraMessages } from '@/core/i18n/extra';
 import { withTimeout } from '@/core/request/timeout';
 import enMessages from '@/locales/en-US';
@@ -65,4 +66,5 @@ async function applyPublicI18n(preferred?: string): Promise<void> {
 export async function changeLocale(locale: string): Promise<void> {
   saveLocale(locale);
   await loadPublicI18n(locale);
+  await noteLocaleChanged();
 }

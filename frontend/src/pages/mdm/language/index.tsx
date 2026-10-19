@@ -21,7 +21,6 @@ import type { LanguageBody, LanguageRecord, NationBody, NationRecord } from '@/s
 import LanguageDrawer from './LanguageDrawer';
 import NationDrawer from './NationDrawer';
 import styles from './index.module.css';
-import { grantLanguage } from './permission';
 import { inUse, languageErrorText } from './rules';
 
 const NATION_SORTS = new Set(['nationCode', 'nationName', 'sortOrder', 'nationPk']);
@@ -45,7 +44,7 @@ const LanguagePage: React.FC = () => {
   const text = (id: string, defaultMessage: string) => intl.formatMessage({ id, defaultMessage });
   const { modal } = App.useApp();
   const access = useAccess() as { can?: (menuCode: string, action: MenuAction) => boolean };
-  const can = (action: MenuAction) => grantLanguage(access.can ?? (() => false), action);
+  const can = (action: MenuAction) => access.can?.('I18N', action) ?? false;
   const [params, setParams] = useSearchParams();
   const tab = params.get('tab') === 'nation' ? 'nation' : 'language';
 

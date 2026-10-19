@@ -30,6 +30,10 @@ vi.mock('@umijs/max', () => ({
   },
 }));
 
+vi.mock('@/services/mdm/menu', () => ({
+  fetchMyMenus: vi.fn(async () => []),
+}));
+
 vi.mock('@/services/mdm/auth', () => ({
   logout: (...args: unknown[]) => logout(...args),
   changePassword: (...args: unknown[]) => changePassword(...args),

@@ -11,6 +11,7 @@ import { nextPathAfterRecover } from './guard';
 import { homePath } from './mode';
 import { safeRedirect } from './redirect';
 import { refreshAccess } from './refresh';
+import { noteLoggedOut } from '@/core/menu/runtime';
 import { clearAccessToken, setAccessToken } from './token';
 
 export async function completeLogin(
@@ -47,6 +48,7 @@ export async function logoutSession(
     await callLogout();
   } finally {
     clearAccessToken();
+    noteLoggedOut();
     publishLogout(channel);
   }
 }

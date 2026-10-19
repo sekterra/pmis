@@ -161,4 +161,6 @@ export default {
   'pages.language.timezone': 'Time zone',
   'pages.language.disableNation': 'Disable this nation?',
   'pages.language.disableNationHint': 'This sets use_yn to N. The row is not removed.',
+  'pages.menu.loadFailed': 'The menu could not be loaded.',
+  'pages.menu.retry': 'Try again',
 };

@@ -8,6 +8,7 @@ import {
   signOutToLogin,
 } from '@/core/auth/actions';
 import { homePath } from '@/core/auth/mode';
+import { getMenuSnapshot, noteAuthenticated } from '@/core/menu/runtime';
 import { toApiError, toFormFields } from '@/core/request/errors';
 import { changePassword, logout, me } from '@/services/mdm/auth';
 import type { Me } from '@/services/mdm/data';
@@ -47,7 +48,12 @@ const PasswordPage: React.FC = () => {
         currentPassword: values.currentPassword,
         newPassword: values.newPassword,
       });
-      setInitialState((current) => ({ ...current, currentUser: profile }));
+      await noteAuthenticated(profile);
+      setInitialState((current) => ({
+        ...current,
+        currentUser: profile,
+        menu: getMenuSnapshot(),
+      }));
       history.replace(homePath());
     } catch (error) {
       const apiError = toApiError(error);
@@ -131,6 +137,7 @@ const PasswordPage: React.FC = () => {
               setInitialState((current) => ({
                 ...current,
                 currentUser: undefined,
+                menu: getMenuSnapshot(),
               })),
             () => history.replace('/user/login'),
           );

@@ -1,3 +1,4 @@
+import { noteLoggedOut } from '@/core/menu/runtime';
 import { clearAccessToken } from './token';
 
 export const AUTH_CHANNEL = 'pmis-auth';
@@ -6,6 +7,7 @@ export type AuthBroadcast = { type: 'logout' };
 
 export function applyRemoteLogout(): void {
   clearAccessToken();
+  noteLoggedOut();
 }
 
 export function publishLogout(channel?: {

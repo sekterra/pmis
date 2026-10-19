@@ -1,10 +1,8 @@
-import type { AccessCheck } from '@/core/menu/types';
+import { canAction } from '@/core/menu/can';
+import type { MenuAction, MenuSnapshot } from '@/core/menu/types';
 
-/**
- * 권한 판정 자리다. 서버 메뉴 연동은 F4에서 채운다.
- */
-const can: AccessCheck = () => false;
-
-export default function access() {
-  return { can };
+export default function access(initialState?: { menu?: MenuSnapshot }) {
+  return {
+    can: (menuCode: string, action: MenuAction) => canAction(initialState?.menu, menuCode, action),
+  };
 }

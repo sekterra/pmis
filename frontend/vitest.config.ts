@@ -4,6 +4,7 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   resolve: {
     alias: {
+      '@/core/menu/runtime': join(__dirname, 'src/core/menu/runtime.tsx'),
       '@': join(__dirname, 'src'),
       '@root': join(__dirname),
       '@@': join(__dirname, 'src', '.umi'),

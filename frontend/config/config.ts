@@ -45,6 +45,12 @@ export default defineConfig({
         ? '../src/core/i18n/extra.platform.ts'
         : '../src/core/i18n/extra.ts',
     ),
+    '@/core/menu/runtime': join(
+      __dirname,
+      appMode === 'platform'
+        ? '../src/core/menu/runtime.platform.tsx'
+        : '../src/core/menu/runtime.tsx',
+    ),
   },
   /**
    * @name 开启 hash 模式

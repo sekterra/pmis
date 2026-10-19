@@ -13,6 +13,7 @@
     "resolveJsonModule": true,
     "types": ["vitest/globals", "node"],
     "paths": {
+      "@/core/menu/runtime": ["./src/core/menu/runtime.tsx"],
       "@/*": ["./src/*"],
       "@@/*": ["./src/.umi/*"],
       "@@test/*": ["./src/.umi-test/*"],

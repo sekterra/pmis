@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import BrandMark from '@/components/BrandMark';
 import LanguageSelect from '@/components/LanguageSelect';
 import { completeLogin, invalidCredentialsMessage } from '@/core/auth/actions';
+import { getMenuSnapshot, noteAuthenticated } from '@/core/menu/runtime';
 import { toFormFields } from '@/core/request/errors';
 import { login, me } from '@/services/mdm/auth';
 import type { Me } from '@/services/mdm/data';
@@ -26,19 +27,12 @@ const LoginPage: React.FC = () => {
         values,
         searchParams.get('redirect'),
       );
-      if (result.user) {
-        setInitialState((current) => ({
-          ...current,
-          currentUser: result.user,
-        }));
-      } else {
-        setInitialState((current) => ({
-          ...current,
-          currentUser: {
-            passwordChangeRequired: true,
-          } as Me,
-        }));
-      }
+      await noteAuthenticated(result.user ?? { passwordChangeRequired: true });
+      setInitialState((current) => ({
+        ...current,
+        currentUser: result.user ?? ({ passwordChangeRequired: true } as Me),
+        menu: getMenuSnapshot(),
+      }));
       history.replace(result.path);
     } catch (error) {
       const apiError = error as {

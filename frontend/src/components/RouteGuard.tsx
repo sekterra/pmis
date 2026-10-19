@@ -2,14 +2,18 @@ import { history, useModel } from '@umijs/max';
 import { Spin } from 'antd';
 import React, { useEffect } from 'react';
 import { nextPathAfterRecover } from '@/core/auth/guard';
+import { MenuFailureNotice, viewFor } from '@/core/menu/runtime';
+import type { MenuSnapshot } from '@/core/menu/types';
 import type { Me } from '@/services/mdm/data';
 
 const RouteGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { initialState, loading } = useModel('@@initialState');
   const user = initialState?.currentUser as Me | undefined;
+  const menu = (initialState as { menu?: MenuSnapshot } | undefined)?.menu;
   const [pathname, setPathname] = React.useState(history.location.pathname);
   const [search, setSearch] = React.useState(history.location.search);
   const booting = loading || initialState?.loading === true;
+  const view = viewFor(pathname, menu, Boolean(user));
 
   useEffect(() => {
     return history.listen((update) => {
@@ -34,7 +38,14 @@ const RouteGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     }
   }, [booting, pathname, search, user]);
 
-  if (booting) {
+  useEffect(() => {
+    if (booting || view !== 'forbidden' || pathname === '/exception/403') {
+      return;
+    }
+    history.replace('/exception/403');
+  }, [booting, pathname, view]);
+
+  if (booting || view === 'loading') {
     return (
       <div
         style={{
@@ -47,6 +58,14 @@ const RouteGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         <Spin />
       </div>
     );
+  }
+
+  if (view === 'error') {
+    return <MenuFailureNotice />;
+  }
+
+  if (view === 'forbidden') {
+    return null;
   }
 
   return children;
