@@ -273,3 +273,75 @@
 - 새 라이브러리는 추가하지 않는다. 공유 DB 에 마이그레이션을 적용하는 일은 이 단계에 없다.
 - 진행 기록은 [9.3단계] 형식으로 doc/cursor-progress.md 에 추가하고, 보고서는 "작업 방식" 형식(docs/reports/9.3.md, 9.3.diff)으로 쓴다. 질문은 해당 부분만 멈추고 목록에 올린다. 커밋은 `[9.3] 요약` 한 개, push 는 하지 않는다.
 ````
+
+
+## 9.4단계: 파일·팀 관리 API (+ 9.3 작은 보완)
+
+9.3 승인(검토 기록: docs/reviews/2026-10-19-9.3.md). 이번 단계는 테넌트 스키마 V3 의 `file_storage`, `file`, `file_attachment`, `team`, `team_member` 에 대한 API 이고, 9.1 에서 미뤄 둔 사람 프로필 사진(`person.profile_file_pk`)을 연결한다. 이 단계만 수행하고 멈춘다. 이 단계가 끝나면 백엔드 MDM 관리 API 가 모두 갖춰진다.
+
+````
+기준 문서: doc/erd/erd-model-file-team-auth-menu-*.json 의 파일·팀 영역과 erd-model-org-user-*.json 의 person(정본, 수정 금지), 테넌트 마이그레이션 V1~V6, db/seed/tenant/S03·S04·S05, doc/auth-design.md, doc/api/mdm-api.md, 9.1 org 패키지·9.2 access 패키지·9.3 menu 패키지(같은 패턴: 컨트롤러-서비스-저장소, OrgExceptions 식 헬퍼, EntityTextService, CurrentTenantUser, 코드값 검증 OrgCodes, 캐시 무효화 AccessSessions). ERD 와 어긋나거나 모호한 부분은 임의로 정하지 말고 질문 목록에 올린다. DDL(V1~V6)은 바꾸지 않는다. 꼭 필요하면 구현을 멈추고 질문한다(예: person.profile_file_pk 의 FK 가 V3 에 없으면 V7 이 필요한지).
+
+[A. 9.3 작은 보완 - 먼저 처리한다]
+1. MenuAdminService.moveDescendants 와 assertDepth 가 `menu_path LIKE '<oldPath>/%'` 를 쓴다. 메뉴 코드는 `_` 를 허용하므로 `_` 가 LIKE 와일드카드로 작동해 다른 메뉴의 자손까지 바뀔 수 있다. 접두사 비교를 이스케이프된 LIKE(`ESCAPE`) 또는 `left(menu_path, n) = ?` 같은 정확 비교로 바꾸고, `_` 가 든 코드(예: `A_B` 와 `AXB` 두 가지)로 이동 시 다른 메뉴가 바뀌지 않는 회귀 테스트를 통합 테스트에 추가한다. 같은 패턴이 다른 곳(9.1 부서는 숫자 경로라 해당 없음, 그 외 LIKE 로 경로를 비교하는 곳)에 있는지 grep 해서 있으면 같이 고친다.
+2. UserAccountService.response 의 탭 문자 섞임과 MenuAdminService.route 의 불필요한 삼항(`"GROUP".equals(type) ? route : route`)을 정리한다. 동작 변경 없음.
+
+[B. 공통 결정]
+1. URL(복수 kebab-case, PK 경로): /api/mdm/v1/file-storages, /api/mdm/v1/files, /api/mdm/v1/attachments, /api/mdm/v1/teams, /api/mdm/v1/teams/{teamPk}/members, /api/mdm/v1/team-members/{teamMemberPk}, /api/mdm/v1/people/{personPk}/profile-image. 목록은 7단계 규약(page/size/sort 화이트리스트, useYn 생략 시 사용 중지 포함), 래퍼·오류·fieldErrors·감사 사용자·논리 삭제·복구 관례는 9.1~9.3 과 같다. 코드 컬럼(storage_code, team_code)은 등록 후 변경 불가, 삭제한 코드는 재사용 불가(DB 전체 유니크 유지).
+2. 권한(@RequirePermission): 새 메뉴·권한이 필요하다. S05 를 읽어 기존 SYSTEM 계열 메뉴 구조와 이름 규칙에 맞춰 다음 PAGE 메뉴와 기본 권한 5개(READ/CREATE/UPDATE/DELETE/EXPORT)를 멱등으로 추가한다: FILE_STORAGE(저장소 관리), FILE(파일 관리), TEAM(팀 관리). TENANT_ADMIN 에는 모두 부여하고 다른 역할(MANAGER, USER)에는 이 메뉴의 권한을 주지 않는다(8.4/9.2 의 기존 시드 결정과 같은 원칙. 다르게 해야 하면 질문). 일괄 업그레이드가 기존 테넌트에도 이 행을 추가하되 테넌트가 고친 값은 덮어쓰지 않는다. menu_code 가 9.3 의 MenuRules 형식에 맞는지 확인하고, 시드 메뉴 보호 목록(SeedMenuCodes)이 새 코드를 포함하는지 확인한다.
+3. 코드값 검증은 OrgCodes 방식: storage_type_code(STORAGE_TYPE), file_status_code(FILE_STATUS), attachment_category_code(ATTACHMENT_CATEGORY, 값이 없는 그룹이면 값이 비어 있는 동안은 null 만 허용하고 임의 값은 400 ORG.INVALID_CODE_VALUE), team_type_code(TEAM_TYPE), team_role_code(TEAM_ROLE).
+4. 이름의 언어별 표기(team_name)는 9.1 의 i18n_entity_text upsert 방식(target_table_name=team). 단건 조회에서만 translations 반환.
+5. 비밀(secret)은 저장·응답·로그·문서 어디에도 남기지 않는다. file_storage.secret_ref 는 환경변수/Secret 이름 참조만 받는다(값처럼 보이는 문자열 거절 규칙은 만들지 말고, 형식 `^[A-Za-z0-9_.-]{1,200}$` 만 검사). connection_config 는 JSON 객체여야 하고(파싱 검증), 키 이름이 password/secret/token/key 로 끝나거나 포함하면 400 FILE.SECRET_IN_CONFIG.
+
+[저장소 file_storage]
+- 목록(페이징): keyword(코드·이름), storageTypeCode, useYn. 정렬: storageCode, storageName, createDatetime, storagePk. 단건. 등록·수정·논리 삭제·복구.
+- 필드는 ERD 를 따른다. storage_type_code 는 STORAGE_TYPE 값이지만 구현된 어댑터는 LOCAL 하나뿐이다. LOCAL 외 유형을 등록하는 것은 허용하되(설정만) 그 저장소로 업로드/다운로드하면 501 FILE.STORAGE_TYPE_UNSUPPORTED. base_path: LOCAL 은 절대 경로이거나 설정 `mdm.file.local-root` 아래 상대 경로, `..` 포함 금지(400), 테넌트 간 분리를 위해 서버가 실제 저장 경로에 테넌트 코드를 넣는다(`<base>/<tenantCode>/...`). max_file_size_mb 는 1 이상, allowed_extensions 는 쉼표 구분 소문자 확장자 목록(형식 검증).
+- default_yn='Y' 는 사용 중 저장소 중 1건(V3 부분 유니크). 새 기본 저장소를 지정하면 기존 기본을 같은 트랜잭션에서 N 으로 내린다. 기본 저장소를 삭제하려 하면 409 FILE.DEFAULT_STORAGE(다른 저장소를 먼저 기본으로 지정). 파일이 있는 저장소(file.storage_pk 참조, 삭제 상태 제외)를 삭제하면 409 FILE.STORAGE_IN_USE. 마지막 사용 중 저장소를 삭제하면 409.
+- 기본 저장소가 하나도 없을 때 업로드: 설정 `mdm.file.local-root` 가 있으면 코드 DEFAULT, 유형 LOCAL, base_path 는 root 를 가리키는 상대 경로로 자동 생성한다(처음 업로드 때 지연 생성). root 설정이 없으면 409 FILE.NO_DEFAULT_STORAGE. 설정 기본값은 비워 두고(dev 프로필만 로컬 임시 폴더 하위 값을 두되 저장소 밖 경로 금지) application.yaml 과 doc/local-setup.md 에 설명한다.
+
+[파일 file]
+- 업로드 POST /files (multipart/form-data, 필드 `file` 하나, 선택 `storageCode`). 규칙: 크기 상한 = min(저장소 max_file_size_mb, 애플리케이션 상한 설정 `mdm.file.max-size-mb` 기본 50) 초과 시 413 FILE.TOO_LARGE(스프링 multipart 한도 초과도 같은 오류로 매핑). 확장자는 파일명에서 추출해 소문자로 비교하고 저장소 allowed_extensions 가 있으면 그것만, 없으면 애플리케이션 기본 정책(허용 목록 설정 `mdm.file.allowed-extensions`, 위험 확장자 exe, bat, cmd, com, sh, js, jar, msi, dll, scr, ps1, vbs 는 항상 거절) 적용, 위반 400 FILE.EXTENSION_NOT_ALLOWED. 이중 확장자(`a.php.png` 등)는 마지막 확장자 기준이되 위험 확장자가 중간에 있으면 거절한다. MIME: 새 라이브러리 없이 서버가 처음 몇 바이트(매직 바이트)로 흔한 형식(png, jpg, gif, webp, pdf, zip 계열)을 확인해 확장자와 모순되면 400 FILE.MIME_MISMATCH, 알 수 없는 형식은 확장자 기준으로 통과. 요청이 준 Content-Type 은 신뢰하지 않는다(DB 의 mime_type 은 서버가 판정한 값).
+- 저장: 서버가 생성한 UUID 로 storage_key 를 만든다(`yyyy/MM/<uuid>` 형태, 사용자 입력 파일명을 경로에 쓰지 않는다). 원본 파일명은 경로 구분자·제어문자를 제거한 값으로 original_file_name 에 저장(300자 초과 시 줄임, 확장자 보존). 저장 중 SHA-256 을 계산해 checksum_sha256 에 넣는다. 처음 file_status_code='TEMP', upload_user_pk=현재 사용자, upload_datetime=지금. 디스크 쓰기는 임시 파일에 쓴 뒤 이동(원자적)하고, DB 저장이 실패하면 디스크 파일을 지운다. 응답: filePk, originalFileName, fileSize, mimeType, fileExtension, checksumSha256, fileStatusCode(storage_key, base_path 등 저장 위치는 절대 응답에 넣지 않는다).
+- 업로드 권한: FILE:CREATE 가 아니라 "로그인한 사용자 누구나"는 위험하다. 이번 단계는 FILE:CREATE 를 요구하되, 첨부를 붙이는 화면(사람 프로필 등)에서 쓰는 일반 사용자도 있으므로 질문 목록에 "일반 사용자의 업로드 권한 정책"을 올리고 임시로 FILE:CREATE 로 한다.
+- 다운로드 GET /files/{filePk}/download: 서버가 권한을 확인한 뒤 스트리밍한다. 허용: FILE:READ 보유자, 또는 TEMP 파일의 업로더 본인. 응답 헤더: Content-Type 은 저장된 mime_type(없으면 application/octet-stream), Content-Disposition: attachment 와 RFC 5987 인코딩된 안전한 파일명, X-Content-Type-Options: nosniff, Cache-Control: private, no-store. 대상 파일이 DELETED 이거나 use_yn='N' 이거나 디스크에 없으면 404 FILE.NOT_FOUND(디스크에 없는 경우는 로그에 파일 PK 만 남긴다). Range 요청은 지원하지 않는다(문서에 한계로 적는다). 첨부 대상별 접근(예: 사람 사진)은 아래 profile-image 와 attachments 에서 별도로 다룬다.
+- 목록 GET /files(FILE:READ, 페이징): keyword(원본 파일명), fileStatusCode, uploadUserPk, 업로드 기간(from/to, 테넌트 날짜), useYn. 정렬: uploadDatetime, originalFileName, fileSize, filePk. 단건 GET /files/{filePk}: 메타데이터와 첨부 목록(어떤 대상에 붙어 있는지).
+- 삭제 DELETE /files/{filePk}: 사용 중인 첨부(file_attachment.use_yn='Y')나 person.profile_file_pk 로 참조되는 동안은 409 FILE.IN_USE. 통과하면 use_yn='N', file_status_code='DELETED', delete_scheduled_datetime = 지금 + 설정 `mdm.file.delete-retention-days`(기본 7). 복구 POST /files/{filePk}/restore 는 디스크 파일이 아직 있고 물리 삭제 전일 때만(없으면 409 FILE.PURGED), 상태를 TEMP 가 아니라 이전 의미인 ACTIVE(첨부가 있었으면) 또는 TEMP 로 되돌리는 규칙을 정하고 문서에 적는다.
+- 정리 POST /files/cleanup (FILE:DELETE): ① TEMP 이면서 upload_datetime 이 설정 `mdm.file.temp-ttl-hours`(기본 24) 이전인 파일 → 디스크 삭제 후 file_status_code='DELETED', use_yn='N', delete_scheduled_datetime=지금(행 유지), ② DELETED 이고 delete_scheduled_datetime 이 지난 파일 → 디스크 파일만 물리 삭제하고 행은 유지(ERD 설명: 물리 삭제 후에도 행은 유지). 디스크 삭제 실패는 건너뛰고 건수에 집계. 응답: 처리 건수들. 스케줄러(@Scheduled)는 이번 단계에 만들지 않는다(테넌트 순회 방식 결정이 필요하므로 질문 목록에 "정리 작업 자동 실행 방식"을 올린다).
+
+[첨부 file_attachment]
+- POST /attachments {fileId(=filePk), targetTableName, targetKey, attachmentCategoryCode?, sortOrder?, description?}: targetTableName 은 화이트리스트(코드 안의 작은 레지스트리 하나: person→PERSON, company→COMPANY, dept→DEPT, team→TEAM 의 메뉴 코드 매핑)만 허용하고 그 외는 400 FILE.TARGET_NOT_ALLOWED. 대상 행이 존재하고 사용 중이어야 한다(404 대상 NOT_FOUND 계열 오류를 재사용). 권한은 대상 메뉴의 UPDATE(person→PERSON:UPDATE 등)다 — 이를 위해 @RequirePermission 의 정적 선언이 아니라 PermissionChecker 를 서비스에서 직접 호출하는 방식을 쓴다(9.2 DbPermissionChecker 재사용). 파일은 TEMP 이고 업로더 본인이어야 하거나(다른 사람의 TEMP 파일 첨부 금지 → 403/409 중 기존 관례 선택) 이미 ACTIVE 여야 한다. 성공하면 file_status_code='ACTIVE'. 같은 (target_table_name, target_key, file_pk) 가 사용 중이면 409 FILE.ATTACHMENT_DUPLICATE(논리 삭제된 행은 되살린다. V3/V5 유니크 확인).
+- GET /attachments?targetTableName=&targetKey=(배열): 권한은 대상 메뉴의 READ. 항목: attachmentPk, filePk, 파일 메타, 구분, 정렬, 설명. 첨부 파일 다운로드는 FILE:READ 가 아니라 "대상 READ 권한이 있는 사용자"도 허용하도록 GET /attachments/{attachmentPk}/download 를 따로 둔다(첨부에 연결된 파일만, 대상 메뉴의 READ 로 판단).
+- DELETE /attachments/{attachmentPk}(대상 UPDATE): 첨부를 use_yn='N'. 그 파일에 다른 사용 중 첨부가 없고 profile 참조도 없으면 파일을 TEMP 로 되돌리지 말고 ACTIVE 로 두되 delete_scheduled 를 걸지 않는다(정리는 관리자가 파일 화면에서 한다 — 이 결정과 이유를 문서에 적는다).
+
+[사람 프로필 사진]
+- PUT /people/{personPk}/profile-image {fileId}: 권한 PERSON:UPDATE. 파일은 이미지 형식(png, jpg, gif, webp)만, TEMP 업로더 본인 또는 ACTIVE 여야 한다. person.profile_file_pk 를 설정하고 파일을 ACTIVE 로 올린다. 이전 사진 파일은 다른 참조가 없으면 TEMP 가 아니라 그대로 두고(삭제는 관리자 정리) profile 참조만 끊는다. DELETE /people/{personPk}/profile-image 로 해제. GET /people/{personPk}/profile-image: PERSON:READ 로 이미지 스트리밍(없으면 404 FILE.NOT_FOUND). 사람 단건/목록 응답에 hasProfileImage(boolean) 를 추가한다(9.1 응답 변경이므로 문서 갱신, 목록은 N+1 없이). PersonService 가 profile_file_pk 를 요청 본문에서 받지 않는 기존 규칙은 유지한다.
+- person.profile_file_pk 의 FK 가 V3 에 이미 추가되어 있는지 확인한다. 없으면 구현을 멈추고 질문한다(V7 필요 여부).
+
+[팀 team, team_member]
+- 팀 목록(페이징): keyword(코드·이름), teamTypeCode, 활동 여부(active=true 면 종료일이 없거나 오늘 이후), useYn. 정렬: teamCode, teamName, sortOrder, startDate, teamPk. 항목에 현재 팀원 수(memberCount, 집계 한 번). 단건(번역 포함). 등록·수정·논리 삭제·복구.
+- 필드는 ERD(team)를 따른다. team_code 형식 `^[A-Z0-9_-]{1,50}$`(근거를 문서에 쓰고 ERD 와 다르면 질문), 중복 409 TEAM.DUPLICATE. start_date <= end_date(위반 400 TEAM.INVALID_DATE). 팀은 회사에 종속되지 않는다.
+- 팀 삭제 거절: 현재 팀원(end_date IS NULL, use_yn='Y')이 있으면 409 TEAM.HAS_ACTIVE_MEMBER. 팀을 종료(end_date 설정)하는 것은 수정 API 로 하고, end_date 가 오늘 이전이어도 현재 팀원이 있으면 막지 않는다(문서에 적는다). 복구는 UPDATE.
+- 팀원 GET /teams/{teamPk}/members(배열, 과거 포함, 기본 start_date 내림차순, useYn/현재 여부 필터), POST /teams/{teamPk}/members {personPk, teamRoleCode, startDate, endDate?, description?}, PUT /team-members/{teamMemberPk}(역할·기간·설명), POST /team-members/{teamMemberPk}/end {endDate?(기본 오늘)}, DELETE /team-members/{teamMemberPk}(논리 삭제), POST .../restore. 규칙: 사람은 사용 중이어야 한다(PERSON.NOT_FOUND/PERSON.INACTIVE 계열 기존 코드 재사용, 없으면 새로 정의), 같은 팀에서 사람당 현재 소속은 1건(V3 부분 유니크, 위반 409 TEAM.MEMBER_DUPLICATE. 같은 사람이 다시 참여하면 이전 행이 종료된 뒤 새 행), start_date <= end_date(400 TEAM.INVALID_DATE), 이미 종료된 팀원을 다시 종료하면 409 TEAM.MEMBER_ALREADY_ENDED, 사용 중지된 팀원 종료는 409 TEAM.MEMBER_INACTIVE. 팀원 응답에 person 이름(번역 아님), 사람의 현재 주 소속 요약(회사·부서) 선택 포함은 하지 않는다(요약이 필요하면 사람 API 를 쓴다).
+- 팀장(LEADER) 수 제한은 ERD 에 없어 구현하지 않는다. 질문 목록에 "팀당 LEADER 1명 제한 여부"를 올린다.
+- 사람 삭제(9.1)에 팀원 확인을 추가할지는 질문 목록에 올리고 현재 규칙(PERSON.HAS_ACTIVE_ASSIGNMENT, PERSON.HAS_ACCOUNT)은 바꾸지 않는다.
+
+[오류 코드와 문구] 위에서 정의한 FILE.*, TEAM.* 오류 코드(와 필요한 PERSON/ASSIGNMENT 보조 코드)의 ko-KR/en-US 문구를 db/seed/tenant 의 error 네임스페이스 Seed 에 멱등(INSERT … WHERE NOT EXISTS, 고친 문구 보존)으로 추가한다.
+
+[문서] doc/api/mdm-api.md 에 위 엔드포인트의 요청·응답 예시(파일 응답에 저장 경로가 없음을 명시), 필터·정렬 필드, 권한 표(새 메뉴 코드 포함), 오류 코드 표, 업로드 정책(크기, 확장자, MIME, 임시 파일 수명), 다운로드 헤더, 첨부 대상 화이트리스트, 한계(Range 미지원, 정리 자동 실행 없음, LOCAL 외 어댑터 없음, 바이러스 검사 없음)를 쓴다. doc/local-setup.md 에 `mdm.file.local-root` 등 설정 키를 쓴다. doc/auth-design.md 공개 경로 표에 변동이 없음을 확인한다(모두 인증 필요).
+
+[테스트]
+- 단위/슬라이스(DB 없음): 확장자·위험 확장자·이중 확장자 판정, 매직 바이트 판정, 파일명 정제, storage_key 생성(사용자 입력 미사용), base_path 검증(`..`), connection_config 비밀 키 거절, 오류 코드 매핑, 권한(기본 프로필 403/토큰 없음 401), 정렬 화이트리스트, 다운로드 헤더(nosniff, no-store, 안전한 Content-Disposition), 임시 디렉터리를 쓰는 LOCAL 어댑터(원자적 저장, 실패 시 정리, 경로 이탈 시도 거절).
+- 통합(@Tag("integration"), 9.1~9.3 과 같은 절차: 접속 정보 비밀 보호, 실행 전 DB 이름 pmis 확인, t_it_<랜덤> 스키마만, 프로비저닝 서비스로 ACTIVE 테넌트, 테스트 JWT, 파일은 임시 폴더(테스트 끝에 삭제)에 저장):
+  (a) 엔티티 validate (V1~V6)와 새 시드(메뉴·권한·역할 부여·오류 문구)의 멱등과 일괄 업그레이드(고친 값 보존)
+  (b) 9.3 보완: `_` 가 든 메뉴 코드 이동 회귀 테스트
+  (c) 저장소: 등록·수정·삭제·복구, 기본 저장소 전환(기존 기본이 N 이 됨), 기본/사용 중 저장소 삭제 거절, 비밀 키 거절, 지연 생성되는 기본 저장소
+  (d) 업로드/다운로드: 정상 업로드 후 다운로드 바이트 일치와 checksum 일치, 저장 경로가 응답에 없음, 크기 초과 413, 확장자 거절, MIME 불일치 거절, 다운로드 권한(FILE:READ 있음/없음, TEMP 업로더 본인), 삭제된 파일 404
+  (e) 첨부: 사람에 첨부 → 파일 ACTIVE, 대상 READ 만 있는 사용자의 첨부 다운로드 허용·첨부 등록 거절, 화이트리스트 밖 대상 거절, 중복 첨부 거절, 삭제된 첨부 재부착(되살림), 첨부된 파일 삭제 거절
+  (f) 프로필 사진: 설정·교체·해제·조회, 이미지 아닌 파일 거절, hasProfileImage 가 사람 목록/단건에 반영되고 목록 쿼리 수가 페이지 크기와 무관(목 또는 통계 검증, 9.1 방식), 사진이 설정된 파일의 삭제 거절
+  (g) 정리: TEMP 만료 → DELETED 와 디스크 삭제, 보존 기간 지난 DELETED 의 물리 삭제(행 유지), 디스크 삭제 실패 집계
+  (h) 팀: 등록·수정·번역 upsert·삭제·복구, 팀원 추가·역할 수정·종료·재참여(새 행)·중복 거절·삭제 거절(현재 팀원), memberCount 집계, 날짜 검증
+  (i) 권한 없는 사용자 403, 두 테넌트 분리(같은 팀 코드·저장소 코드·파일 경로가 서로 간섭하지 않음, 다른 테넌트의 파일 PK 로 다운로드 불가)
+  테스트가 만든 행·디스크 파일·스키마를 정리하고 pmis 업무 테이블 0행(실제 테넌트 행 불변)을 확인한다. 기존 통합 테스트 전부(현재 42개, 보고서에 개수 기록)가 통과해야 한다.
+- 새 라이브러리는 추가하지 않는다(필요하면 구현 전에 질문). 공유 DB 에 마이그레이션을 적용하는 일은 이 단계에 없다.
+- 질문이 있으면 해당 부분만 멈추고 진행 기록의 질문 목록에 올린다. 진행 기록은 [9.4단계] 형식으로 doc/cursor-progress.md 에 추가하고, 보고서는 "작업 방식" 형식(docs/reports/9.4.md, 9.4.diff)으로 쓴다. 커밋은 `[9.4] 요약` 한 개, push 는 하지 않는다.
+````
