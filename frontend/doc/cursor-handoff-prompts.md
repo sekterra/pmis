@@ -497,3 +497,44 @@ F4.1 승인(`docs/reviews/2026-10-19-F4.1.md`). 사용자 결정(2026-10-19): �
 검증: lint, antd lint, tsc, test(실행 시간·통과 수), build(테넌트 산출물), build:platform(플랫폼 산출물에 menus/my, 메뉴 연결표가 섞이지 않았는지 문자열 검색으로 확인하고 방법을 기록). 개발 서버와 백엔드는 띄우지 않는다. 사용자가 직접 볼 항목(실제 서버의 menus/my 응답으로 사이드 메뉴가 나오는지, TENANT_ADMIN 과 권한이 적은 사용자 비교, 직접 주소 접근 시 403, 언어 변경 시 메뉴 이름, 사용감)만 frontend/doc/f5-manual-check.md 맨 위에 모으고 나머지는 자동 테스트 이름을 표시한다. 값(주소, 계정, 비밀번호)은 쓰지 않는다.
 진행 기록은 [F5단계] 형식으로 frontend/doc/cursor-progress.md 에 추가한다. 보고서는 파일 앞쪽 "작업 방식"의 형식으로 docs/reports/F5.md 와 F5.diff 를 만든다. 커밋 메시지는 [F5] 요약. push 는 하지 않는다. 완료 후 멈춘다.
 ````
+
+## F6단계: 한 앱·한 로그인 화면으로 통합 (플랫폼 콘솔 합치기)
+
+F5 승인. 사용자 결정(2026-10-19): 관리자(플랫폼 운영자)와 일반 사용자의 로그인 화면이 따로 있는 것은 어색하다. 한 앱, 한 로그인 화면(`/user/login`)으로 합치고, 접속 주소로 플랫폼 콘솔과 테넌트를 구분하며, 로그인한 주체에 따라 메뉴가 달라지게 한다. 이 단계는 **백엔드 9.2.1단계(GET /api/mdm/v1/context)가 끝난 뒤** 수행한다. 이 단계만 수행하고 멈춘다.
+
+````
+기준 문서: backend/common/doc/api/mdm-api.md 의 context 절(9.2.1), doc/auth-design.md, 현재 코드 config/config.ts·routes.ts·routes.platform.ts, src/core/auth(mode.ts, actions.ts, guard.ts, refresh.ts), src/core/menu(runtime.tsx, runtime.platform.tsx, store.ts), src/core/i18n(extra.ts, extra.platform.ts), src/app.tsx, src/services/mdm/auth.ts·services/platform/auth.ts, src/pages/user·pages/platform, src/locales/platform, package.json 의 dev/build 스크립트, src/core/dev(devPort, runDev). 명세에 없는 동작은 만들지 말고 질문으로 올린다. 구현 전에 frontend/doc/f6-wireframe.md 에 아래 동작을 텍스트로 정리한다(레이아웃 그림 불필요).
+
+배경: 지금은 APP_MODE(빌드 시점)로 테넌트 앱(포트 8000)과 플랫폼 콘솔(8002)을 따로 빌드하고 로그인 화면도 두 개다. 백엔드는 두 주체를 분리해 둔다(테넌트 사용자 /api/mdm/v1/auth + 쿠키 mdm_refresh, 플랫폼 운영자 /api/platform/v1/auth + 쿠키 mdm_platform_refresh, 토큰 typ/aud 가 다르다). 이 분리는 그대로 두고 화면과 앱만 하나로 합친다.
+
+1. 앱 시작 순서 (src/app.tsx, src/core/auth)
+   - 가장 먼저 GET /api/mdm/v1/context 를 호출해 kind(PLATFORM | TENANT)와 tenantCode/tenantName 을 얻는다. 그 결과를 메모리 모듈(core/auth/context.ts 등)에 두고, 이후 인증 경로(authBasePath), 리프레시 쿠키 이름, 홈 경로, 메뉴 방식이 모두 이 값에서 나온다. 빌드 시점 APP_MODE 는 없앤다(process.env.APP_MODE 참조, define, authMode 상수, homePath() 기본 인자 모두 런타임 값으로 교체).
+   - context 호출이 실패하면: 네트워크/5xx → "서버에 연결할 수 없습니다" 안내와 [다시 시도] 버튼(로그인 폼을 보이지 않는다). TENANT.NOT_FOUND 계열 → "알 수 없는 사이트입니다" 안내 화면(로그인 폼 없음, 어느 테넌트인지 추측하게 하는 문구 금지). 둘 다 로그인 화면 경로(/user/login) 안에서 보여도 되고 별도 안내 컴포넌트여도 된다.
+   - context 는 한 번 받으면 세션 동안 유지한다(주소가 바뀌지 않으므로). 저장소에 저장하지 않는다. 언어 번들 로딩과 세션 복구(refresh)는 context 이후에 시작한다. 다른 탭 로그아웃 방송(BroadcastChannel)과 401 처리는 현재 kind 의 경로를 쓴다.
+2. 로그인 화면 하나 (src/pages/user/login)
+   - 라우트 /user/login 하나만 둔다. pages/platform/login 은 삭제하고 pages/user/login 이 kind 에 맞는 login 서비스를 호출한다(kind=PLATFORM → services/platform/auth, kind=TENANT → services/mdm/auth. 두 서비스 파일을 core/auth 의 어댑터 하나(예: authApi)로 감싸 호출부는 kind 를 몰라도 되게 한다).
+   - 화면 모양은 같다. 입력은 아이디·비밀번호·언어 선택뿐이다. 다른 점은 상단 제목 한 줄만이다: TENANT → tenantName(없으면 BrandMark 만), PLATFORM → "플랫폼 콘솔"(i18n 키). 플랫폼 전용 문구/스타일을 더 만들지 않는다. 테넌트 코드 입력란은 두지 않는다.
+   - 비밀번호 변경 화면(/user/password)도 하나로 합친다(pages/platform/password 삭제, 서비스 호출만 kind 별 어댑터). 변경 강제 흐름, 취소 동작, 오류 처리는 지금 테넌트 앱의 것을 그대로 쓴다. 플랫폼 쪽에만 있던 차이(문구, 동작)가 있으면 테스트로 확인하고 차이를 보고서에 적는다.
+3. 메뉴와 라우트 (src/core/menu, config/routes.ts)
+   - routes.platform.ts 를 없애고 routes.ts 하나에 합친다. 플랫폼 화면 라우트(/tenants, /tenants/new, /tenants/:tenantCode)도 같은 파일에 둔다.
+   - 메뉴 방식은 kind 로 갈린다. TENANT: 지금처럼 GET /api/mdm/v1/menus/my 로 만든 서버 메뉴. PLATFORM: 호출하지 않고 정적 메뉴 한 개("테넌트 관리", 경로 /tenants)를 같은 사이드 메뉴 영역에 같은 방식으로 그린다. runtime.platform.tsx 별칭 파일은 없애고 하나의 runtime 이 kind 로 분기한다.
+   - 라우트 가드: PLATFORM 로그인 상태에서 테넌트 업무 화면(/mdm/** 등)으로 가면 403 화면, TENANT 로그인 상태에서 /tenants* 로 가면 403 화면. 로그인 전 직접 접근은 기존처럼 /user/login?redirect=... 로 보낸다. 홈은 TENANT → /welcome, PLATFORM → /tenants. 존재하지 않는 경로는 404.
+   - can(menuCode, action) 은 PLATFORM 에서 항상 false(플랫폼에는 메뉴 권한 모델이 없다. 8단계 설계)이고, 플랫폼 화면의 접근 판단은 "kind==PLATFORM 로그인 상태"로만 한다. 이 규칙을 한 곳(core/menu 또는 core/auth)에 두고 화면에서 kind 를 직접 비교하지 않는다.
+4. 사용자 메뉴·표시 (src/components/RightContent/UserMenu.tsx, 레이아웃)
+   - 우상단 사용자 표시, 비밀번호 변경 링크, 로그아웃은 kind 와 상관없이 같은 컴포넌트다. 로그아웃은 현재 kind 의 /logout 을 호출한다. 쿠키 이름을 코드에서 직접 쓰는 곳이 있으면 kind 에서 얻게 바꾼다(프런트는 쿠키를 읽지 않으므로 상수 정리 수준).
+   - 언어: PLATFORM 은 지금 별도 번들(src/locales/platform, core/i18n/extra.platform.ts)을 쓴다. 합친 뒤에도 플랫폼 화면 문구는 필요하므로 platform 문구를 기본 로케일 모듈에 합치거나(키 충돌이 없는지 확인), 플랫폼 화면에서만 지연 로딩한다. 어느 쪽이든 테넌트 번들 크기와 서버 번들(/i18n/bundles) 로딩 방식을 바꾸지 않는다. PLATFORM 에서는 서버 i18n 번들 호출이 불가능하면(테넌트 필요 시) 지금 플랫폼 콘솔이 하는 방식 그대로 로컬 문구만 쓴다 — 현재 동작을 확인해 보고서에 적고, 달라지는 점이 있으면 질문한다.
+5. 개발·빌드 설정
+   - package.json: dev:platform, build:platform 스크립트와 APP_MODE 관련 설정(cross-env, config.ts 의 appMode 분기, define, title 분기, layout runtime 별칭, routes 선택)을 제거해 빌드를 하나로 만든다. title 은 'PMIS' 하나. 포트는 8000 하나(플랫폼 8002 기본값 제거). devPort/runDev 의 플랫폼 분기가 있으면 정리한다.
+   - 개발 프록시: DEV_TENANT_CODE 가 있으면 /api/mdm 요청에 X-Tenant-Code 를 붙이는 지금 동작을 유지한다. 플랫폼 콘솔을 로컬에서 확인할 때는 DEV_TENANT_CODE 를 비워 실행한다(헤더가 없으면 9.2.1 의 dev 기본 설정으로 PLATFORM 이 된다). 이 사용법을 .env.local.example, doc/local-setup.md, README 에 쓴다. /api/platform 에는 지금처럼 테넌트 헤더를 붙이지 않는다(tenantHeader.ts 규칙 유지).
+   - CI/배포 문서에 플랫폼 콘솔을 따로 빌드한다는 내용이 있으면 갱신한다.
+6. 보존할 것: 토큰은 메모리에만(저장소 금지), refresh 쿠키는 HttpOnly 라 프런트가 못 읽음, X-MDM-Request 헤더, 비밀번호 변경 강제 처리, 401 refresh 재시도, safeRedirect, 다른 탭 로그아웃, 지금의 F1~F5 화면 동작. 로그에 토큰·비밀번호를 남기지 않는다.
+7. 테스트(vitest, 서버 없이 목 기반):
+   - context 로딩: PLATFORM/TENANT 각각 이후 호출 경로가 올바름, 실패 두 종류(재시도 버튼, 알 수 없는 사이트) 화면, 로그인 폼이 보이지 않음.
+   - 로그인 흐름: 같은 화면에서 kind 별로 올바른 login/me 서비스가 호출됨, 비밀번호 변경 강제 이동, 실패 메시지, redirect 안전 처리.
+   - 메뉴: TENANT 는 menus/my 호출, PLATFORM 은 호출하지 않고 정적 "테넌트 관리" 메뉴.
+   - 라우트 가드: PLATFORM 이 /mdm/** → 403, TENANT 가 /tenants* → 403, 비로그인 → 로그인으로 이동 + redirect, 홈 경로.
+   - 로그아웃/세션 복구가 kind 경로를 씀.
+   - 기존 테스트 전부 통과(현재 개수를 보고서에 적는다). npm run lint(또는 biome check), 타입 검사, 단위 테스트, 빌드(`npm run build`)를 실행해 결과를 적는다. 빌드 산출물(dist)은 커밋하지 않는다.
+8. 사용자 확인용으로 frontend/doc/f6-manual-check.md 를 만든다: (a) DEV_TENANT_CODE 설정 상태에서 테넌트 관리자·일반 사용자로 로그인해 같은 화면인지와 메뉴 차이, (b) DEV_TENANT_CODE 비움 상태에서 플랫폼 운영자 로그인과 "테넌트 관리" 메뉴, (c) 플랫폼 로그인 상태에서 /mdm/language 직접 입력 → 403, (d) 비밀번호 변경 강제 계정, (e) 서버를 끈 상태의 연결 안내. 접속 정보·비밀번호는 문서에 쓰지 않는다.
+9. 진행 기록은 frontend/doc/cursor-progress.md 에 [F6단계] 형식으로 추가하고, 보고서는 파일 앞의 "작업 방식" 형식(docs/reports/F6.md, F6.diff)으로 쓴다. 커밋은 `[F6] 요약` 한 개, push 는 하지 않는다.
+````
