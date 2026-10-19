@@ -117,3 +117,79 @@
 - 새 라이브러리는 추가하지 않는다. 공유 DB 에 마이그레이션을 적용하는 일은 이 단계에 없다(테넌트 Seed 는 일괄 업그레이드로 반영되지만, 실제 테넌트에 업그레이드를 실행하지 않는다).
 - 질문이 있으면 해당 부분만 멈추고 진행 기록의 질문 목록에 올린다. 진행 기록은 [9.1단계] 형식으로 doc/cursor-progress.md 에 추가하고, 보고서는 파일 앞쪽 "작업 방식"의 형식으로 docs/reports/9.1.md 와 9.1.diff 를 만든다. 커밋 메시지는 [9.1] 요약. push 는 하지 않는다. 완료 후 멈춘다.
 ````
+
+## 9.2단계: 사용자 계정·역할·권한 관리 API (+ 9.1 작은 보완)
+
+9.1 승인(검토 기록: docs/reviews/2026-10-19-9.1.md). 사용자 결정(2026-10-19): 9.3 은 메뉴 관리, 9.4 는 파일·팀으로 나눈다. 이번 단계는 테넌트 스키마의 `user_account`, `user_password_history`, `role`, `user_role`, `permission`, `role_permission` 에 대한 관리 API 이다. 메뉴 CRUD, 파일, 팀은 범위 밖이다. 이 단계만 수행하고 멈춘다.
+
+````
+기준 문서: doc/erd/erd-model-org-user-*.json 의 사용자 영역과 doc/erd/erd-model-file-team-auth-menu-*.json 의 권한 영역(정본, 수정 금지), 테넌트 마이그레이션 V1~V6, doc/auth-design.md(8단계: 토큰, 권한 검사 합집합 규칙, 캐시 TTL 60초, 감사 기록), doc/api/mdm-api.md(공통 규약), 6.1단계 최초 관리자 생성·임시 비밀번호 재발급 코드(TenantAdminWriter 등), 8.2단계 인증 서비스(비밀번호 정책, 이력, refresh 폐기), 8.4단계 DbPermissionChecker 와 캐시, 9.1단계 org 패키지(같은 패턴: 컨트롤러-서비스-저장소, OrgExceptions 식 헬퍼, EntityTextService, CurrentTenantUser, 코드값 검증). ERD 와 어긋나거나 모호한 부분은 임의로 정하지 말고 질문 목록에 올린다. DDL(V1~V6)은 바꾸지 않는다. 꼭 필요하면 구현을 멈추고 질문한다.
+
+[A. 9.1 작은 보완 - 먼저 처리한다. 모두 사용자 눈에 보이는 동작을 바꾸므로 mdm-api.md 에도 반영한다]
+1. 부서 수정(PUT /departments/{deptPk}): 상위 부서가 바뀌지 않았으면(요청의 parentDeptCode 가 현재 상위와 같으면) 상위 부서의 사용 여부(DEPT.PARENT_INACTIVE)를 다시 검사하지 않는다. 현재 상위가 폐지된 부서의 이름만 고치는 요청이 막히지 않아야 한다. 상위를 새로 지정하거나 바꿀 때만 기존대로 사용 중·같은 회사·순환을 검사한다. 통합 테스트 1건 추가.
+2. 소속 종료(POST /person-assignments/{assignmentPk}/end): 이미 종료된 소속(end_date 가 있음)에 다시 호출하면 409 ASSIGNMENT.ALREADY_ENDED. 논리 삭제된 소속(use_yn='N')도 409 ASSIGNMENT.INACTIVE 로 거절한다(복구 후 종료). ko/en 문구를 시드에 멱등 추가. 통합 테스트 1건 추가.
+3. 부서 트리 조립(DeptService.tree): 행마다 전체 목록을 다시 훑는 부분을 deptPk 로 만든 Map 으로 바꾼다(결과 순서·내용은 그대로). 기존 테스트가 그대로 통과해야 한다.
+
+[B. 공통 결정]
+1. URL(복수 kebab-case, PK 경로): /api/mdm/v1/users, /api/mdm/v1/users/{userPk}/roles, /api/mdm/v1/roles, /api/mdm/v1/roles/{rolePk}/permissions, /api/mdm/v1/permissions. 사용자 식별은 PK 와 loginId 둘 다 응답에 넣는다. 요청에서 다른 엔티티를 가리킬 때는 코드(roleCode, menuCode, actionCode, permissionCode)나 personPk 를 쓴다.
+2. 권한(@RequirePermission): 사용자 API 는 메뉴 코드 USER, 역할·사용자 역할·역할 권한 API 는 ROLE, 권한 목록·등록·삭제는 PERMISSION. 메뉴 코드의 정확한 형태(예: SYSTEM.USER 인지 USER 인지)는 db/seed/tenant/S05_role_menu_permission.sql 의 menu_code/permission_code 를 읽어 그대로 쓰고, 9.1 의 COMPANY/DEPT/PERSON 과 같은 방식으로 확인해 문서에 표로 적는다. 조회=READ, 등록=CREATE, 수정(상태 변경·비밀번호 초기화·역할 부여 포함)=UPDATE, 논리 삭제=DELETE, 복구=UPDATE. 시드에 없는 권한 행이 필요하면 멱등으로 보강하고 질문 목록에 올린다.
+3. 목록은 7단계 규약(page/size/sort 화이트리스트, useYn 생략 시 사용 중지 포함). 응답 래퍼·오류 형식·fieldErrors 는 기존과 같다. 날짜의 "오늘"은 TenantClock.
+4. 이름의 언어별 표기(role_name, permission_name)는 9.1 의 i18n_entity_text upsert 방식을 쓴다(target_table_name=role/permission). 단건 조회에서만 translations 를 내려준다.
+5. 비밀번호 해시, 임시 비밀번호 평문, 토큰은 로그·예외 메시지·진행 기록·보고서·테스트 출력 어디에도 남기지 않는다. 임시 비밀번호가 담기는 응답에는 Cache-Control: no-store 를 붙인다.
+6. 권한 캐시(8.4, 키=테넌트 스키마+user_pk, TTL 60초)와 계정 상태 캐시: 아래 변경이 커밋된 뒤(트랜잭션 후) 해당 항목을 비운다. 역할 권한 변경은 그 역할을 가진 모든 사용자의 캐시를, 사용자 역할 변경과 계정 상태 변경은 그 사용자의 캐시를 비운다. 이미 있는 캐시 구현에 무효화 메서드가 없으면 추가한다(새 라이브러리 금지).
+
+[사용자 계정 user_account]
+- 목록(페이징): keyword(loginId, 연결된 사람 이름), userStatusCode, accountTypeCode, roleCode(현재 유효한 역할 기준), useYn. 정렬 허용: loginId, userStatusCode, lastLoginDatetime, createDatetime, userPk. 응답 항목: userPk, loginId, accountTypeCode, userStatusCode, personPk, personName(이름만. 사람 번역은 목록에서 제외), lastLoginDatetime, mustChangePasswordYn, roleCodes(현재 유효한 역할 코드 배열), useYn. 역할 코드는 페이지의 사용자들을 IN 쿼리 한 번으로 모은다(N+1 금지, 9.1 사람 목록과 같은 방식으로 테스트).
+- 단건: 위 항목 + supportLanguageCode, timezoneId, description, loginFailCount, lockedDatetime, passwordChangedDatetime, passwordExpireDatetime, 감사 컬럼, 역할 배열(roleCode, roleName, validFromDate, validToDate, 현재 유효 여부). password_hash 는 어떤 응답에도 넣지 않는다.
+- 등록 POST /users: loginId(필수, 앞뒤 공백 제거 후 소문자로 정규화해 저장, 형식은 영문·숫자·`._@-` 3~100자, 이메일 형태 허용), accountTypeCode(ACCOUNT_TYPE 값, 기본 NORMAL), personPk(선택. 값이 있으면 사용 중인 사람이어야 하고 그 사람에게 사용 중인 다른 계정이 없어야 한다. 시스템 계정은 NULL 가능), supportLanguageCode(선택, 사용 중인 지원 언어), timezoneId(선택, IANA 유효성 검사), description, roleCodes(선택, 초기 역할 배열. 사용 중인 역할만. 유효기간 없음). 서버가 임시 비밀번호를 만들어 BCrypt 해시로 저장하고(6.1/8.2 의 생성기·인코더·정책 재사용) must_change_password_yn='Y', password_expire_datetime 은 SECURITY_POLICY 의 TEMP_PASSWORD_VALID_DAYS 로 계산, user_status_code='ACTIVE', 비밀번호 이력 INITIAL 1건. 응답에 temporaryPassword(평문, 이 응답에서만)와 만료 시각을 준다. 오류: 409 USER.DUPLICATE_LOGIN_ID(논리 삭제된 계정의 아이디도 포함. DB 전체 유니크 유지), 409 USER.PERSON_ALREADY_LINKED, 404 PERSON.NOT_FOUND, 400 COMMON.VALIDATION_FAILED(fieldErrors), 404 ROLE.NOT_FOUND, 400 ORG.INVALID_CODE_VALUE(accountTypeCode).
+- 수정 PUT /users/{userPk}: personPk(연결 변경·해제. 규칙은 등록과 같고 자기 자신이 이미 가진 연결은 중복이 아님), supportLanguageCode, timezoneId, description. loginId, accountTypeCode, 상태, 비밀번호는 여기서 바꾸지 않는다. 논리 삭제된 계정 수정은 409 USER.INACTIVE.
+- 상태 변경 PUT /users/{userPk}/status {userStatusCode}: ACTIVE, LOCKED, DORMANT 만 허용(WITHDRAWN 은 삭제 API 로만). LOCKED→ACTIVE 는 login_fail_count=0, locked_datetime=NULL 로 되돌린다. ACTIVE→LOCKED 는 locked_datetime=지금(관리자 잠금), LOCKED·DORMANT 로 바뀌면 그 사용자의 유효한 refresh 토큰을 모두 ADMIN 사유로 폐기한다. 같은 상태로의 변경은 409 USER.INVALID_STATUS_TRANSITION. 삭제된(WITHDRAWN) 계정은 409 USER.INACTIVE. 8.2 의 로그인 잠금 로직(자동 잠금 해제 시각 계산)이 관리자 잠금과 충돌하지 않는지 확인하고, 충돌하면(관리자가 건 잠금이 자동으로 풀리는 문제) 질문 목록에 올린다.
+- 비밀번호 초기화 POST /users/{userPk}/password/reset: 새 임시 비밀번호 생성·저장, must_change_password_yn='Y', 만료 갱신, login_fail_count=0, locked_datetime=NULL(상태가 LOCKED 면 ACTIVE 로), 이력 RESET(changed_user_pk=관리자), refresh 토큰 전부 ADMIN 폐기, 계정 상태 캐시 무효화. 응답은 등록과 같은 임시 비밀번호 형태. 외부 인증 전용 계정(password_hash NULL)도 초기화로 비밀번호를 갖게 되는 것은 허용하지 않고 409 USER.NO_PASSWORD_ACCOUNT 로 거절한다(해당하는 계정이 없으면 이 오류 테스트는 단위로).
+- 논리 삭제 DELETE /users/{userPk}: use_yn='N', user_status_code='WITHDRAWN', refresh 전부 ADMIN 폐기, 캐시 무효화. 복구 POST /users/{userPk}/restore: use_yn='Y', 상태 ACTIVE(login_fail_count=0), must_change_password_yn='Y' 로 해 첫 로그인에서 비밀번호를 바꾸게 한다. 복구 때 person 연결이 다른 사용 중 계정과 겹치면 409 USER.PERSON_ALREADY_LINKED.
+- 자기 보호: 로그인한 본인에 대한 상태 변경(LOCKED·DORMANT), 삭제, 본인 역할 변경은 403 이 아니라 409 USER.SELF_OPERATION_FORBIDDEN. 비밀번호 초기화는 본인에게도 허용하지 않는다(본인은 비밀번호 변경 API 를 쓴다).
+- 마지막 관리자 보호: TENANT_ADMIN 역할을 현재 유효하게 가진 사용 중·ACTIVE 계정이 이 사용자 하나뿐이면 그 사용자의 삭제, LOCKED·DORMANT 전환, TENANT_ADMIN 역할 제거를 409 USER.LAST_ADMIN 으로 거절한다.
+- 사람 삭제(9.1)의 PERSON.HAS_ACCOUNT 규칙과 이번 USER.PERSON_ALREADY_LINKED 가 서로 일관되는지 테스트로 확인한다.
+
+[사용자 역할 user_role]
+- GET /users/{userPk}/roles: 부여 이력 전체(과거·미래·회수 포함. useYn 필터) 배열. 항목: userRolePk, roleCode, roleName, validFromDate, validToDate, 현재 유효 여부, useYn.
+- PUT /users/{userPk}/roles: 요청 본문 [{roleCode, validFromDate?, validToDate?}] 로 "현재 부여 상태"를 통째로 교체한다(요청에 있는 역할은 부여·기간 수정, 요청에 없는 사용 중 부여는 use_yn='N' 으로 회수, 회수했던 행을 다시 부여하면 같은 행을 use_yn='Y' 로 되살린다. V5 의 (user_pk, role_pk) 유니크 때문에 새 행을 만들면 안 된다). 같은 roleCode 가 두 번 있으면 400. valid_from_date <= valid_to_date(위반 400 ROLE.INVALID_DATE). 사용 중이 아닌 역할은 404 ROLE.NOT_FOUND 가 아니라 400 ROLE.INACTIVE(fieldErrors). 응답은 교체 후의 GET 결과. 본인 역할 변경은 USER.SELF_OPERATION_FORBIDDEN, 마지막 관리자 보호는 USER.LAST_ADMIN. 변경 뒤 그 사용자의 권한 캐시 무효화.
+- 감사: 별도 이력 테이블이 없으므로 애플리케이션 로그에 사용자 PK, 역할 코드, 변경 종류(grant/revoke/period)만 남긴다(auth-design.md 의 로그 규칙).
+
+[역할 role]
+- 목록(페이징): keyword(roleCode, roleName), useYn. 정렬 허용: roleCode, roleName, sortOrder, rolePk. 항목에 현재 유효한 부여 사용자 수(userCount)를 한 번의 집계로 포함한다.
+- 단건(번역 포함), 등록, 수정, 논리 삭제, 복구. roleCode 형식 `^[A-Z][A-Z0-9_]{1,49}$`, 등록 후 변경 불가, 중복 409 ROLE.DUPLICATE(논리 삭제된 코드 포함, DB 전체 유니크 유지). 수정 대상: roleName, sortOrder, description, translations. 보호 역할: TENANT_ADMIN 은 삭제 불가 409 ROLE.PROTECTED (이름·설명 수정은 허용). 삭제 거절: 현재 부여(use_yn='Y', 기간 만료 여부와 무관)가 하나라도 있으면 409 ROLE.IN_USE. 복구는 UPDATE 권한.
+- 역할 권한 GET /roles/{rolePk}/permissions: 사용 중인 모든 권한을 (메뉴 sortOrder, 권한 sortOrder) 순으로 내려주고 항목마다 granted(boolean)를 붙인다. 항목: permissionPk, permissionCode, menuCode, menuName(요청 언어, 8.4 의 메뉴 이름 해석 재사용), actionCode, permissionName, granted. 필터 granted=true 시 부여된 것만. 페이징 없는 배열(권한 매트릭스 화면용).
+- PUT /roles/{rolePk}/permissions {permissionCodes:[...]}: 이 역할의 부여 상태를 통째로 교체한다(없던 것은 부여, 요청에 없는 것은 use_yn='N' 회수, 회수했던 행은 되살리기. V5 유니크). 규칙: 존재하지 않거나 사용 중이 아닌 permissionCode 는 404 PERMISSION.NOT_FOUND(fieldErrors 에 어떤 코드인지), READ 가 아닌 기능을 주려면 같은 메뉴의 READ 도 요청에 있어야 한다(400 ROLE.READ_REQUIRED, fieldErrors 에 메뉴 코드. 8단계 PermissionRules 재사용). 보호 역할 TENANT_ADMIN 의 권한 교체는 409 ROLE.PROTECTED. 변경 뒤 그 역할을 가진 모든 사용자의 권한 캐시 무효화. 응답은 교체 후의 GET 결과.
+
+[권한 permission]
+- GET /permissions: 목록(페이징), 필터 menuCode, actionCode, keyword, useYn. 정렬 허용: permissionCode, menuCode, actionCode, sortOrder, permissionPk.
+- POST /permissions {menuCode, actionCode, permissionName, sortOrder?, description?, translations?}: 새 기능 권한 추가(예: 승인 APPROVE). 메뉴는 사용 중인 PAGE 메뉴여야 한다(GROUP 이면 400 PERMISSION.MENU_NOT_PAGE), actionCode 는 PERMISSION_ACTION 공통코드의 사용 중 값, permission_code 는 `메뉴코드:기능코드` 로 서버가 만든다(요청에서 받지 않는다), (menu, action) 중복 409 PERMISSION.DUPLICATE.
+- PUT /permissions/{permissionPk}: permissionName, sortOrder, description, translations 만 수정. menu, action, permissionCode 는 변경 불가.
+- DELETE /permissions/{permissionPk}(논리 삭제): READ 권한은 삭제 불가 409 PERMISSION.PROTECTED. 그 외 권한은 삭제하면서 그 권한이 부여된 role_permission 행도 use_yn='N' 으로 회수하고 모든 권한 캐시를 무효화한다(영향받은 역할 수는 응답이 아니라 로그에만). 복구는 사용 중인 PAGE 메뉴일 때만, 복구해도 역할 부여는 되살리지 않는다.
+- 권한 API 는 메뉴 자체를 만들거나 바꾸지 않는다(9.3).
+
+[오류 코드와 문구] 위에서 정의한 모든 오류 코드(USER.*, ROLE.*, PERMISSION.*, ASSIGNMENT.ALREADY_ENDED/INACTIVE)의 ko-KR/en-US 문구를 db/seed/tenant 의 error 네임스페이스 Seed 에 멱등(INSERT … WHERE NOT EXISTS, 테넌트가 고친 문구 보존)으로 추가한다. 이미 있는 코드(AUTH.*, ORG.INVALID_CODE_VALUE 등)는 중복하지 않는다.
+
+[문서] doc/api/mdm-api.md 에 위 엔드포인트의 요청·응답 예시(임시 비밀번호는 예시 값으로만), 필터·정렬 필드, 권한 표(메뉴 코드 포함), 오류 코드 표, 캐시 무효화 시점(최대 60초 지연이 아니라 커밋 직후 비워짐)과 한계(역할 변경 이력 테이블 없음, 로그로만)를 쓴다. doc/auth-design.md 의 "역할, 권한 변경 API 가 생기면 캐시를 비운다" 부분과 "8.2 이후에 구현할 보완" 중 이번에 해결된 항목이 있으면 갱신한다.
+
+[테스트]
+- 단위/슬라이스(MockMvc, DB 없음): 오류 코드 매핑, 검증(loginId 형식·정규화, 날짜 순서, roleCode 형식, 중복 roleCode 요청), 권한(기본 프로필 403/토큰 없음 401), 정렬 화이트리스트, 임시 비밀번호가 담긴 응답의 Cache-Control: no-store, 임시 비밀번호/해시가 로그·예외·toString 에 없음, 역할 목록·사용자 목록의 IN 쿼리(N+1 없음).
+- 통합(@Tag("integration"), 9.1 과 같은 절차: 접속 정보 비밀 보호, 실행 전 DB 이름 pmis 확인, t_it_<랜덤> 스키마만, 프로비저닝 서비스로 ACTIVE 테넌트, 테스트 JWT 헬퍼로 사용자별 토큰, 끝나면 정리):
+  (a) 엔티티 validate (V1~V6)
+  (b) 9.1 보완 3건 (부서 이름만 수정하는 요청이 폐지된 현재 상위 때문에 막히지 않음, 상위를 폐지 부서로 바꾸면 거절, 소속 종료 중복 거절)
+  (c) 사용자 등록: 임시 비밀번호 BCrypt 일치(응답 값으로 실제 로그인 성공 → pwd_change_required), 이력 INITIAL, 만료일, loginId 소문자 정규화와 대소문자만 다른 중복 409, 논리 삭제된 loginId 재사용 409, 사람 연결 중복 409, 초기 역할 부여
+  (d) 상태 변경: LOCKED 시 로그인 거절(401 AUTH.INVALID_CREDENTIALS 계열. 8.2 규칙 확인)과 refresh 폐기(ADMIN), ACTIVE 복구 시 실패 횟수 초기화, 같은 상태 409
+  (e) 비밀번호 초기화: 새 임시 비밀번호로 로그인, 이전 비밀번호 거절, 이력 RESET, 잠금 해제, 기존 refresh 폐기. 본인 초기화 거절
+  (f) 삭제·복구: WITHDRAWN, 로그인 거절, 복구 후 must_change_password
+  (g) 자기 보호·마지막 관리자 보호(삭제, LOCKED, TENANT_ADMIN 제거 각각)
+  (h) 사용자 역할 교체: 부여·기간 수정·회수·재부여(같은 행 되살림, 행 수가 늘지 않음), 중복 roleCode 400, 날짜 순서, 사용 중지 역할 거절
+  (i) 역할: 등록·수정·번역 upsert·삭제·복구, 코드 형식·중복, TENANT_ADMIN 삭제·권한 교체 거절, 부여 중인 역할 삭제 거절, userCount 집계
+  (j) 역할 권한: GET 의 granted 매트릭스, 교체(부여·회수·재부여), READ 없는 쓰기 권한 거절, 없는 permissionCode 404
+  (k) 권한: 추가(APPROVE 등), GROUP 메뉴 거절, 중복, 수정 불가 필드, READ 삭제 거절, 삭제 시 role_permission 회수
+  (l) 권한 효과와 캐시: 역할에서 권한을 빼면 그 역할 사용자의 다음 요청이 바로 403(60초를 기다리지 않음), 역할을 부여하면 바로 200, 권한 삭제 직후 반영
+  (m) 권한 없는 사용자 403, 두 테넌트 데이터 분리(같은 loginId·roleCode 가 서로 간섭하지 않음)
+  (n) 일괄 업그레이드가 새 오류 문구를 기존 테넌트에 추가하되 바뀐 값은 보존
+  테스트가 만든 모든 행과 스키마를 정리하고 pmis 업무 테이블 0행(실제 테넌트 행 불변)을 확인한다. 기존 통합 테스트 전부(현재 36개, 보고서에 개수 기록)가 계속 통과해야 한다.
+- 새 라이브러리는 추가하지 않는다. 공유 DB 에 마이그레이션을 적용하는 일은 이 단계에 없다.
+- 질문이 있으면 해당 부분만 멈추고 진행 기록의 질문 목록에 올린다. 진행 기록은 [9.2단계] 형식으로 doc/cursor-progress.md 에 추가하고, 보고서는 파일 앞의 "작업 방식" 형식(docs/reports/9.2.md, 9.2.diff)으로 쓴다. 커밋은 `[9.2] 요약` 한 개, push 는 하지 않는다.
+````
