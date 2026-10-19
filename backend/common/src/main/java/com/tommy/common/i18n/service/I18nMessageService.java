@@ -1,8 +1,11 @@
 package com.tommy.common.i18n.service;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
@@ -24,6 +27,7 @@ import com.tommy.common.i18n.entity.SupportLanguage;
 import com.tommy.common.i18n.repository.I18nMessageRepository;
 import com.tommy.common.i18n.repository.I18nMessageTextRepository;
 import com.tommy.common.i18n.repository.I18nNamespaceRepository;
+import com.tommy.common.i18n.repository.MessageTextSlice;
 import com.tommy.common.i18n.repository.SupportLanguageRepository;
 
 import jakarta.persistence.criteria.Predicate;
@@ -53,7 +57,14 @@ public class I18nMessageService {
 			String translationStatusCode, Pageable pageable) {
 		Page<I18nMessage> page = messageRepository.findAll(
 				filter(namespaceCode, keyword, messageTypeCode, useYn, translationStatusCode), pageable);
-		List<MessageResponse> items = page.getContent().stream().map(message -> response(message, false)).toList();
+		List<I18nMessage> messages = page.getContent();
+		List<String> activeLanguages = languageRepository.findByUseYnOrderBySortOrderAscSupportLanguageCodeAsc("Y").stream()
+				.map(SupportLanguage::getSupportLanguageCode)
+				.toList();
+		Map<Long, List<MessageTextSlice>> texts = textsFor(messages);
+		List<MessageResponse> items = messages.stream()
+				.map(message -> listItem(message, activeLanguages, texts.getOrDefault(message.getMessagePk(), List.of())))
+				.toList();
 		return new PageResponse<>(items, page.getTotalElements(), pageable.getPageNumber() + 1, pageable.getPageSize());
 	}
 
@@ -158,7 +169,41 @@ public class I18nMessageService {
 						.toList()
 				: List.of();
 		return new MessageResponse(message.getMessagePk(), message.getNamespace().getNamespaceCode(), message.getMessageKey(),
-				message.getMessageTypeCode(), message.getDefaultMessage(), message.getParamDescription(), message.getUseYn(), texts);
+				message.getMessageTypeCode(), message.getDefaultMessage(), message.getParamDescription(), message.getUseYn(), texts,
+				null, null, null);
+	}
+
+	private Map<Long, List<MessageTextSlice>> textsFor(List<I18nMessage> messages) {
+		if (messages.isEmpty()) {
+			return Map.of();
+		}
+		List<Long> messagePks = messages.stream().map(I18nMessage::getMessagePk).toList();
+		return textRepository.findSlicesByMessagePkIn(messagePks).stream()
+				.collect(Collectors.groupingBy(MessageTextSlice::getMessagePk, LinkedHashMap::new, Collectors.toList()));
+	}
+
+	private MessageResponse listItem(I18nMessage message, List<String> activeLanguages, List<MessageTextSlice> texts) {
+		Map<String, MessageTextSlice> byLanguage = new LinkedHashMap<>();
+		for (MessageTextSlice text : texts) {
+			byLanguage.putIfAbsent(text.getSupportLanguageCode(), text);
+		}
+		List<String> translated = new ArrayList<>();
+		List<String> missing = new ArrayList<>();
+		List<String> statuses = new ArrayList<>();
+		for (String language : activeLanguages) {
+			MessageTextSlice text = byLanguage.get(language);
+			if (text == null || text.getMessageText() == null || text.getMessageText().isBlank()) {
+				missing.add(language);
+				continue;
+			}
+			translated.add(language);
+			if (!statuses.contains(text.getTranslationStatusCode())) {
+				statuses.add(text.getTranslationStatusCode());
+			}
+		}
+		return new MessageResponse(message.getMessagePk(), message.getNamespace().getNamespaceCode(), message.getMessageKey(),
+				message.getMessageTypeCode(), message.getDefaultMessage(), message.getParamDescription(), message.getUseYn(),
+				List.of(), List.copyOf(translated), List.copyOf(missing), List.copyOf(statuses));
 	}
 
 	private static Specification<I18nMessage> filter(String namespaceCode, String keyword, String messageTypeCode, String useYn,
