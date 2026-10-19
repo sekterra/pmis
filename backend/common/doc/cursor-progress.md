@@ -1020,3 +1020,31 @@
   - 메뉴 이름 번역은 지시서대로 `i18n_entity_text`가 아니라 네임스페이스 `menu`다
   - 등록 때는 권한 캐시를 비우지 않는다. 수정·정렬·삭제·복구 때 권한 캐시와 menu 번들 캐시를 비운다
 
+## [9.4단계] 파일·팀 관리 API - 2026-10-19
+
+- 변경 파일:
+  - `MenuAdminService`: 메뉴 경로 비교를 `left`로 바꿔 `_`가 와일드카드로 먹지 않게 함. `route`의 무의미한 삼항 제거
+  - `UserAccountService`: 응답 조립의 탭 문자 정리
+  - `file`, `team` 패키지: 저장소, 파일, 첨부, 프로필 이미지, 팀·팀원 API
+  - `Person`: `hasProfileImage`, 프로필 참조 변경
+  - `S04_i18n.sql`, `S05_role_menu_permission.sql`: `FILE.*`, `TEAM.*`, `PERSON.INACTIVE`, `FILE_STORAGE` 메뉴
+  - `application.yaml`, `application-dev.yaml`: `mdm.file.*`
+  - `doc/api/mdm-api.md`, `doc/local-setup.md`, `doc/auth-design.md`
+  - `FileRulesTest`, `FileSliceTest`, `FileTeamApiIntegrationTest`, `MenuApiIntegrationTest`
+- 검증 결과:
+  - `gradlew.bat test`: 81 통과, 실패 0, skip 0
+  - `gradlew.bat integrationTest`: 44 통과, 실패 0, skip 0. 대상 DB 이름은 `pmis`였다
+- ERD 반영 내역: 없음. DDL 변경 없음. `person.profile_file_pk` 외래 키는 V3에 이미 있다
+- 질문/확인 필요:
+  - 일반 사용자 업로드는 당분간 `FILE:CREATE`만 허용했다. 프로필 사진만 올리는 계정 정책은 정하지 않았다
+  - 정리 작업 자동 실행 방식은 정하지 않았다. `@Scheduled`는 없다
+  - 팀당 LEADER 수 제한은 두지 않았다
+  - 사람 삭제 때 팀원 여부를 보지 않는다. 기존 사람 삭제 규칙은 그대로다
+  - 팀 코드는 `^[A-Z0-9_-]{1,50}$`로 뒀다. ERD는 길이 50과 전체 유니크만 있다
+- 가정한 사항:
+  - `FILE`와 `TEAM` 메뉴·권한은 이미 시드에 있어 `FILE_STORAGE`만 추가했다. `FILE_STORAGE`는 `TENANT_ADMIN`만 받고, 기존 `FILE`/`TEAM`의 MANAGER·USER 부여는 유지한다
+  - 파일 복구는 첨부 행이 있거나 프로필로 참조되면 ACTIVE, 아니면 TEMP다
+  - 첨부만 지우면 파일은 ACTIVE로 두고 삭제 예약은 걸지 않는다
+  - 디스크 디렉터리는 테넌트 코드를 쓴다
+  - 메뉴 경로 자식 비교는 `left(menu_path, char_length(old || '/')) = old || '/'`다
+

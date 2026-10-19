@@ -66,3 +66,18 @@ gradlew.bat bootRun --args="--bootstrap-platform-admin"
 ## 7. 통합 테스트
 
 통합 테스트는 로컬 파일을 쓰지 않는다. 환경변수 `MDM_TEST_DB_URL`, `MDM_TEST_DB_USERNAME`, `MDM_TEST_DB_PASSWORD`만 사용한다.
+
+## 8. 파일 저장
+
+`mdm.file.local-root`가 비어 있으면 기본 LOCAL 저장소를 자동으로 만들지 않는다. 업로드는 `409 FILE.NO_DEFAULT_STORAGE`다. `dev` 프로필은 작업 디렉터리의 `build/mdm-files`를 쓴다. 이 경로는 저장소 작업 디렉터리 안이다.
+
+| 키 | 기본 | 의미 |
+| --- | --- | --- |
+| `mdm.file.local-root` | 비움. 환경변수 `MDM_FILE_LOCAL_ROOT` | LOCAL 상대 경로의 기준. 비밀 값이 아니다 |
+| `mdm.file.max-size-mb` | 50. `MDM_FILE_MAX_SIZE_MB` | 애플리케이션 업로드 상한. 스프링 multipart 한도와 같다 |
+| `mdm.file.allowed-extensions` | `png,jpg,jpeg,gif,webp,pdf,zip,txt,csv` | 저장소 목록이 없을 때의 확장자 |
+| `mdm.file.delete-retention-days` | 7 | 논리 삭제 후 디스크를 지울 때까지의 일수 |
+| `mdm.file.temp-ttl-hours` | 24 | TEMP 파일을 정리 대상으로 보는 시간 |
+
+연결 설정과 `secret_ref`에는 비밀 값을 넣지 않는다. `secret_ref`는 외부 비밀 이름의 형식만 검사한다.
+

@@ -149,7 +149,8 @@ public class PersonService {
 	private PersonResponse response(Person person, boolean detail, List<AssignmentResponse> current,
 			PrimaryAssignmentSummary primary) {
 		return new PersonResponse(person.getPersonPk(), person.getPersonName(), person.getEmail(), person.getMobilePhoneNo(),
-				person.getOfficePhoneNo(), person.getProfileFilePk(), person.getDescription(), person.getUseYn(),
+				person.getOfficePhoneNo(), person.getProfileFilePk(), person.getProfileFilePk() != null, person.getDescription(),
+				person.getUseYn(),
 				person.getCreateDatetime(), person.getCreateUserPk(), person.getUpdateDatetime(), person.getUpdateUserPk(),
 				detail ? texts.list(EntityTextService.PERSON, EntityTextService.PERSON_NAME, person.getPersonPk()) : null,
 				primary, detail ? current : null);

@@ -10,6 +10,7 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import com.tommy.common.global.response.ApiResponse;
 import com.tommy.common.global.response.FieldErrorItem;
@@ -53,6 +54,16 @@ public class ApiExceptionHandler {
 		return ResponseEntity.badRequest().body(ApiResponse.fail(
 				"COMMON.VALIDATION_FAILED",
 				text("COMMON.VALIDATION_FAILED", "요청 값이 올바르지 않습니다.", request),
+				2,
+				traceId(),
+				null));
+	}
+
+	@ExceptionHandler(MaxUploadSizeExceededException.class)
+	public ResponseEntity<ApiResponse<Void>> handleTooLarge(MaxUploadSizeExceededException exception, HttpServletRequest request) {
+		return ResponseEntity.status(413).body(ApiResponse.fail(
+				"FILE.TOO_LARGE",
+				text("FILE.TOO_LARGE", "파일이 너무 큽니다.", request),
 				2,
 				traceId(),
 				null));

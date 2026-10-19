@@ -29,6 +29,10 @@ public class EntityTextService {
 
 	public static final String PERSON_NAME = "person_name";
 
+	public static final String TEAM = "team";
+
+	public static final String TEAM_NAME = "team_name";
+
 	private final I18nEntityTextRepository texts;
 
 	private final SupportLanguageRepository languages;

@@ -12,7 +12,7 @@ class MenuRulesTest {
 
 	@Test
 	void acceptsSeedCodesAndRejectsBadRoutes() {
-		for (String code : List.of("SYSTEM", "I18N", "COMMON_CODE", "MENU")) {
+		for (String code : List.of("SYSTEM", "I18N", "COMMON_CODE", "MENU", "FILE_STORAGE")) {
 			assertTrue(MenuRules.menuCode(code));
 			assertTrue(SeedMenuCodes.protects(code, "MDM"));
 		}

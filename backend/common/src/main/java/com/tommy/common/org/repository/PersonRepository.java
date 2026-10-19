@@ -6,4 +6,7 @@ import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import com.tommy.common.org.entity.Person;
 
 public interface PersonRepository extends JpaRepository<Person, Long>, JpaSpecificationExecutor<Person> {
+
+	boolean existsByProfileFilePk(Long profileFilePk);
+
 }

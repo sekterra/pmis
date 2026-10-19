@@ -56,7 +56,7 @@ class MyMenuApiIntegrationTest {
 	private static final String NEXT = "N3w-Policy-Pass1";
 
 	private static final List<String> ADMIN_MENUS = List.of("SYSTEM", "I18N", "COMMON_CODE", "COMPANY", "DEPT", "PERSON", "USER",
-			"FILE", "TEAM", "ROLE", "MENU", "PERMISSION");
+			"FILE_STORAGE", "FILE", "TEAM", "ROLE", "MENU", "PERMISSION");
 
 	private static final List<String> LIMITED_MENUS = List.of("SYSTEM", "I18N", "COMMON_CODE", "COMPANY", "DEPT", "PERSON", "FILE",
 			"TEAM");

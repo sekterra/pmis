@@ -597,3 +597,121 @@ WHERE n.namespace_code = 'error'
   AND NOT EXISTS (
       SELECT 1 FROM i18n_message_text t
       WHERE t.message_pk = m.message_pk AND t.support_language_code = v.support_language_code);
+
+INSERT INTO i18n_message (namespace_pk, message_key, message_type_code, default_message)
+SELECT n.namespace_pk, v.message_key, 'ERROR', v.default_message
+FROM i18n_namespace n
+JOIN (VALUES
+    ('FILE.STORAGE_DUPLICATE', '이미 있는 저장소 코드입니다.'),
+    ('FILE.STORAGE_NOT_FOUND', '저장소를 찾을 수 없습니다.'),
+    ('FILE.STORAGE_INACTIVE', '사용 중이 아닌 저장소입니다.'),
+    ('FILE.STORAGE_IN_USE', '파일을 가진 저장소입니다.'),
+    ('FILE.DEFAULT_STORAGE', '기본 저장소는 삭제할 수 없습니다.'),
+    ('FILE.LAST_STORAGE', '마지막 저장소는 삭제할 수 없습니다.'),
+    ('FILE.NO_DEFAULT_STORAGE', '기본 저장소가 없습니다.'),
+    ('FILE.STORAGE_TYPE_UNSUPPORTED', '이 저장소 유형은 아직 지원하지 않습니다.'),
+    ('FILE.INVALID_PATH', '저장 경로가 올바르지 않습니다.'),
+    ('FILE.SECRET_IN_CONFIG', '연결 설정에 비밀 값을 넣을 수 없습니다.'),
+    ('FILE.TOO_LARGE', '파일이 너무 큽니다.'),
+    ('FILE.EXTENSION_NOT_ALLOWED', '허용되지 않는 확장자입니다.'),
+    ('FILE.MIME_MISMATCH', '파일 내용과 확장자가 일치하지 않습니다.'),
+    ('FILE.NOT_FOUND', '파일을 찾을 수 없습니다.'),
+    ('FILE.IN_USE', '사용 중인 파일입니다.'),
+    ('FILE.PURGED', '파일이 이미 지워졌습니다.'),
+    ('FILE.NOT_DELETED', '삭제된 파일이 아닙니다.'),
+    ('FILE.NOT_ATTACHABLE', '첨부할 수 없는 파일입니다.'),
+    ('FILE.NOT_OWNER', '임시 파일은 올린 사람만 연결할 수 있습니다.'),
+    ('FILE.NOT_IMAGE', '이미지 파일만 프로필로 쓸 수 있습니다.'),
+    ('FILE.TARGET_NOT_ALLOWED', '첨부할 수 없는 대상입니다.'),
+    ('FILE.ATTACHMENT_DUPLICATE', '이미 연결된 파일입니다.'),
+    ('TEAM.DUPLICATE', '이미 있는 팀 코드입니다.'),
+    ('TEAM.NOT_FOUND', '팀을 찾을 수 없습니다.'),
+    ('TEAM.INACTIVE', '사용 중이 아닌 팀입니다.'),
+    ('TEAM.INVALID_DATE', '시작일은 종료일보다 늦을 수 없습니다.'),
+    ('TEAM.HAS_ACTIVE_MEMBER', '현재 팀원이 있어 삭제할 수 없습니다.'),
+    ('TEAM.MEMBER_NOT_FOUND', '팀원을 찾을 수 없습니다.'),
+    ('TEAM.MEMBER_DUPLICATE', '이미 현재 팀원입니다.'),
+    ('TEAM.MEMBER_ALREADY_ENDED', '이미 종료된 팀원입니다.'),
+    ('TEAM.MEMBER_INACTIVE', '사용 중이 아닌 팀원입니다.'),
+    ('PERSON.INACTIVE', '사용 중이 아닌 사람입니다.')
+) AS v(message_key, default_message) ON TRUE
+WHERE n.namespace_code = 'error'
+  AND NOT EXISTS (
+      SELECT 1 FROM i18n_message m
+      WHERE m.namespace_pk = n.namespace_pk AND m.message_key = v.message_key);
+
+INSERT INTO i18n_message_text (message_pk, support_language_code, message_text, translation_status_code)
+SELECT m.message_pk, v.support_language_code, v.message_text, 'APPROVED'
+FROM i18n_message m
+JOIN i18n_namespace n ON n.namespace_pk = m.namespace_pk
+JOIN (VALUES
+    ('FILE.STORAGE_DUPLICATE', 'ko-KR', '이미 있는 저장소 코드입니다.'),
+    ('FILE.STORAGE_DUPLICATE', 'en-US', 'The storage code already exists.'),
+    ('FILE.STORAGE_NOT_FOUND', 'ko-KR', '저장소를 찾을 수 없습니다.'),
+    ('FILE.STORAGE_NOT_FOUND', 'en-US', 'The storage was not found.'),
+    ('FILE.STORAGE_INACTIVE', 'ko-KR', '사용 중이 아닌 저장소입니다.'),
+    ('FILE.STORAGE_INACTIVE', 'en-US', 'The storage is not active.'),
+    ('FILE.STORAGE_IN_USE', 'ko-KR', '파일을 가진 저장소입니다.'),
+    ('FILE.STORAGE_IN_USE', 'en-US', 'The storage still has files.'),
+    ('FILE.DEFAULT_STORAGE', 'ko-KR', '기본 저장소는 삭제할 수 없습니다.'),
+    ('FILE.DEFAULT_STORAGE', 'en-US', 'The default storage cannot be deleted.'),
+    ('FILE.LAST_STORAGE', 'ko-KR', '마지막 저장소는 삭제할 수 없습니다.'),
+    ('FILE.LAST_STORAGE', 'en-US', 'The last storage cannot be deleted.'),
+    ('FILE.NO_DEFAULT_STORAGE', 'ko-KR', '기본 저장소가 없습니다.'),
+    ('FILE.NO_DEFAULT_STORAGE', 'en-US', 'There is no default storage.'),
+    ('FILE.STORAGE_TYPE_UNSUPPORTED', 'ko-KR', '이 저장소 유형은 아직 지원하지 않습니다.'),
+    ('FILE.STORAGE_TYPE_UNSUPPORTED', 'en-US', 'This storage type is not supported yet.'),
+    ('FILE.INVALID_PATH', 'ko-KR', '저장 경로가 올바르지 않습니다.'),
+    ('FILE.INVALID_PATH', 'en-US', 'The storage path is invalid.'),
+    ('FILE.SECRET_IN_CONFIG', 'ko-KR', '연결 설정에 비밀 값을 넣을 수 없습니다.'),
+    ('FILE.SECRET_IN_CONFIG', 'en-US', 'Connection settings cannot contain a secret.'),
+    ('FILE.TOO_LARGE', 'ko-KR', '파일이 너무 큽니다.'),
+    ('FILE.TOO_LARGE', 'en-US', 'The file is too large.'),
+    ('FILE.EXTENSION_NOT_ALLOWED', 'ko-KR', '허용되지 않는 확장자입니다.'),
+    ('FILE.EXTENSION_NOT_ALLOWED', 'en-US', 'The file extension is not allowed.'),
+    ('FILE.MIME_MISMATCH', 'ko-KR', '파일 내용과 확장자가 일치하지 않습니다.'),
+    ('FILE.MIME_MISMATCH', 'en-US', 'The file content does not match the extension.'),
+    ('FILE.NOT_FOUND', 'ko-KR', '파일을 찾을 수 없습니다.'),
+    ('FILE.NOT_FOUND', 'en-US', 'The file was not found.'),
+    ('FILE.IN_USE', 'ko-KR', '사용 중인 파일입니다.'),
+    ('FILE.IN_USE', 'en-US', 'The file is in use.'),
+    ('FILE.PURGED', 'ko-KR', '파일이 이미 지워졌습니다.'),
+    ('FILE.PURGED', 'en-US', 'The file has already been removed.'),
+    ('FILE.NOT_DELETED', 'ko-KR', '삭제된 파일이 아닙니다.'),
+    ('FILE.NOT_DELETED', 'en-US', 'The file is not deleted.'),
+    ('FILE.NOT_ATTACHABLE', 'ko-KR', '첨부할 수 없는 파일입니다.'),
+    ('FILE.NOT_ATTACHABLE', 'en-US', 'The file cannot be attached.'),
+    ('FILE.NOT_OWNER', 'ko-KR', '임시 파일은 올린 사람만 연결할 수 있습니다.'),
+    ('FILE.NOT_OWNER', 'en-US', 'Only the uploader can attach a temporary file.'),
+    ('FILE.NOT_IMAGE', 'ko-KR', '이미지 파일만 프로필로 쓸 수 있습니다.'),
+    ('FILE.NOT_IMAGE', 'en-US', 'Only an image can be a profile photo.'),
+    ('FILE.TARGET_NOT_ALLOWED', 'ko-KR', '첨부할 수 없는 대상입니다.'),
+    ('FILE.TARGET_NOT_ALLOWED', 'en-US', 'The attachment target is not allowed.'),
+    ('FILE.ATTACHMENT_DUPLICATE', 'ko-KR', '이미 연결된 파일입니다.'),
+    ('FILE.ATTACHMENT_DUPLICATE', 'en-US', 'The file is already attached.'),
+    ('TEAM.DUPLICATE', 'ko-KR', '이미 있는 팀 코드입니다.'),
+    ('TEAM.DUPLICATE', 'en-US', 'The team code already exists.'),
+    ('TEAM.NOT_FOUND', 'ko-KR', '팀을 찾을 수 없습니다.'),
+    ('TEAM.NOT_FOUND', 'en-US', 'The team was not found.'),
+    ('TEAM.INACTIVE', 'ko-KR', '사용 중이 아닌 팀입니다.'),
+    ('TEAM.INACTIVE', 'en-US', 'The team is not active.'),
+    ('TEAM.INVALID_DATE', 'ko-KR', '시작일은 종료일보다 늦을 수 없습니다.'),
+    ('TEAM.INVALID_DATE', 'en-US', 'The start date must not be after the end date.'),
+    ('TEAM.HAS_ACTIVE_MEMBER', 'ko-KR', '현재 팀원이 있어 삭제할 수 없습니다.'),
+    ('TEAM.HAS_ACTIVE_MEMBER', 'en-US', 'The team still has a current member.'),
+    ('TEAM.MEMBER_NOT_FOUND', 'ko-KR', '팀원을 찾을 수 없습니다.'),
+    ('TEAM.MEMBER_NOT_FOUND', 'en-US', 'The team member was not found.'),
+    ('TEAM.MEMBER_DUPLICATE', 'ko-KR', '이미 현재 팀원입니다.'),
+    ('TEAM.MEMBER_DUPLICATE', 'en-US', 'The person is already a current member.'),
+    ('TEAM.MEMBER_ALREADY_ENDED', 'ko-KR', '이미 종료된 팀원입니다.'),
+    ('TEAM.MEMBER_ALREADY_ENDED', 'en-US', 'The membership has already ended.'),
+    ('TEAM.MEMBER_INACTIVE', 'ko-KR', '사용 중이 아닌 팀원입니다.'),
+    ('TEAM.MEMBER_INACTIVE', 'en-US', 'The team member is not active.'),
+    ('PERSON.INACTIVE', 'ko-KR', '사용 중이 아닌 사람입니다.'),
+    ('PERSON.INACTIVE', 'en-US', 'The person is not active.')
+) AS v(message_key, support_language_code, message_text)
+    ON v.message_key = m.message_key
+WHERE n.namespace_code = 'error'
+  AND NOT EXISTS (
+      SELECT 1 FROM i18n_message_text t
+      WHERE t.message_pk = m.message_pk AND t.support_language_code = v.support_language_code);

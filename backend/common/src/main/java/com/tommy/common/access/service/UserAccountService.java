@@ -397,7 +397,7 @@ public class UserAccountService {
 				person == null ? null : person.getPersonPk(), person == null ? null : person.getPersonName(),
 				user.getLastLoginDatetime(), user.getMustChangePasswordYn(), codes == null ? List.of() : codes, user.getUseYn(),
 				detail ? user.getSupportLanguageCode() : null, detail ? user.getTimezoneId() : null,
-				detail ? user.getDescription() : null, 				detail ? user.getLoginFailCount() : null,
+				detail ? user.getDescription() : null, detail ? user.getLoginFailCount() : null,
 				detail ? user.getLockedDatetime() : null, detail ? lockType(user) : null,
 				detail ? user.getPasswordChangedDatetime() : null,
 				detail ? user.getPasswordExpireDatetime() : null, user.getCreateDatetime(), user.getCreateUserPk(),

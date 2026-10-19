@@ -161,6 +161,29 @@ class MenuApiIntegrationTest {
 	}
 
 	@Test
+	void underscoreInMenuCodeDoesNotMoveLookalikePaths() throws Exception {
+		String tenant = provision();
+		HttpHeaders admin = auth(tenant);
+		mockMvc.perform(post("/api/mdm/v1/menus").headers(admin).contentType(MediaType.APPLICATION_JSON)
+				.content("{\"solutionCode\":\"MDM\",\"menuCode\":\"A_B\",\"menuName\":\"밑줄\",\"menuTypeCode\":\"GROUP\",\"parentMenuCode\":\"SYSTEM\",\"sortOrder\":1}"))
+				.andExpect(status().isOk());
+		mockMvc.perform(post("/api/mdm/v1/menus").headers(admin).contentType(MediaType.APPLICATION_JSON)
+				.content("{\"solutionCode\":\"MDM\",\"menuCode\":\"AXB\",\"menuName\":\"비슷\",\"menuTypeCode\":\"GROUP\",\"parentMenuCode\":\"SYSTEM\",\"sortOrder\":2}"))
+				.andExpect(status().isOk());
+		mockMvc.perform(post("/api/mdm/v1/menus").headers(admin).contentType(MediaType.APPLICATION_JSON)
+				.content("{\"solutionCode\":\"MDM\",\"menuCode\":\"A_B_C\",\"menuName\":\"자식\",\"menuTypeCode\":\"PAGE\",\"parentMenuCode\":\"A_B\",\"routePath\":\"/ab/c\",\"sortOrder\":1}"))
+				.andExpect(status().isOk());
+		mockMvc.perform(post("/api/mdm/v1/menus").headers(admin).contentType(MediaType.APPLICATION_JSON)
+				.content("{\"solutionCode\":\"MDM\",\"menuCode\":\"AXB_C\",\"menuName\":\"다른자식\",\"menuTypeCode\":\"PAGE\",\"parentMenuCode\":\"AXB\",\"routePath\":\"/axb/c\",\"sortOrder\":1}"))
+				.andExpect(status().isOk());
+		long moving = Long.parseLong(scalar(schema(tenant), "SELECT menu_pk FROM menu WHERE menu_code = 'A_B'"));
+		mockMvc.perform(put("/api/mdm/v1/menus/" + moving).headers(admin).contentType(MediaType.APPLICATION_JSON)
+				.content("{\"menuName\":\"밑줄\",\"parentMenuCode\":\"AXB\"}")).andExpect(status().isOk());
+		assertEquals("/SYSTEM/AXB/A_B/A_B_C", scalar(schema(tenant), "SELECT menu_path FROM menu WHERE menu_code = 'A_B_C'"));
+		assertEquals("/SYSTEM/AXB/AXB_C", scalar(schema(tenant), "SELECT menu_path FROM menu WHERE menu_code = 'AXB_C'"));
+	}
+
+	@Test
 	void menusFollowAdminRules() throws Exception {
 		String tenant = provision();
 		String other = provision();

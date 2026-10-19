@@ -86,6 +86,11 @@ public class Person {
 		touch(userPk);
 	}
 
+	public void assignProfile(Long filePk, Long userPk) {
+		this.profileFilePk = filePk;
+		touch(userPk);
+	}
+
 	public boolean inUse() {
 		return "Y".equals(useYn);
 	}

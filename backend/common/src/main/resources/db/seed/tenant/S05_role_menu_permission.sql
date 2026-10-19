@@ -30,6 +30,7 @@ JOIN (VALUES
     ('DEPT', '부서', '/system/dept', 40),
     ('PERSON', '사람', '/system/person', 50),
     ('USER', '사용자', '/system/user', 60),
+    ('FILE_STORAGE', '파일 저장소', '/system/file-storage', 65),
     ('FILE', '파일', '/system/file', 70),
     ('TEAM', '팀', '/system/team', 80),
     ('ROLE', '역할', '/system/role', 90),
@@ -51,7 +52,7 @@ JOIN (VALUES
 ) AS a(action_code, action_name, sort_order) ON TRUE
 WHERE m.menu_code IN (
       'I18N', 'COMMON_CODE', 'COMPANY', 'DEPT', 'PERSON', 'USER',
-      'FILE', 'TEAM', 'ROLE', 'MENU', 'PERMISSION')
+      'FILE_STORAGE', 'FILE', 'TEAM', 'ROLE', 'MENU', 'PERMISSION')
   AND NOT EXISTS (
       SELECT 1 FROM permission p
       WHERE p.menu_pk = m.menu_pk AND p.action_code = a.action_code);
@@ -73,7 +74,7 @@ WHERE r.role_code = 'TENANT_ADMIN'
   AND m.solution_code = 'MDM'
   AND m.menu_code IN (
       'SYSTEM', 'I18N', 'COMMON_CODE', 'COMPANY', 'DEPT', 'PERSON', 'USER',
-      'FILE', 'TEAM', 'ROLE', 'MENU', 'PERMISSION')
+      'FILE_STORAGE', 'FILE', 'TEAM', 'ROLE', 'MENU', 'PERMISSION')
   AND NOT EXISTS (
       SELECT 1 FROM role_permission rp
       WHERE rp.role_pk = r.role_pk AND rp.permission_pk = p.permission_pk);

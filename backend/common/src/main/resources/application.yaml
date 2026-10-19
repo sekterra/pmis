@@ -9,6 +9,10 @@ spring:
     url: ${MDM_DB_URL:${mdm.db.url:}}
     username: ${MDM_DB_USERNAME:${mdm.db.username:}}
     password: ${MDM_DB_PASSWORD:${mdm.db.password:}}
+  servlet:
+    multipart:
+      max-file-size: ${MDM_FILE_MAX_SIZE_MB:50}MB
+      max-request-size: ${MDM_FILE_MAX_SIZE_MB:50}MB
   jpa:
     open-in-view: false
     hibernate:
@@ -58,3 +62,9 @@ mdm:
       allowed-origins: []
     private-key-path: ${MDM_JWT_PRIVATE_KEY_PATH:}
     previous-public-key-path: ${MDM_JWT_PREVIOUS_PUBLIC_KEY_PATH:}
+  file:
+    local-root: ${MDM_FILE_LOCAL_ROOT:}
+    max-size-mb: ${MDM_FILE_MAX_SIZE_MB:50}
+    allowed-extensions: ${MDM_FILE_ALLOWED_EXTENSIONS:png,jpg,jpeg,gif,webp,pdf,zip,txt,csv}
+    delete-retention-days: ${MDM_FILE_DELETE_RETENTION_DAYS:7}
+    temp-ttl-hours: ${MDM_FILE_TEMP_TTL_HOURS:24}

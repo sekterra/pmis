@@ -243,10 +243,11 @@ public class MenuAdminService {
 	}
 
 	private void assertDepth(long menuPk, String oldPath, int delta) {
+		String prefix = oldPath + "/";
 		Number max = (Number) entityManager.createNativeQuery("""
 				SELECT COALESCE(MAX(level_no), 1) FROM menu
-				WHERE menu_pk = ? OR menu_path LIKE ?
-				""").setParameter(1, menuPk).setParameter(2, oldPath + "/%").getSingleResult();
+				WHERE menu_pk = ? OR left(menu_path, char_length(?)) = ?
+				""").setParameter(1, menuPk).setParameter(2, prefix).setParameter(3, prefix).getSingleResult();
 		if (MenuRules.tooDeep(max.intValue() + delta)) {
 			throw OrgExceptions.of(400, "MENU.TOO_DEEP", "메뉴 깊이를 넘었습니다.");
 		}
@@ -259,9 +260,9 @@ public class MenuAdminService {
 				    level_no = level_no + ?,
 				    update_datetime = CURRENT_TIMESTAMP,
 				    update_user_pk = ?
-				WHERE menu_path LIKE ?
+				WHERE left(menu_path, char_length(?)) = ?
 				""").setParameter(1, newPath).setParameter(2, oldPath).setParameter(3, delta).setParameter(4, actor)
-				.setParameter(5, oldPath + "/%").executeUpdate();
+				.setParameter(5, oldPath + "/").setParameter(6, oldPath + "/").executeUpdate();
 		entityManager.flush();
 		entityManager.clear();
 	}
@@ -302,7 +303,7 @@ public class MenuAdminService {
 		if ("PAGE".equals(type) && menus.routeTaken(route, menuPk)) {
 			throw OrgExceptions.of(409, "MENU.DUPLICATE_ROUTE", "이미 있는 화면 경로입니다.");
 		}
-		return "GROUP".equals(type) ? route : route;
+		return route;
 	}
 
 	private static String icon(String raw) {

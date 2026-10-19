@@ -45,18 +45,21 @@ public class DbPermissionChecker implements PermissionChecker {
 
 	@Override
 	public void check(String menuCode, String actionCode) {
+		if (!allows(menuCode, actionCode)) {
+			throw new ApiException(403, "AUTH.FORBIDDEN", "이 기능을 사용할 권한이 없습니다.", 2);
+		}
+	}
+
+	public boolean allows(String menuCode, String actionCode) {
 		if (properties.isPermitAll()) {
-			return;
+			return true;
 		}
 		long userPk = currentUserPk();
 		String schema = TenantContext.schema() == null ? "" : TenantContext.schema();
 		Set<String> codes = codes(schema, userPk);
 		String required = PermissionChecker.permissionCode(menuCode, actionCode);
-		boolean allowed = codes.contains(required)
+		return codes.contains(required)
 				&& ("READ".equals(actionCode) || codes.contains(PermissionChecker.permissionCode(menuCode, "READ")));
-		if (!allowed) {
-			throw new ApiException(403, "AUTH.FORBIDDEN", "이 기능을 사용할 권한이 없습니다.", 2);
-		}
 	}
 
 	public Map<String, List<String>> actionsByMenu() {

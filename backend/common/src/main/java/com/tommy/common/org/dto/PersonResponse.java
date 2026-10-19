@@ -12,6 +12,7 @@ public record PersonResponse(
 		String mobilePhoneNo,
 		String officePhoneNo,
 		Long profileFilePk,
+		boolean hasProfileImage,
 		String description,
 		String useYn,
 		LocalDateTime createDatetime,

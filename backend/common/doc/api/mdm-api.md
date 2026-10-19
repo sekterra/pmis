@@ -680,4 +680,124 @@ PAGE를 등록하면 같은 트랜잭션에서 `READ`, `CREATE`, `UPDATE`, `DELE
 | `PERMISSION.PROTECTED` | 409 | READ 삭제 |
 | `PERMISSION.INACTIVE` | 409 | 사용 중이 아닌 권한 수정 |
 
+## 파일·팀
+
+저장소, 파일, 첨부, 프로필 이미지, 팀이다. 응답에 저장 키, 기준 경로, 절대 경로를 넣지 않는다. 파일 본문 예:
+
+```json
+{"filePk":1,"originalFileName":"photo.png","fileSize":9,"mimeType":"image/png","fileExtension":"png","checksumSha256":"<64자>","fileStatusCode":"TEMP"}
+```
+
+### 권한
+
+| 메뉴 | 기능 | 경로 |
+| --- | --- | --- |
+| `FILE_STORAGE` | READ CREATE UPDATE DELETE | `/api/mdm/v1/file-storages`. 복구는 UPDATE |
+| `FILE` | READ CREATE UPDATE DELETE | `/api/mdm/v1/files`. 업로드는 CREATE, 정리는 DELETE, 복구는 UPDATE |
+| 대상 메뉴 | READ UPDATE | 첨부 조회·다운로드는 대상 READ, 연결·해제는 대상 UPDATE |
+| `PERSON` | UPDATE READ | 프로필 이미지 설정·해제는 UPDATE. 조회 권한이 없으면 404 |
+| `TEAM` | READ CREATE UPDATE DELETE | `/api/mdm/v1/teams`, `/team-members`. 복구와 종료는 UPDATE |
+
+`FILE_STORAGE`는 `TENANT_ADMIN`에만 준다. `FILE`와 `TEAM`은 기존 시드대로 `MANAGER`, `USER` 조회가 남아 있다. 다운로드는 `FILE:READ`이거나, 상태가 TEMP이고 올린 사람일 때 허용한다. Range는 받지 않고 전체를 준다.
+
+### 저장소
+
+목록 필터는 `keyword`(코드·이름), `storageTypeCode`, `useYn`이다. `useYn`을 빼면 사용 중지 행도 포함한다. 정렬은 `storageCode`, `storageName`, `createDatetime`, `storagePk`다.
+
+코드는 만든 뒤 바꾸지 않는다. 논리 삭제한 코드도 다시 쓰지 못한다. `storage_type_code`는 `STORAGE_TYPE`이다. 어댑터는 LOCAL만 동작한다. 다른 유형은 등록할 수 있지만 업로드와 다운로드는 `501 FILE.STORAGE_TYPE_UNSUPPORTED`다.
+
+`base_path`는 절대 경로이거나 `mdm.file.local-root` 아래 상대 경로다. `..`는 `400 FILE.INVALID_PATH`다. 디스크 경로는 `<base>/<테넌트 코드>/yyyy/MM/<uuid>`다. 사용자 파일명은 경로에 넣지 않는다.
+
+사용 중인 기본 저장소는 하나다. 새로 지정하면 이전 기본을 같은 트랜잭션에서 끈다. 기본 저장소 삭제는 `409 FILE.DEFAULT_STORAGE`다. 삭제되지 않은 파일이 있으면 `409 FILE.STORAGE_IN_USE`다. 마지막 사용 중 저장소는 `409 FILE.LAST_STORAGE`다.
+
+기본 저장소가 없고 `mdm.file.local-root`가 있으면 처음 업로드 때 코드 `DEFAULT`, 유형 LOCAL, `base_path` `.`를 만든다. root가 없으면 `409 FILE.NO_DEFAULT_STORAGE`다.
+
+`connection_config`는 JSON 객체다. 키 이름에 password, secret, token, key가 있으면 `400 FILE.SECRET_IN_CONFIG`다. `secret_ref`는 `^[A-Za-z0-9_.-]{1,200}$`만 허용한다. 비밀 값은 저장하지 않는다.
+
+### 업로드와 다운로드
+
+필드는 multipart `file`이다. `storageCode`는 선택이다. 상한은 저장소 `max_file_size_mb`와 `mdm.file.max-size-mb`(기본 50) 중 작은 값이다. 넘으면 `413 FILE.TOO_LARGE`다. 스프링 multipart 한도도 같은 코드다.
+
+확장자는 파일명 마지막 구간이다. 저장소 `allowed_extensions`가 있으면 그것만, 없으면 `mdm.file.allowed-extensions`다. `exe`, `bat`, `cmd`, `com`, `sh`, `js`, `jar`, `msi`, `dll`, `scr`, `ps1`, `vbs`는 항상 거절하고, 중간 구간에 있어도 `400 FILE.EXTENSION_NOT_ALLOWED`다.
+
+매직 바이트로 png, jpg, gif, webp, pdf, zip 계열을 본다. 확장자와 다르면 `400 FILE.MIME_MISMATCH`다. 알 수 없는 형식은 확장자만 본다. 클라이언트의 Content-Type은 믿지 않고 서버가 정한 `mimeType`을 저장한다. 상태는 TEMP다. 체크섬은 SHA-256이다. 임시 파일에 쓴 뒤 옮긴다. DB 저장이 실패하면 디스크 파일을 지운다.
+
+다운로드는 저장된 MIME 또는 `application/octet-stream`이다. `Content-Disposition`은 attachment와 RFC 5987 파일명이다. `X-Content-Type-Options: nosniff`, `Cache-Control: private, no-store`다. 삭제됐거나 디스크가 없으면 `404 FILE.NOT_FOUND`다. 로그에는 파일 PK만 남긴다.
+
+목록 필터는 `keyword`(원래 이름), `fileStatusCode`, `uploadUserPk`, `from`, `to`, `useYn`이다. 정렬은 `uploadDatetime`, `originalFileName`, `fileSize`, `filePk`다. 단건은 사용 중인 첨부 목록을 포함한다.
+
+삭제는 사용 중인 첨부나 `person.profile_file_pk`가 있으면 `409 FILE.IN_USE`다. 아니면 `use_yn=N`, 상태 DELETED, `delete_scheduled_datetime`은 지금에 `mdm.file.delete-retention-days`(기본 7)를 더한 값이다.
+
+복구는 디스크 파일이 있을 때만 된다. 없으면 `409 FILE.PURGED`다. 첨부 행이 하나라도 있거나 프로필로 참조되면 ACTIVE, 아니면 TEMP로 되돌린다. 예약 시각은 비운다.
+
+`POST /files/cleanup`은 스케줄러가 아니다. TEMP이면서 올린 시각이 `mdm.file.temp-ttl-hours`(기본 24)보다 오래되면 디스크를 지우고 DELETED, `use_yn=N`, 예약 시각은 지금으로 둔다. DELETED이면서 예약 시각이 지났으면 디스크만 지우고 행은 남긴다. 디스크 삭제 실패는 건너뛰고 `diskFailureCount`에 센다. 응답은 `expiredTempCount`, `purgedCount`, `diskFailureCount`다.
+
+### 첨부
+
+`POST /api/mdm/v1/attachments` 본문은 `fileId`, `targetTableName`, `targetKey`, 선택 `attachmentCategoryCode`, `sortOrder`, `description`이다. 대상은 `person`, `company`, `dept`, `team`만이다. 그 외는 `400 FILE.TARGET_NOT_ALLOWED`다. 대상 행은 사용 중이어야 하고 없으면 각 도메인의 `NOT_FOUND`다. 키는 PK 문자열이다.
+
+파일은 올린 사람의 TEMP이거나 이미 ACTIVE여야 한다. 다른 사람의 TEMP는 `403 FILE.NOT_OWNER`다. 성공하면 파일은 ACTIVE다. 같은 대상과 파일이 사용 중이면 `409 FILE.ATTACHMENT_DUPLICATE`다. 논리 삭제된 행은 같은 PK로 되살린다.
+
+`GET /attachments?targetTableName=&targetKey=`는 배열이다. `GET /attachments/{attachmentPk}/download`는 대상 READ로 그 파일만 받는다. 첨부 해제는 대상 UPDATE다. 다른 첨부와 프로필 참조가 없어도 파일은 ACTIVE로 두고 삭제 예약은 걸지 않는다. 파일 화면에서 관리자가 지운다.
+
+### 프로필 이미지
+
+`PUT /api/mdm/v1/people/{personPk}/profile-image` 본문은 `{fileId}`다. png, jpg, jpeg, gif, webp만 된다. 그 외는 `400 FILE.NOT_IMAGE`다. TEMP는 올린 사람 것만, ACTIVE는 허용한다. `person.profile_file_pk`를 바꾸고 파일을 ACTIVE로 둔다. 이전 파일 상태는 바꾸지 않는다. DELETE는 참조만 지운다. GET은 이미지를 스트림한다. 권한이 없거나 사진이 없으면 `404 FILE.NOT_FOUND`다.
+
+사람 목록과 단건에 `hasProfileImage`가 있다. 사람 행의 컬럼이라 건마다 추가 조회하지 않는다. 사람 등록 본문에는 `profile_file_pk`가 없다.
+
+### 팀
+
+목록 필터는 `keyword`(코드·이름), `teamTypeCode`, `active=true`(종료일이 없거나 오늘 이후), `useYn`이다. 정렬은 `teamCode`, `teamName`, `sortOrder`, `startDate`, `teamPk`다. `memberCount`는 현재 사용 중인 팀원 수이고 한 번의 집계다. 번역은 단건에만 있고 대상은 `team.team_name`이다.
+
+팀 코드는 `^[A-Z0-9_-]{1,50}$`다. 중복은 `409 TEAM.DUPLICATE`다. 시작일이 종료일보다 늦으면 `400 TEAM.INVALID_DATE`다. 회사와 연결하지 않는다.
+
+현재 팀원(`end_date`가 없고 `use_yn=Y`)이 있으면 삭제는 `409 TEAM.HAS_ACTIVE_MEMBER`다. 종료일을 오늘 이전으로 바꾸는 수정은 현재 팀원이 있어도 된다. 복구는 UPDATE다.
+
+팀원 목록은 이력을 포함하고 기본 정렬은 `startDate` 내림차순이다. `useYn`, `current`로 거른다. 등록 본문은 `personPk`, `teamRoleCode`, `startDate`, 선택 `endDate`, `description`이다. 수정은 역할, 기간, 설명이다. `POST /team-members/{id}/end`의 `endDate`를 빼면 테넌트 오늘이다. 삭제와 복구가 있다.
+
+사람은 사용 중이어야 한다. 없으면 `404 PERSON.NOT_FOUND`, 사용 중지가 `409 PERSON.INACTIVE`다. 같은 팀의 현재 소속은 하나라 중복은 `409 TEAM.MEMBER_DUPLICATE`다. 종료한 뒤 다시 넣으면 새 행이다. 이미 끝난 종료는 `409 TEAM.MEMBER_ALREADY_ENDED`다. 사용 중지가 아닌 팀원 종료는 `409 TEAM.MEMBER_INACTIVE`다. 응답의 사람 이름은 번역하지 않는다. 현재 회사·부서와 팀장 수 제한은 두지 않았다.
+
+### 오류
+
+| 코드 | HTTP | 의미 |
+| --- | --- | --- |
+| `FILE.STORAGE_DUPLICATE` | 409 | 저장소 코드 중복 |
+| `FILE.STORAGE_NOT_FOUND` | 404 | 저장소 없음 |
+| `FILE.STORAGE_INACTIVE` | 409 | 사용 중지 저장소 |
+| `FILE.STORAGE_IN_USE` | 409 | 파일이 남아 있음 |
+| `FILE.DEFAULT_STORAGE` | 409 | 기본 저장소 삭제 |
+| `FILE.LAST_STORAGE` | 409 | 마지막 저장소 삭제 |
+| `FILE.NO_DEFAULT_STORAGE` | 409 | 기본 저장소와 root 없음 |
+| `FILE.STORAGE_TYPE_UNSUPPORTED` | 501 | LOCAL이 아님 |
+| `FILE.INVALID_PATH` | 400 | 경로 |
+| `FILE.SECRET_IN_CONFIG` | 400 | 연결 설정에 비밀 키 |
+| `FILE.TOO_LARGE` | 413 | 크기 |
+| `FILE.EXTENSION_NOT_ALLOWED` | 400 | 확장자 |
+| `FILE.MIME_MISMATCH` | 400 | 내용과 확장자 |
+| `FILE.NOT_FOUND` | 404 | 파일 없음 |
+| `FILE.IN_USE` | 409 | 첨부 또는 프로필 |
+| `FILE.PURGED` | 409 | 디스크가 이미 없음 |
+| `FILE.NOT_DELETED` | 409 | 복구 대상이 아님 |
+| `FILE.NOT_ATTACHABLE` | 409 | TEMP/ACTIVE가 아님 |
+| `FILE.NOT_OWNER` | 403 | 다른 사람의 TEMP |
+| `FILE.NOT_IMAGE` | 400 | 프로필 형식 |
+| `FILE.TARGET_NOT_ALLOWED` | 400 | 첨부 대상 |
+| `FILE.ATTACHMENT_DUPLICATE` | 409 | 같은 첨부 |
+| `TEAM.DUPLICATE` | 409 | 팀 코드 |
+| `TEAM.NOT_FOUND` | 404 | 팀 없음 |
+| `TEAM.INACTIVE` | 409 | 사용 중지 팀 |
+| `TEAM.INVALID_DATE` | 400 | 기간 |
+| `TEAM.HAS_ACTIVE_MEMBER` | 409 | 현재 팀원 |
+| `TEAM.MEMBER_NOT_FOUND` | 404 | 팀원 없음 |
+| `TEAM.MEMBER_DUPLICATE` | 409 | 현재 소속 중복 |
+| `TEAM.MEMBER_ALREADY_ENDED` | 409 | 이미 종료 |
+| `TEAM.MEMBER_INACTIVE` | 409 | 사용 중지 팀원 |
+| `PERSON.INACTIVE` | 409 | 사용 중지 사람 |
+
+### 한계
+
+Range는 지원하지 않는다. 정리 작업은 API로만 실행하고 `@Scheduled`는 없다. LOCAL 외 어댑터는 없다. 바이러스 검사는 없다. 업로드는 지금 `FILE:CREATE`가 필요하다.
+
+
 
