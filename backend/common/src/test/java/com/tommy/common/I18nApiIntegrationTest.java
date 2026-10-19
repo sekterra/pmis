@@ -210,6 +210,69 @@ class I18nApiIntegrationTest {
 		reusePartialUniques(schemaA);
 	}
 
+	@Test
+	void messageListReportsTranslationCoverageAndSkipsInactiveLanguages() throws Exception {
+		String tenant = provision();
+		mockMvc.perform(post("/api/mdm/v1/i18n-namespaces")
+				.headers(auth(tenant))
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("{\"namespaceCode\":\"SUM\",\"namespaceName\":\"요약\"}"))
+				.andExpect(status().isOk());
+		mockMvc.perform(post("/api/mdm/v1/support-languages")
+				.headers(auth(tenant))
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("""
+						{"supportLanguageCode":"fr-FR","languageName":"French","nativeName":"français","textDirectionCode":"LTR","defaultLanguage":false,"fallbackLanguageCode":"en-US","sortOrder":9}
+						"""))
+				.andExpect(status().isOk());
+		createSummarized(tenant, "PART", "ko-KR", "일부", "APPROVED");
+		createSummarized(tenant, "ALL", "ko-KR", "전체", "DRAFT");
+		addTranslation(tenant, "ALL", "en-US", "all", "APPROVED");
+		mockMvc.perform(post("/api/mdm/v1/i18n-messages")
+				.headers(auth(tenant))
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("{\"namespaceCode\":\"SUM\",\"messageKey\":\"NONE\",\"messageTypeCode\":\"LABEL\",\"defaultMessage\":\"없음\"}"))
+				.andExpect(status().isOk());
+		createSummarized(tenant, "OLD", "ko-KR", "이전", "APPROVED");
+		addTranslation(tenant, "OLD", "fr-FR", "ancien", "REVIEWED");
+		mockMvc.perform(delete("/api/mdm/v1/support-languages/fr-FR").headers(auth(tenant)))
+				.andExpect(status().isOk());
+
+		MvcResult listed = mockMvc.perform(get("/api/mdm/v1/i18n-messages")
+				.headers(auth(tenant))
+				.param("namespaceCode", "SUM")
+				.param("size", "20"))
+				.andExpect(status().isOk())
+				.andReturn();
+		tools.jackson.databind.JsonNode items = json(listed).get("data").get("items");
+		assertSummary(item(items, "PART"), List.of("ko-KR"), List.of("en-US"), List.of("APPROVED"));
+		assertSummary(item(items, "ALL"), List.of("ko-KR", "en-US"), List.of(), List.of("DRAFT", "APPROVED"));
+		assertSummary(item(items, "NONE"), List.of(), List.of("ko-KR", "en-US"), List.of());
+		assertSummary(item(items, "OLD"), List.of("ko-KR"), List.of("en-US"), List.of("APPROVED"));
+		for (tools.jackson.databind.JsonNode item : items) {
+			assertEquals(0, item.get("translations").size());
+			assertFalse(item.toString().contains("fr-FR"));
+		}
+
+		long partPk = item(items, "PART").get("messagePk").asLong();
+		MvcResult detail = mockMvc.perform(get("/api/mdm/v1/i18n-messages/" + partPk).headers(auth(tenant)))
+				.andExpect(status().isOk())
+				.andReturn();
+		tools.jackson.databind.JsonNode body = json(detail).get("data");
+		assertFalse(body.has("translatedLanguageCodes"));
+		assertFalse(body.has("missingLanguageCodes"));
+		assertFalse(body.has("translationStatusCodes"));
+		assertTrue(body.get("translations").size() > 0);
+
+		MvcResult cached = mockMvc.perform(get("/api/mdm/v1/i18n/bundles/error").headers(auth(tenant)).param("lang", "ko-KR"))
+				.andExpect(status().isOk())
+				.andExpect(header().exists("ETag"))
+				.andReturn();
+		mockMvc.perform(get("/api/mdm/v1/i18n/bundles/error").headers(auth(tenant)).param("lang", "ko-KR")
+				.header("If-None-Match", cached.getResponse().getHeader("ETag")))
+				.andExpect(status().isNotModified());
+	}
+
 	private long createMessage(String tenantCode, String namespace, String key) throws Exception {
 		MvcResult result = mockMvc.perform(post("/api/mdm/v1/i18n-messages")
 				.headers(auth(tenantCode))
@@ -494,6 +557,56 @@ class I18nApiIntegrationTest {
 			assertTrue(resultSet.next());
 			return resultSet.getLong(1);
 		}
+	}
+
+	private void createSummarized(String tenant, String key, String language, String text, String status) throws Exception {
+		mockMvc.perform(post("/api/mdm/v1/i18n-messages")
+				.headers(auth(tenant))
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(messageJson("SUM", key, "기본", language, text, status).replace("\"messageTypeCode\":\"ERROR\"", "\"messageTypeCode\":\"LABEL\"")))
+				.andExpect(status().isOk());
+	}
+
+	private void addTranslation(String tenant, String key, String language, String text, String status) throws Exception {
+		long messagePk = messagePkIn(tenant, "SUM", key);
+		mockMvc.perform(put("/api/mdm/v1/i18n-messages/" + messagePk)
+				.headers(auth(tenant))
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(messageJson("SUM", key, "기본", language, text, status).replace("\"messageTypeCode\":\"ERROR\"", "\"messageTypeCode\":\"LABEL\"")))
+				.andExpect(status().isOk());
+	}
+
+	private long messagePkIn(String tenant, String namespace, String messageKey) throws Exception {
+		MvcResult result = mockMvc.perform(get("/api/mdm/v1/i18n-messages")
+				.headers(auth(tenant))
+				.param("namespaceCode", namespace)
+				.param("keyword", messageKey)
+				.param("size", "20"))
+				.andExpect(status().isOk())
+				.andReturn();
+		return item(json(result).get("data").get("items"), messageKey).get("messagePk").asLong();
+	}
+
+	private static tools.jackson.databind.JsonNode item(tools.jackson.databind.JsonNode items, String messageKey) {
+		for (tools.jackson.databind.JsonNode item : items) {
+			if (messageKey.equals(item.get("messageKey").asString())) {
+				return item;
+			}
+		}
+		throw new IllegalStateException("메시지가 없습니다.");
+	}
+
+	private static void assertSummary(tools.jackson.databind.JsonNode item, List<String> translated, List<String> missing,
+			List<String> statuses) {
+		assertEquals(translated, texts(item.get("translatedLanguageCodes")));
+		assertEquals(missing, texts(item.get("missingLanguageCodes")));
+		assertEquals(statuses, texts(item.get("translationStatusCodes")));
+	}
+
+	private static List<String> texts(tools.jackson.databind.JsonNode array) {
+		List<String> values = new ArrayList<>();
+		array.forEach(node -> values.add(node.asString()));
+		return values;
 	}
 
 	private static tools.jackson.databind.JsonNode json(MvcResult result) throws Exception {

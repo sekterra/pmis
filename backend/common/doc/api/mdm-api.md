@@ -204,6 +204,30 @@ JWKS 예:
 
 메시지 키는 네임스페이스 안 사용 중 행만 유일하다. 논리 삭제 후 같은 키를 다시 등록할 수 있다. `messageTypeCode`는 공통코드 검증 없이 저장한다. 번역은 `(메시지, 언어)` upsert이고 요청에 없는 언어는 유지한다. 문구가 바뀔 때만 `versionNo`가 1 증가한다. 상태는 요청값 또는 신규 `DRAFT`, 기계 번역은 요청값 또는 `N`이다. 없는 언어는 `400 I18N.LANGUAGE_NOT_FOUND`.
 
+`GET /api/mdm/v1/i18n-messages` 목록 항목은 기존 필드를 유지하고 번역 본문 `translations`는 빈 배열이다. 번역 본문은 단건 조회에만 있다. 목록에만 아래 요약 필드를 더한다. 활성 지원 언어(`use_yn='Y'`)만 집계하고, 순서는 언어의 `sort_order`, `support_language_code`다. 비활성 언어의 번역은 세 배열 모두에서 빠진다. 문구가 비어 있으면 그 언어는 번역된 언어가 아니다.
+
+- `translatedLanguageCodes`: 문구가 비어 있지 않은 활성 언어 코드. 없으면 `[]`.
+- `missingLanguageCodes`: 활성 지원 언어 중 번역이 없는 언어 코드.
+- `translationStatusCodes`: 위 번역들의 `translation_status_code`를 언어 순서로 중복 없이 모은 배열. 예: `["DRAFT","APPROVED"]`.
+
+```json
+{
+  "messagePk": 10,
+  "namespaceCode": "menu",
+  "messageKey": "SAVE",
+  "messageTypeCode": "LABEL",
+  "defaultMessage": "저장",
+  "paramDescription": null,
+  "useYn": "Y",
+  "translations": [],
+  "translatedLanguageCodes": ["ko-KR"],
+  "missingLanguageCodes": ["en-US"],
+  "translationStatusCodes": ["APPROVED"]
+}
+```
+
+목록의 번역 상태 필터는 기존과 같다. 누락 언어만 보는 필터는 없다. 번들 조회와 단건 조회 필드, 번들 ETag는 바꾸지 않는다.
+
 국가 정렬 필드: `nationCode`, `nationName`, `sortOrder`, `nationPk`. 네임스페이스: `namespaceCode`, `namespaceName`, `namespacePk`. 메시지: `messageKey`, `messageTypeCode`, `messagePk`.
 
 ## 이번 단계 오류 코드

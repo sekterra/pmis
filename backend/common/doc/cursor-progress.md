@@ -904,3 +904,23 @@
   - 개발 스냅샷은 `feature/claude-review-test`의 `f93a1f1`에 이미 커밋되어 있었다. `origin/main`에서 브랜치를 만든 뒤 그 커밋과 공통 조상 사이의 파일 차이만 작업 트리에 적용했다. merge, rebase, reset은 하지 않았다
   - `origin/main`이 그 이후 추가한 파일(`.gitignore`, `AGENTS.md`, `docs`, `.github`)과 개발 커밋이 같은 경로를 고치지 않아 패치가 충돌 없이 적용되었다
   - `jdbc:postgresql://` 뒤가 `.invalid` 또는 `.example`인 테스트 주소, 마스킹 테스트의 `password=` 더미 문자열, JSX `password={...}` 속성은 실제 접속 정보가 아니라고 보았다
+
+## [8.7단계] 메시지 목록 응답에 번역 요약 필드 추가 - 2026-10-19
+- 변경/추가 파일:
+  - `docs/prompts/be-8.7.md`
+  - `MessageResponse`, `I18nMessageService`, `I18nMessageTextRepository`, `MessageTextSlice`
+  - `I18nMessageListSummaryTest`, `I18nApiIntegrationTest`
+  - `doc/api/mdm-api.md`
+- 목록 `GET /api/mdm/v1/i18n-messages` 항목에 `translatedLanguageCodes`, `missingLanguageCodes`, `translationStatusCodes`를 추가했다. `translations`는 빈 배열이다. 단건 조회는 이 세 필드를 내려보내지 않는다
+- 페이지의 메시지 PK를 한 번의 IN 조회로 읽고, 활성 언어는 페이지당 한 번만 읽는다. 비활성 언어와 빈 문구는 번역으로 세지 않는다. 상태 코드는 활성 언어 순서로 중복을 제거한다
+- 검증 결과:
+  - `gradlew.bat test --offline --no-daemon`: 55 통과, 실패 0, skip 0
+  - `gradlew.bat integrationTest --offline --no-daemon`: 31 통과, 실패 0, skip 0. 대상 DB 이름은 `pmis`였다
+  - 종료 후 `it_`/`t_it_` 스키마 0개, `pmis.tenant` 0행
+- ERD 반영 내역: 없음
+- 질문/확인 필요: 없음
+- 가정한 사항:
+  - 목록 쿼리 수가 페이지 크기와 무관함은 저장소 목으로 확인했다. 행마다 `findByMessageMessagePk`를 부르지 않고 슬라이스 조회는 한 번이다
+  - 문구가 공백만 있으면 번역이 없는 언어로 본다. 그 행의 상태 코드는 요약에 넣지 않는다
+  - `translationStatusCodes`의 순서는 활성 언어의 `sort_order`, `support_language_code` 순서로 처음 나온 상태다
+  - 단건·등록·수정·복구 응답의 요약 필드는 null이라 JSON에서 빠진다. 번들과 ETag 코드는 수정하지 않았다
