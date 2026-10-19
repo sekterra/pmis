@@ -219,3 +219,57 @@
 6. 문서: doc/api/mdm-api.md 에 context 절(요청·응답·오류·판정 순서·설정 키), doc/auth-design.md 공개 경로 표와 "테넌트 식별" 절, doc/local-setup.md 에 MDM_PLATFORM_HOSTS 와 개발 시 헤더 유무로 플랫폼/테넌트가 갈린다는 설명을 추가한다.
 7. 진행 기록은 [9.2.1단계] 형식으로 doc/cursor-progress.md 에 추가하고, 보고서는 "작업 방식" 형식(docs/reports/9.2.1.md, 9.2.1.diff)으로 쓴다. 커밋은 `[9.2.1] 요약` 한 개, push 는 하지 않는다.
 ````
+
+## 9.3단계: 메뉴 관리 API (+ 9.2 관리자 잠금 보완)
+
+9.2·9.2.1 승인(검토 기록: docs/reviews/2026-10-19-9.2.md, 9.2.1.md). 이번 단계는 테넌트 스키마 `menu`(와 메뉴가 만드는 `permission`)에 대한 관리 API 이다. 파일·팀은 9.4 로 미룬다. 이 단계만 수행하고 멈춘다.
+
+````
+기준 문서: doc/erd/erd-model-file-team-auth-menu-*.json 의 메뉴·권한 영역(정본, 수정 금지), 테넌트 마이그레이션 V1~V6, db/seed/tenant/S05_role_menu_permission.sql(시드된 메뉴 코드·경로 규칙), doc/auth-design.md, doc/api/mdm-api.md(menus/my 절 포함), 8.4 menu 패키지(MyMenuService, 메뉴 이름 해석 규칙), 9.2 access 패키지(PermissionAdminService, 캐시 무효화 AccessSessions·DbPermissionChecker), 7.1 다국어 메시지 관리 코드. ERD 와 어긋나거나 모호한 부분은 임의로 정하지 말고 질문 목록에 올린다. DDL 은 바꾸지 않는다.
+
+[A. 9.2 보완 - 먼저 처리한다]
+관리자 잠금이 자동으로 풀리는 문제를 고친다. 지금은 PUT /users/{userPk}/status 로 LOCKED 를 걸면 locked_datetime=지금 이라 LOCK_MINUTES 뒤 맞는 비밀번호 로그인에서 LoginLockRules 가 잠금을 푼다.
+1. 관리자 잠금(status API 로 LOCKED)은 locked_datetime=NULL 로 둔다. 자동 해제 규칙(LoginLockRules)은 locked_datetime 이 있는 잠금(로그인 실패 초과로 걸린 자동 잠금)에만 적용하고, user_status_code='LOCKED' 이면서 locked_datetime 이 NULL 이면 로그인을 계속 거절한다(실패 이력은 FAIL_LOCKED). 8.2 의 로그인 코드를 읽고 가장 작은 변경으로 한다.
+2. 관리자가 ACTIVE 로 되돌리면 지금처럼 login_fail_count=0, locked_datetime=NULL. 비밀번호 초기화(RESET)도 지금처럼 잠금을 푼다.
+3. 사용자 단건 응답의 lockedDatetime 은 그대로 두고, 필요하면 lockType(AUTO | ADMIN | null) 같은 파생 필드를 추가해 화면이 구분할 수 있게 한다(추가 여부와 이름은 mdm-api.md 에 결정을 적는다).
+4. 통합 테스트: 관리자 잠금 후 LOCK_MINUTES 가 지난 상황(locked_datetime 을 과거로 만들 필요 없이 NULL 이므로, 정책 값을 짧게 바꾸거나 시계를 쓰는 기존 테스트 방식 재사용)에서 올바른 비밀번호도 계속 거절, 자동 잠금은 기존대로 시간 경과 후 해제, 관리자 ACTIVE 복구 후 로그인 성공. 기존 8.2 잠금 테스트 전부 유지.
+
+[B. 공통 결정]
+1. URL: /api/mdm/v1/menus (관리 목록·단건·등록·수정·삭제·복구), /api/mdm/v1/menus/tree (관리용 전체 트리), /api/mdm/v1/menus/sort-orders (정렬 일괄 수정). 기존 GET /api/mdm/v1/menus/my 는 그대로이고 경로 충돌이 없게 한다(/menus/my 가 /menus/{menuPk} 로 해석되지 않도록 PK 변수는 숫자만 받는다).
+2. 권한(@RequirePermission): 메뉴 코드 MENU (S05 의 실제 menu_code/permission_code 를 읽어 그대로 쓰고 표로 문서화). 조회 READ, 등록 CREATE, 수정·정렬·복구 UPDATE, 삭제 DELETE. 9.2 와 같은 방식.
+3. 목록은 7단계 규약(page/size/sort 화이트리스트, useYn 생략 시 사용 중지 포함). 응답 래퍼·오류 형식·fieldErrors·감사 사용자는 기존과 같다.
+4. 메뉴 이름의 언어별 표기: 8.4 에서 메뉴 이름은 네임스페이스 menu 의 message_key = menu_code 로 읽고, 없으면 menu.menu_name 을 쓴다. 이 읽기 경로와 쓰기 경로를 맞춘다. translations 요청은 i18n 메시지(네임스페이스 menu, 키=menu_code, 유형 MENU)에 언어별로 upsert 한다(7.1 메시지 관리 서비스를 재사용, 요청에 없는 언어는 유지, 단건 조회에서만 translations 반환). ERD 설명의 i18n_entity_text 방식과 달라지므로 이 결정과 이유를 문서와 질문 목록에 쓴다. 메시지 키 중복·네임스페이스 없음 같은 문제는 기존 I18N.* 오류를 따른다.
+5. 변경 뒤 캐시: 메뉴가 바뀌면(등록 제외) 권한 캐시와 필요한 메뉴 이름 캐시를 커밋 후 비운다(9.2 방식). menus/my 가 변경 직후 반영되어야 한다.
+
+[메뉴 menu 규칙]
+- 목록(페이징): keyword(menuCode, menuName), solutionCode, menuTypeCode, parentMenuCode, visibleYn, useYn. 정렬 허용: menuCode, menuName, sortOrder, levelNo, menuPk. 항목: menuPk, parentMenuPk/Code, solutionCode, menuCode, menuName(기본 이름), menuTypeCode, routePath, iconName, levelNo, menuPath, sortOrder, visibleYn, useYn, 감사 컬럼.
+- 트리 GET /menus/tree?solutionCode=&includeInactive=: 페이징 없는 배열(sortOrder, menuCode 순 선행 순회). 항목에 depth(levelNo), 자식 수, 연결된 권한 수(permissionCount)를 넣는다. 한 번의 조회로 조립한다(N+1 금지).
+- 단건: 위 항목 + translations + 권한 목록 요약(permissionCode, actionCode, useYn).
+- 등록 POST: solutionCode(필수, 형식 `^[A-Z][A-Z0-9_]{1,49}$`; i18n_namespace 의 solution_code 체계와 같은지 확인하고 존재 검증이 필요하면 질문), menuCode(필수, 등록 후 변경 불가, 전체 유니크 유지 → 409 MENU.DUPLICATE, 논리 삭제된 코드도 포함. 형식은 S05 의 기존 코드가 모두 통과하는 규칙으로 정하고 문서화), menuName, menuTypeCode(MENU_TYPE: GROUP/PAGE), parentMenuCode(선택. 값이 있으면 사용 중인 GROUP 메뉴여야 한다 → 400 MENU.PARENT_NOT_GROUP, 같은 솔루션이 아니어도 되는지는 ERD 설명을 읽고 정하되 모호하면 질문), routePath(PAGE 는 필수, `/` 로 시작하고 `//`·`..`·`\`·`://`·공백 금지, 사용 중인 다른 PAGE 와 중복이면 409 MENU.DUPLICATE_ROUTE; GROUP 은 null 가능), iconName(선택, antd 아이콘 이름 형식 `^[A-Za-z][A-Za-z0-9]*$`), sortOrder, visibleYn(기본 Y), description, translations. levelNo 와 menuPath 는 서버가 계산한다: 기존 시드의 menuPath 규칙(코드 경로 `/SYSTEM/I18N` 형태)을 따르고, ERD 설명의 PK 경로 예시와 다르면 그 차이를 질문 목록에 올린다. 최대 깊이 4(초과 시 400 MENU.TOO_DEEP).
+- PAGE 를 등록하면 기본 기능 권한 5개(READ, CREATE, UPDATE, DELETE, EXPORT)를 같은 트랜잭션에서 만든다(permission_code = `메뉴코드:기능코드`, 이름과 정렬은 S05 가 기존 PAGE 메뉴에 만든 방식과 같게). 이미 같은 (menu, action) 행이 있으면(논리 삭제 포함) 되살리지 않고 건너뛰고 로그만 남긴다. GROUP 에는 권한을 만들지 않는다.
+- 수정 PUT: menuName, iconName, sortOrder, visibleYn, description, translations, routePath(PAGE), parentMenuCode(이동). menuCode, solutionCode, menuTypeCode 는 변경 불가(타입 변경 시도는 400 COMMON.VALIDATION_FAILED fieldErrors). 이동 시: 새 상위는 사용 중 GROUP, 자기 자신·자손 아래로 이동 금지(409 MENU.PARENT_CYCLE), levelNo·menuPath 를 자손까지 한 문장으로 갱신하고(9.1 부서 이동과 같은 방식), 깊이 제한을 넘으면 400 MENU.TOO_DEEP. 상위가 바뀌지 않으면 상위의 사용 여부를 다시 검사하지 않는다(9.2 A절의 부서 수정과 같은 원칙).
+- 정렬 일괄 수정 PUT /menus/sort-orders: [{menuCode, sortOrder}] 최대 200건, 한 트랜잭션, 없는 코드는 404 MENU.NOT_FOUND(전체 롤백).
+- 논리 삭제 DELETE: 사용 중인 하위 메뉴가 있으면 409 MENU.HAS_CHILD. 시드 메뉴 보호: S05 가 만든 메뉴(시드 menu_code 목록을 코드 상수로 두지 말고 S05 파일/시드 정의에서 읽을 수 있으면 그것을, 어려우면 solutionCode='MDM' 인 메뉴를 보호 대상으로 하되 근거를 문서에 쓴다)는 삭제 불가 409 MENU.PROTECTED(이름·정렬·표시·번역 수정은 허용). 삭제 가능한 PAGE 를 삭제하면 그 메뉴의 permission 과 role_permission 행을 use_yn='N' 으로 회수한다(9.2 권한 삭제와 같은 방식). 복구 POST /menus/{menuPk}/restore: 상위가 사용 중이어야 하고(409 MENU.PARENT_INACTIVE), 권한 행은 되살리지 않는다(역할 화면에서 다시 부여).
+- 보호 메뉴 판단이 모호하면 구현 전에 질문 목록에 올리고 가장 안전한 쪽(삭제 거절)으로 한다.
+
+[오류 코드와 문구] 위에서 정의한 MENU.* 오류 코드의 ko-KR/en-US 문구를 db/seed/tenant 의 error 네임스페이스 Seed 에 멱등(INSERT … WHERE NOT EXISTS, 고친 문구 보존)으로 추가한다.
+
+[문서] doc/api/mdm-api.md 에 위 엔드포인트의 요청·응답 예시, 필터·정렬 필드, 권한 표, 오류 코드 표, 메뉴 이름 번역 방식과 menus/my 반영 시점, 한계(프런트 화면 컴포넌트는 코드로 매핑되므로 새 PAGE 메뉴는 화면이 생기기 전까지 이동해도 404 화면이다 - 프런트 menuRoutes.ts 매핑 필요)를 쓴다. doc/auth-design.md 의 관리자 잠금 설명과 로그인 잠금 규칙을 A절에 맞게 갱신한다.
+
+[테스트]
+- 단위/슬라이스: 오류 코드 매핑, 검증(menuCode·routePath·iconName 형식, 깊이), 권한 401/403, 정렬 화이트리스트, /menus/my 와 /menus/{menuPk} 경로 충돌 없음, 트리 조립(순서, 자식 수, 고아 없음).
+- 통합(@Tag("integration"), 9.1/9.2 와 같은 절차: pmis 확인, t_it_ 스키마, 프로비저닝 서비스로 ACTIVE 테넌트, 테스트 JWT, 끝나면 정리):
+  (a) 엔티티 validate (V1~V6)
+  (b) A절 3종(관리자 잠금 유지, 자동 잠금 해제 유지, 관리자 ACTIVE 복구)
+  (c) 메뉴 등록: GROUP/PAGE, 레벨·경로 계산, PAGE 기본 권한 5개 생성, 중복 코드·중복 경로·GROUP 아닌 상위·깊이 초과 거절
+  (d) 수정과 이동: 자손 경로·레벨 일괄 갱신, 순환 거절, 상위 폐지 상태에서 이름만 수정 가능, 타입·코드 변경 거절
+  (e) 정렬 일괄 수정과 롤백
+  (f) 삭제·복구: 하위 있음 거절, 시드(보호) 메뉴 거절, PAGE 삭제 시 permission·role_permission 회수와 해당 역할 사용자의 즉시 403, 복구 시 권한 비복구
+  (g) 번역 upsert(요청에 없는 언어 유지)와 menus/my 의 메뉴 이름이 요청 언어로 바뀜
+  (h) 새 PAGE 메뉴를 만들고 역할에 권한을 부여하면 해당 사용자의 menus/my 에 즉시 나타나고, 회수·삭제하면 즉시 사라짐(캐시 무효화)
+  (i) 권한 없는 사용자 403, 두 테넌트 분리
+  (j) 일괄 업그레이드가 새 오류 문구를 기존 테넌트에 추가하되 바뀐 값은 보존
+  테스트가 만든 행과 스키마를 정리하고 pmis 업무 테이블 0행(실제 테넌트 행 불변)을 확인한다. 기존 통합 테스트 전부(현재 40개, 보고서에 개수 기록)가 통과해야 한다.
+- 새 라이브러리는 추가하지 않는다. 공유 DB 에 마이그레이션을 적용하는 일은 이 단계에 없다.
+- 진행 기록은 [9.3단계] 형식으로 doc/cursor-progress.md 에 추가하고, 보고서는 "작업 방식" 형식(docs/reports/9.3.md, 9.3.diff)으로 쓴다. 질문은 해당 부분만 멈추고 목록에 올린다. 커밋은 `[9.3] 요약` 한 개, push 는 하지 않는다.
+````
