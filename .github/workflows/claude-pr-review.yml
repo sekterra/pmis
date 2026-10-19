@@ -125,7 +125,16 @@ jobs:
           claude_args: |
             --max-turns 20
             --allowedTools "Read,Grep,Glob,Write,Bash(gh pr view:*),Bash(gh pr diff:*)"
-
+      - name: Show sanitized Claude error
+        if: ${{ always() && steps.claude.outcome != 'success' }}
+        env:
+          EXEC_FILE: ${{ steps.claude.outputs.execution_file }}
+        run: |
+          if [ -n "$EXEC_FILE" ] && [ -f "$EXEC_FILE" ]; then
+            jq -rs 'flatten | map(select(type=="object" and .type=="result")) | last | "is_error=\(.is_error) subtype=\(.subtype) num_turns=\(.num_turns) result=\((.result // "") | tostring | .[0:300])"' "$EXEC_FILE" || echo "execution file could not be parsed"
+          else
+            echo "no execution file"
+          fi
       - name: Post verdict and enforce gate
         if: ${{ !cancelled() }}
         env:
