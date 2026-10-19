@@ -44,7 +44,7 @@ public class TenantResolutionFilter extends OncePerRequestFilter {
 	protected boolean shouldNotFilter(HttpServletRequest request) {
 		String uri = request.getRequestURI();
 		return uri != null && (uri.startsWith("/actuator") || uri.startsWith("/api/platform/")
-				|| "/api/mdm/v1/auth/jwks".equals(uri));
+				|| "/api/mdm/v1/auth/jwks".equals(uri) || "/api/mdm/v1/context".equals(uri));
 	}
 
 	@Override

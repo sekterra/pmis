@@ -22,6 +22,8 @@ gradlew.bat bootRun
 
 `bootRun`은 프로필을 지정하지 않으면 `local`이다. `local`은 `dev` 설정을 포함한다. 포트 기본값은 8080이다. `--server.port` 또는 로컬 파일의 `server.port`로 바꿀 수 있다.
 
+`MDM_PLATFORM_HOSTS`는 플랫폼 콘솔로 볼 호스트 목록이다. 쉼표로 구분하고 포트는 비교하지 않는다. `dev` 기본값은 `localhost,127.0.0.1`이다. 로컬에서 `X-Tenant-Code`가 없으면 `GET /api/mdm/v1/context`는 플랫폼이고, 헤더가 있으면 그 테넌트다. 목록이 비어 있으면 플랫폼 콘솔 제한 없이 기동한다.
+
 ## 3. 환경변수 우선
 
 같은 값이 환경변수와 파일에 있으면 환경변수가 우선한다.

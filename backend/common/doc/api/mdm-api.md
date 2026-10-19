@@ -253,6 +253,28 @@ JWKS 예:
 
 `pwd_change_required=true`이면 비밀번호 변경, 로그아웃, me, refresh 외 테넌트 API는 `403 AUTH.PASSWORD_CHANGE_REQUIRED`다. `GET /api/mdm/v1/menus/my`는 이 허용 목록에 없다.
 
+## 접속 주소
+
+`GET /api/mdm/v1/context`. 인증이 필요 없다. `Cache-Control: no-store`다. 테넌트 필터를 타지 않는다.
+
+판정 순서:
+
+1. `dev` 프로필이고 `X-Tenant-Code`가 있으면 그 테넌트다. 없으면 `404 TENANT.NOT_FOUND`다.
+2. 요청 Host의 호스트명(포트 제외, 소문자, 앞뒤 공백 제거)이 `mdm.platform.hosts`에 있으면 플랫폼이다. 환경변수는 `MDM_PLATFORM_HOSTS`다.
+3. 그 외에는 Host로 `tenant_domain`을 찾는다. 없으면 `400 TENANT.UNRESOLVED`다. 테넌트가 사용 가능 상태가 아니면 로그인과 같이 `403 TENANT.INACTIVE`다.
+
+```json
+{ "kind": "PLATFORM" }
+```
+
+```json
+{ "kind": "TENANT", "tenantCode": "acme", "tenantName": "에이씨엠이" }
+```
+
+`tenantName`은 테넌트 기본 이름이다. 도메인 목록, 상태, 스키마 이름은 주지 않는다. 설정 목록이 비어 있으면 플랫폼으로 판정하지 않고 기동도 막지 않는다. `dev` 기본값은 `localhost,127.0.0.1`이다. 헤더가 없으면 로컬은 플랫폼이고, 헤더가 있으면 테넌트다.
+
+`mdm.platform.hosts`가 비어 있지 않으면 `/api/platform/**`의 Host가 목록에 없을 때 `404 TENANT.NOT_FOUND`다. 목록이 비어 있으면 제한하지 않는다.
+
 ## 내 메뉴
 
 `GET /api/mdm/v1/menus/my`. 인증된 테넌트 사용자라면 권한 선언 없이 호출한다. 쿼리 `lang`은 선택이다.

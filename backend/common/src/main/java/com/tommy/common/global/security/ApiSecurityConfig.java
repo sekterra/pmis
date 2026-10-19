@@ -63,7 +63,7 @@ public class ApiSecurityConfig implements WebMvcConfigurer {
 		http.securityMatcher("/api/mdm/**")
 				.authorizeHttpRequests(auth -> auth
 						.requestMatchers(HttpMethod.POST, "/api/mdm/v1/auth/login", "/api/mdm/v1/auth/refresh").permitAll()
-						.requestMatchers(HttpMethod.GET, "/api/mdm/v1/auth/jwks", "/api/mdm/v1/i18n/languages").permitAll()
+						.requestMatchers(HttpMethod.GET, "/api/mdm/v1/auth/jwks", "/api/mdm/v1/i18n/languages", "/api/mdm/v1/context").permitAll()
 						.requestMatchers(HttpMethod.GET, "/api/mdm/v1/i18n/bundles", "/api/mdm/v1/i18n/bundles/**").permitAll()
 						.anyRequest().authenticated())
 				.oauth2ResourceServer(oauth -> oauth.authenticationEntryPoint(entryPoint)

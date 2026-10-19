@@ -978,3 +978,22 @@
   - 비밀번호 해시가 없는 계정은 프로비전에 없어 단위 테스트로 `USER.NO_PASSWORD_ACCOUNT`를 확인했다
   - 권한 캐시 테스트의 사용자 토큰은 `pwd_change_required=false`다. 비밀번호 변경 강제 필터는 토큰 클레임을 본다
 
+## [9.2.1단계] 접속 주소 컨텍스트 조회 - 2026-10-19
+- 변경/추가 파일:
+  - `doc/api/mdm-api.md`, `doc/auth-design.md`, `doc/local-setup.md`
+  - `src/main/resources/application.yaml`, `application-dev.yaml`
+  - `AccessContextService`, `AccessContextController`, `PlatformHostFilter`, `PlatformHostProperties`
+  - `TenantResolutionFilter`, `ApiSecurityConfig`, `TenantDirectory`, `JdbcTenantDirectory`
+  - `AccessContextSliceTest`, `AccessContextIntegrationTest`
+- 인증 없이 `GET /api/mdm/v1/context`로 플랫폼 콘솔과 테넌트를 가른다. 토큰 종류와 로그인 엔드포인트는 바꾸지 않았다
+- 검증 결과:
+  - `gradlew.bat test`: 74 통과, 실패 0, skip 0
+  - `gradlew.bat integrationTest`: 40 통과, 실패 0, skip 0. 대상 DB 이름은 `pmis`였다
+- ERD 반영 내역: 없음
+- 질문/확인 필요:
+  - 플랫폼 Host 거절은 새 코드 없이 `404 TENANT.NOT_FOUND`다. 응답 모양은 기존 `ApiResponse`다
+- 가정한 사항:
+  - `dev`에서 헤더가 가리키는 테넌트가 없으면 `404 TENANT.NOT_FOUND`다. 알 수 없는 Host는 기존 식별과 같이 `400 TENANT.UNRESOLVED`다. 사용 불가 테넌트는 `403 TENANT.INACTIVE`다
+  - 설정 호스트는 앞뒤 공백을 제거하고 소문자로 맞추며 숫자 포트는 뺀다
+  - `dev` 기본 호스트는 `localhost,127.0.0.1`이다. 비어 있으면 플랫폼 API 호스트 제한을 하지 않는다
+

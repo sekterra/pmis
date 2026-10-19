@@ -31,6 +31,8 @@ logging:
     com.zaxxer.hikari.pool.HikariPool: WARN
 
 mdm:
+  platform:
+    hosts: ${MDM_PLATFORM_HOSTS:}
   security:
     bcrypt-strength: ${MDM_BCRYPT_STRENGTH:10}
     issuer: ${MDM_JWT_ISSUER:http://localhost}

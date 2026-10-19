@@ -62,7 +62,7 @@ Access JWT만 다음 클레임을 가진다. 역할과 permission은 넣지 않�
 필터 순서:
 
 1. Spring Security. 공개 경로는 인증 없이 통과하고, 그 외 Bearer를 검증한다. CSRF는 끈다.
-2. `TenantResolutionFilter`. Security 다음으로 옮겨 Host, 검증된 토큰, `dev` 헤더를 합친다. 스키마를 `TenantContext`에 넣는다. `/actuator/**`, `/api/platform/**`, JWKS는 테넌트 필터를 타지 않는다.
+2. `TenantResolutionFilter`. Security 다음으로 옮겨 Host, 검증된 토큰, `dev` 헤더를 합친다. 스키마를 `TenantContext`에 넣는다. `/actuator/**`, `/api/platform/**`, JWKS, `GET /api/mdm/v1/context`는 테넌트 필터를 타지 않는다. context는 로그인 전에 플랫폼 콘솔과 테넌트를 가른다. `dev`이고 `X-Tenant-Code`가 있으면 그 테넌트다. 아니면 요청 Host가 `mdm.platform.hosts`에 있으면 플랫폼이고, 아니면 `tenant_domain`으로 테넌트를 찾는다. `mdm.platform.hosts`가 비어 있지 않으면 `/api/platform/**`는 그 목록의 Host만 받는다. 목록 밖은 404다.
 3. 비밀번호 변경 강제 필터. `pwd_change_required=true`이면 아래 허용 목록 외는 `403 AUTH.PASSWORD_CHANGE_REQUIRED`.
 4. 기존 `PermissionInterceptor`. `@RequirePermission`만 검사한다.
 
@@ -229,6 +229,7 @@ Refresh는 `Set-Cookie`만 있다.
 | POST `/api/mdm/v1/auth/login`, `/auth/refresh` | 공개 | 필요 |
 | POST `/api/platform/v1/auth/login`, `/auth/refresh` | 공개 | 필요 |
 | GET `/api/mdm/v1/auth/jwks` | 공개 | PMIS 검증 |
+| GET `/api/mdm/v1/context` | 공개 | 로그인 전 접속 주소 판정. 테넌트 필터를 타지 않는다 |
 | GET `/api/mdm/v1/i18n/languages` | 공개 | 로그인 화면 언어 |
 | GET `/api/mdm/v1/i18n/bundles`, `/bundles/{code}` | 허용 네임스페이스만 공개 | 기본 `common`, `error`, `auth`. 그 외는 인증만 필요. 여러 개를 한 번에 받으면 전부 허용 목록일 때만 공개 |
 | GET `/api/mdm/v1/codes`, `/codes/{group}` | 인증 필요, 권한 불필요 | 로그인 전 업무 데이터로 보지 않음 |

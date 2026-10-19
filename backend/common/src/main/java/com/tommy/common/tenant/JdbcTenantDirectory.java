@@ -47,6 +47,15 @@ public class JdbcTenantDirectory implements TenantDirectory {
 	}
 
 	@Override
+	public Optional<String> findTenantName(String tenantCode) {
+		if (tenantCode == null || tenantCode.isBlank()) {
+			return Optional.empty();
+		}
+		return jdbcTemplate.query("SELECT tenant_name FROM pmis.tenant WHERE tenant_code = ?",
+				(resultSet, row) -> resultSet.getString("tenant_name"), tenantCode).stream().findFirst();
+	}
+
+	@Override
 	public Optional<TenantSnapshot> findByDomain(String domainName) {
 		if (domainName == null || domainName.isBlank()) {
 			return Optional.empty();

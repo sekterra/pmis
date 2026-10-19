@@ -8,10 +8,11 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.ConfigurableApplicationContext;
 
+import com.tommy.common.global.multitenancy.PlatformHostProperties;
 import com.tommy.common.global.security.MdmSecurityProperties;
 
 @SpringBootApplication
-@EnableConfigurationProperties(MdmSecurityProperties.class)
+@EnableConfigurationProperties({ MdmSecurityProperties.class, PlatformHostProperties.class })
 public class CommonApplication {
 
 	public static void main(String[] args) {
