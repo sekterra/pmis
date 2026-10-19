@@ -315,3 +315,142 @@ JWKS 예:
 7. 비밀번호 변경이 필요 없으면 `GET /api/mdm/v1/auth/me` 다음에 `GET /api/mdm/v1/menus/my`를 호출하고, 그 목록에 있는 `routePath`만 라우트로 연다.
 
 프론트 구조는 정하지 않는다. 로컬은 개발 서버 프록시, 운영은 테넌트 Host 아래 같은 사이트를 전제로 한다.
+
+## 조직·사람
+
+회사, 부서, 부서 이력, 사람, 사람 소속이다. 사용자 계정, 역할, 파일, 팀은 포함하지 않는다. 권한 메뉴는 `COMPANY`, `DEPT`, `PERSON`이고 기능은 `READ`, `CREATE`, `UPDATE`, `DELETE`다. 복구는 공통코드와 같이 `UPDATE`다.
+
+이름 번역은 `i18n_entity_text`다. 대상은 `company.company_name`, `dept.dept_name`, `person.person_name`이다. 요청 `translations`는 `{supportLanguageCode, text}`이고, 요청에 있는 언어만 추가하거나 바꾼다. 요청에 없는 언어는 그대로 둔다. 상세 조회만 번역을 포함하고 목록은 포함하지 않는다. 알 수 없거나 사용 중이 아닌 언어는 `400 I18N.LANGUAGE_NOT_FOUND`다.
+
+코드 값이 있을 때만 공통코드 서비스로 확인한다. 그룹은 `COMPANY_TYPE`, `DEPT_TYPE`, `EMPLOYMENT_TYPE`, `ASSIGNMENT_STATUS`, `POSITION`, `JOB_TITLE`이다. 사용 중이고 유효기간 안이 아니면 `400 ORG.INVALID_CODE_VALUE`와 `fieldErrors`다. 값을 생략하면 검사하지 않는다. `POSITION`과 `JOB_TITLE`은 그룹만 있고 시드 값이 없다.
+
+목록의 `useYn`은 7단계와 같다. 생략하면 사용 중지를 포함하고, `Y` 또는 `N`만 거른다. `ALL`은 없다. 부서 트리만 예외다. `asOfDate`가 없으면 오늘 기준 사용 중인 부서만 준다. `includeClosed=true`이면 사용 중지 부서도 오늘 유효기간 안에 있으면 포함한다. `asOfDate`가 있으면 `use_yn`을 보지 않고 `valid_from <= 날짜`이고 `valid_to`가 없거나 `valid_to >= 날짜`인 부서를 준다.
+
+오늘 날짜는 `TenantClock.today()`다. 생성·수정 사용자 PK는 검증된 테넌트 사용자 토큰의 `sub`다. 토큰이 없거나 플랫폼 토큰이면 null이다. 부서 이력의 `changeUserPk`도 같다.
+
+회사 코드와 부서 코드는 만든 뒤 바꾸지 않는다. 코드 유니크는 논리 삭제 행도 포함하므로 같은 코드는 복구로만 다시 쓴다. 사업자등록번호는 앞뒤 공백만 제거하고 하이픈은 유지한다. 사용 중인 행끼리만 유일해서 논리 삭제 뒤 다른 회사가 같은 번호를 쓸 수 있다. 사람 이메일은 형식만 검사하고 중복을 허용한다. `profileFilePk`는 조회에만 나오고 저장 요청은 받지 않는다.
+
+부서 경로 `deptPath`는 `/상위PK/.../자신PK`다. 레벨은 슬래시 개수다. 상위가 바뀌면 이동한 부서와 하위를 경로 접두사 한 번의 `UPDATE`로 다시 계산한다. 과거 시점의 조직도는 재구성하지 않는다.
+
+소속의 주 소속은 한 사람의 현재 소속(종료일 없음, `use_yn='Y'`) 중 하나다. 첫 현재 소속은 요청과 관계없이 `primaryYn='Y'`다. 이후 요청이 `Y`이면 기존 주 소속을 같은 트랜잭션에서 `N`으로 바꾼다. 주 소속을 종료해도 다른 소속을 주 소속으로 올리지 않는다. 이동 API는 없고 종료 뒤 새 소속을 만든다. 사원번호는 같은 회사에서 `use_yn='Y'`이고 값이 있는 행만 유일하다. 종료일은 유니크 조건이 아니다. 다른 회사의 같은 사원번호는 가능하다.
+
+### 회사
+
+`GET/POST /api/mdm/v1/companies`
+
+`GET/PUT/DELETE /api/mdm/v1/companies/{companyPk}`
+
+`POST /api/mdm/v1/companies/{companyPk}/restore`
+
+목록 필터는 `keyword`(코드, 이름, 약칭), `companyTypeCode`, `useYn`이다. 정렬은 `companyCode`, `companyName`, `sortOrder`, `companyPk`다.
+
+```json
+{
+  "companyCode": "ACME",
+  "companyName": "에이씨엠이",
+  "companyTypeCode": "OWN",
+  "businessRegistrationNo": "123-45-67890",
+  "nationCode": "KR",
+  "parentCompanyCode": null,
+  "translations": [{ "supportLanguageCode": "ko-KR", "text": "에이씨엠이" }]
+}
+```
+
+수정 본문에는 `companyCode`가 없다. 응답에는 `companyPk`, `parentCompanyPk`, `parentCompanyCode`, `nationPk`, `nationCode`를 함께 둔다.
+
+상위 회사가 자신이거나 순환이면 `409 COMPANY.PARENT_CYCLE`이다. 상위가 없거나 사용 중이 아니면 `404 COMPANY.NOT_FOUND` 또는 `409 COMPANY.PARENT_INACTIVE`다. 국가가 없거나 사용 중이 아니면 `400 COMMON.VALIDATION_FAILED`와 `fieldErrors(nationCode)`다. `I18N.NATION_NOT_FOUND`는 쓰지 않는다. 회사 코드 중복은 `409 COMPANY.DUPLICATE`, 사업자번호 중복은 `409 COMPANY.DUPLICATE_BUSINESS_NO`다.
+
+삭제는 논리 삭제다. 사용 중인 하위 회사는 `409 COMPANY.HAS_CHILD_COMPANY`, 사용 중인 부서는 `409 COMPANY.HAS_ACTIVE_DEPT`, 현재 소속은 `409 COMPANY.HAS_ACTIVE_ASSIGNMENT`다. 사용 중인 자사(`OWN`)가 하나뿐이면 `409 COMPANY.LAST_OWN`이다. 복구 때 상위 회사가 사용 중이 아니면 `409 COMPANY.PARENT_INACTIVE`다.
+
+`companyCode`는 대문자, 숫자, 밑줄, 하이픈 1~50자다. ERD 설명에는 문자 규칙이 없고 길이 50과 유니크만 있다.
+
+### 부서
+
+`GET/POST /api/mdm/v1/departments`
+
+`GET /api/mdm/v1/departments/tree?companyCode=&asOfDate=&includeClosed=`
+
+`GET/PUT/DELETE /api/mdm/v1/departments/{deptPk}`
+
+`POST /api/mdm/v1/departments/{deptPk}/restore`
+
+`GET /api/mdm/v1/departments/{deptPk}/history`
+
+목록 필터는 `companyCode`, `keyword`, `deptTypeCode`, `useYn`, `parentDeptPk`다. 정렬은 `deptCode`, `deptName`, `levelNo`, `sortOrder`, `deptPk`다. 트리는 페이지 없는 배열이고 `deptPath`, `sortOrder`, `deptCode` 순으로 같은 부모 안을 정렬한 전위 순회다.
+
+등록은 같은 회사의 사용 중인 상위 부서, 회사 안에서 유일한 `deptCode`, 이름, 유형, 정렬, `validFromDate`(생략 시 오늘), `validToDate`가 시작일 이상이어야 한다. 서버가 `levelNo`와 `deptPath`를 같은 트랜잭션에서 계산하고 `CREATE` 이력을 남긴다. 수정은 코드와 회사를 바꾸지 않는다. 이름이 바뀌면 `RENAME`, 상위가 바뀌면 `MOVE`다. 둘 다 바뀌면 이력 두 줄이다. `effectiveDate` 생략은 오늘이고 `changeReason`은 선택이다.
+
+상위가 자신 또는 하위이면 `409 DEPT.PARENT_CYCLE`이다. 다른 회사 부서이면 `409 DEPT.PARENT_COMPANY_MISMATCH`다. 사용 중이 아니면 `409 DEPT.PARENT_INACTIVE`다. 날짜 순서가 아니면 `400 DEPT.INVALID_DATE`다. 코드 중복은 `409 DEPT.DUPLICATE`다.
+
+삭제는 종료다. 사용 중인 하위 부서는 `409 DEPT.HAS_CHILD`, 현재 소속은 `409 DEPT.HAS_ACTIVE_ASSIGNMENT`다. 통과하면 `validToDate`를 종료일로 두고 `use_yn='N'`, `CLOSE` 이력을 남긴다. 복구는 상위가 사용 중이어야 하고 `validToDate`를 비우며 `use_yn='Y'`, `REOPEN` 이력을 남긴다.
+
+이력은 최신순 페이지다. 변경 유형, 적용일, 변경 전후 이름, 변경 전후 상위 PK, 사유, 변경 시각, 변경 사용자 PK를 준다. 이력 수정과 삭제는 없다. 변경 유형은 `DEPT_CHANGE_TYPE`의 `CREATE`, `RENAME`, `MOVE`, `CLOSE`, `REOPEN`이다.
+
+### 사람
+
+`GET/POST /api/mdm/v1/people`
+
+`GET/PUT/DELETE /api/mdm/v1/people/{personPk}`
+
+`POST /api/mdm/v1/people/{personPk}/restore`
+
+목록 필터는 `keyword`(이름, 이메일, 휴대전화, 현재 소속 사원번호), `companyCode`, `deptPk`, `employmentTypeCode`, `assignmentStatusCode`, `useYn`이다. 회사, 부서, 고용 유형, 재직 상태는 주 소속 기준이다. 정렬은 `personName`, `email`, `personPk`다. 각 항목에 주 소속 요약이 있다. 없으면 null이다. 요약은 페이지의 사람 PK를 `IN`으로 한 번 조회한다. 상세는 번역과 현재 소속 목록을 포함한다.
+
+현재 소속이 있으면 `409 PERSON.HAS_ACTIVE_ASSIGNMENT`다. 사용 중인 계정이 있으면 `409 PERSON.HAS_ACCOUNT`다. 계정은 읽기만 하고 만들지 않는다. 복구는 가능하다.
+
+### 소속
+
+`GET/POST /api/mdm/v1/people/{personPk}/assignments`
+
+`PUT/DELETE /api/mdm/v1/person-assignments/{assignmentPk}`
+
+`POST /api/mdm/v1/person-assignments/{assignmentPk}/end`
+
+`POST /api/mdm/v1/person-assignments/{assignmentPk}/restore`
+
+목록은 과거 소속을 포함하고 기본 정렬은 `startDate` 내림차순이다. `useYn`으로 거른다. 회사는 필수이고 사용 중이어야 한다. 부서는 선택이며 있으면 같은 회사의 사용 중인 부서여야 한다. 시작일은 필수이고 종료일은 시작일 이상이다. `deptHeadYn='Y'`는 부서가 있을 때만 가능하다. `RESIGNED`는 종료일이 필요하다. 종료 API의 `endDate` 생략은 오늘이고 `assignmentStatusCode` 생략은 `RESIGNED`다.
+
+같은 사람, 같은 회사, 같은 부서(둘 다 없음도 같음)의 현재 소속이 둘이면 `409 ASSIGNMENT.DUPLICATE`다. 부서와 회사가 다르면 `409 ASSIGNMENT.DEPT_COMPANY_MISMATCH`다. 사용 중이 아닌 부서는 `400 ASSIGNMENT.DEPT_INACTIVE`, 사용 중이 아닌 회사는 `400 ASSIGNMENT.COMPANY_INACTIVE`다. 사원번호 중복은 `409 ASSIGNMENT.EMPLOYEE_NO_DUPLICATE`다. 날짜 오류는 `400 ASSIGNMENT.INVALID_DATE`, 부서장 플래그 오류는 `400 ASSIGNMENT.DEPT_HEAD_REQUIRES_DEPT`, 퇴사일 누락은 `400 ASSIGNMENT.RESIGNED_REQUIRES_END`다.
+
+### 오류
+
+| 코드 | HTTP | 의미 |
+| --- | --- | --- |
+| `ORG.INVALID_CODE_VALUE` | 400 | 공통코드가 사용 중이 아니거나 유효기간 밖 |
+| `I18N.LANGUAGE_NOT_FOUND` | 400 | 조직 이름 번역의 언어를 찾을 수 없음 |
+| `COMPANY.DUPLICATE` | 409 | 회사 코드 중복. 논리 삭제 코드도 포함 |
+| `COMPANY.DUPLICATE_BUSINESS_NO` | 409 | 사용 중인 사업자등록번호 중복 |
+| `COMPANY.NOT_FOUND` | 404 | 회사 없음 |
+| `COMPANY.PARENT_CYCLE` | 409 | 회사 계층 순환 |
+| `COMPANY.PARENT_INACTIVE` | 409 | 상위 회사가 사용 중이 아님 |
+| `COMPANY.HAS_CHILD_COMPANY` | 409 | 사용 중인 하위 회사 |
+| `COMPANY.HAS_ACTIVE_DEPT` | 409 | 사용 중인 부서 |
+| `COMPANY.HAS_ACTIVE_ASSIGNMENT` | 409 | 현재 소속 |
+| `COMPANY.LAST_OWN` | 409 | 마지막 자사 |
+| `DEPT.DUPLICATE` | 409 | 부서 코드 중복 |
+| `DEPT.NOT_FOUND` | 404 | 부서 없음 |
+| `DEPT.PARENT_CYCLE` | 409 | 부서 계층 순환 |
+| `DEPT.PARENT_COMPANY_MISMATCH` | 409 | 다른 회사의 상위 부서 |
+| `DEPT.PARENT_INACTIVE` | 409 | 상위 부서가 사용 중이 아님 |
+| `DEPT.HAS_CHILD` | 409 | 사용 중인 하위 부서 |
+| `DEPT.HAS_ACTIVE_ASSIGNMENT` | 409 | 현재 소속 |
+| `DEPT.INVALID_DATE` | 400 | 부서 날짜 순서 |
+| `PERSON.NOT_FOUND` | 404 | 사람 없음 |
+| `PERSON.HAS_ACTIVE_ASSIGNMENT` | 409 | 현재 소속 |
+| `PERSON.HAS_ACCOUNT` | 409 | 사용 중인 계정 |
+| `ASSIGNMENT.NOT_FOUND` | 404 | 소속 없음 |
+| `ASSIGNMENT.DUPLICATE` | 409 | 같은 회사·부서의 현재 소속 |
+| `ASSIGNMENT.DEPT_COMPANY_MISMATCH` | 409 | 부서와 회사가 다름 |
+| `ASSIGNMENT.DEPT_INACTIVE` | 400 | 부서가 사용 중이 아님 |
+| `ASSIGNMENT.COMPANY_INACTIVE` | 400 | 회사가 사용 중이 아님 |
+| `ASSIGNMENT.EMPLOYEE_NO_DUPLICATE` | 409 | 같은 회사의 사원번호 중복 |
+| `ASSIGNMENT.INVALID_DATE` | 400 | 소속 날짜 순서 |
+| `ASSIGNMENT.DEPT_HEAD_REQUIRES_DEPT` | 400 | 부서 없이 부서장 |
+| `ASSIGNMENT.RESIGNED_REQUIRES_END` | 400 | 퇴사인데 종료일 없음 |
+
+### FE 연동 시나리오
+
+1. `GET /api/mdm/v1/departments/tree?companyCode=`로 현재 조직도를 연다.
+2. `POST /api/mdm/v1/people`로 사람을 만들고 `translations`에 필요한 언어만 보낸다.
+3. `POST /api/mdm/v1/people/{personPk}/assignments`로 소속을 만든다. 그 사람의 첫 현재 소속은 주 소속이 된다.
+

@@ -924,3 +924,29 @@
   - 문구가 공백만 있으면 번역이 없는 언어로 본다. 그 행의 상태 코드는 요약에 넣지 않는다
   - `translationStatusCodes`의 순서는 활성 언어의 `sort_order`, `support_language_code` 순서로 처음 나온 상태다
   - 단건·등록·수정·복구 응답의 요약 필드는 null이라 JSON에서 빠진다. 번들과 ETag 코드는 수정하지 않았다
+
+## [9.1단계] 조직·사람 관리 API - 2026-10-19
+- 변경/추가 파일:
+  - `doc/api/mdm-api.md`
+  - `src/main/resources/db/seed/tenant/S04_i18n.sql`
+  - `JpaAuditingConfig`, `CurrentTenantUser`, `CodeQueryService`
+  - `org` 패키지의 회사·부서·사람·소속 API
+  - `I18nEntityText`
+  - `OrgRuleTest`, `OrgSliceTest`, `OrgApiIntegrationTest`
+- 회사, 부서, 부서 이력, 사람, 사람 소속 API를 추가했다. 계정·역할·파일·팀은 만들지 않았다. 테넌트 DDL은 바꾸지 않았다
+- 검증 결과:
+  - `gradlew.bat test`: 62 통과, 실패 0, skip 0
+  - `gradlew.bat integrationTest`: 36 통과, 실패 0, skip 0. 대상 DB 이름은 `pmis`였다
+  - 조직 통합 테스트는 끝난 뒤 `it-`이 아닌 `pmis.tenant` 행 수가 시작과 같음을 확인한다. `t_it_` 스키마는 테스트가 삭제한다
+- ERD 반영 내역: 없음. ERD는 수정하지 않았다
+- 질문/확인 필요:
+  - `company_code`는 대문자·숫자·밑줄·하이픈 1~50자로 받았다. ERD 설명은 길이 50과 유니크만 있고 문자 규칙은 없다
+- 가정한 사항:
+  - 목록의 `useYn` 생략은 7단계와 같이 사용 중지를 포함한다. `Y`/`N`만 거른다. 부서 트리만 생략 시 오늘 기준 사용 중 부서다
+  - 국가가 없거나 사용 중이 아니면 `400 COMMON.VALIDATION_FAILED`와 `fieldErrors(nationCode)`다. `I18N.NATION_NOT_FOUND`는 쓰지 않는다
+  - 사원번호 유니크는 V5 기준이다. `use_yn='Y'`이고 값이 있는 행만 유일하고, 종료일은 조건이 아니다
+  - 사업자등록번호는 앞뒤 공백만 제거하고 하이픈은 유지한다. 사용 중인 행만 유일하다
+  - 복구 권한은 공통코드와 같이 `UPDATE`다
+  - 주 소속 요약이 페이지 크기와 무관함은 저장소 목으로 확인했다. SQL 통계는 남기지 않았다
+  - 과거 조직도는 재구성하지 않는다
+

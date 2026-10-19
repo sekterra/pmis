@@ -370,3 +370,115 @@ WHERE n.namespace_code = 'auth'
   AND NOT EXISTS (
       SELECT 1 FROM i18n_message_text t
       WHERE t.message_pk = m.message_pk AND t.support_language_code = v.support_language_code);
+
+INSERT INTO i18n_message (namespace_pk, message_key, message_type_code, default_message)
+SELECT n.namespace_pk, v.message_key, 'ERROR', v.default_message
+FROM i18n_namespace n
+JOIN (VALUES
+    ('ORG.INVALID_CODE_VALUE', '사용할 수 없는 코드 값입니다.'),
+    ('COMPANY.DUPLICATE', '이미 있는 회사 코드입니다.'),
+    ('COMPANY.DUPLICATE_BUSINESS_NO', '이미 있는 사업자등록번호입니다.'),
+    ('COMPANY.NOT_FOUND', '회사를 찾을 수 없습니다.'),
+    ('COMPANY.PARENT_CYCLE', '회사 계층이 순환합니다.'),
+    ('COMPANY.PARENT_INACTIVE', '상위 회사가 사용 중이 아닙니다.'),
+    ('COMPANY.HAS_CHILD_COMPANY', '사용 중인 하위 회사가 있습니다.'),
+    ('COMPANY.HAS_ACTIVE_DEPT', '사용 중인 부서가 있습니다.'),
+    ('COMPANY.HAS_ACTIVE_ASSIGNMENT', '현재 소속이 있습니다.'),
+    ('COMPANY.LAST_OWN', '마지막 자사는 삭제할 수 없습니다.'),
+    ('DEPT.DUPLICATE', '이미 있는 부서 코드입니다.'),
+    ('DEPT.NOT_FOUND', '부서를 찾을 수 없습니다.'),
+    ('DEPT.PARENT_CYCLE', '부서 계층이 순환합니다.'),
+    ('DEPT.PARENT_COMPANY_MISMATCH', '다른 회사의 부서를 상위로 둘 수 없습니다.'),
+    ('DEPT.PARENT_INACTIVE', '상위 부서가 사용 중이 아닙니다.'),
+    ('DEPT.HAS_CHILD', '사용 중인 하위 부서가 있습니다.'),
+    ('DEPT.HAS_ACTIVE_ASSIGNMENT', '현재 소속이 있습니다.'),
+    ('DEPT.INVALID_DATE', '시작일은 종료일보다 늦을 수 없습니다.'),
+    ('PERSON.NOT_FOUND', '사람을 찾을 수 없습니다.'),
+    ('PERSON.HAS_ACTIVE_ASSIGNMENT', '현재 소속이 있습니다.'),
+    ('PERSON.HAS_ACCOUNT', '사용 중인 계정이 있습니다.'),
+    ('ASSIGNMENT.NOT_FOUND', '소속을 찾을 수 없습니다.'),
+    ('ASSIGNMENT.DEPT_COMPANY_MISMATCH', '부서가 회사와 맞지 않습니다.'),
+    ('ASSIGNMENT.DEPT_INACTIVE', '사용 중인 부서가 아닙니다.'),
+    ('ASSIGNMENT.COMPANY_INACTIVE', '사용 중인 회사가 아닙니다.'),
+    ('ASSIGNMENT.DUPLICATE', '같은 회사와 부서의 현재 소속이 있습니다.'),
+    ('ASSIGNMENT.EMPLOYEE_NO_DUPLICATE', '이미 있는 사원번호입니다.'),
+    ('ASSIGNMENT.RESIGNED_REQUIRES_END', '퇴사 상태에는 종료일이 필요합니다.'),
+    ('ASSIGNMENT.DEPT_HEAD_REQUIRES_DEPT', '부서장 여부는 부서가 있을 때만 쓸 수 있습니다.'),
+    ('ASSIGNMENT.INVALID_DATE', '시작일은 종료일보다 늦을 수 없습니다.')
+) AS v(message_key, default_message) ON TRUE
+WHERE n.namespace_code = 'error'
+  AND NOT EXISTS (
+      SELECT 1 FROM i18n_message m
+      WHERE m.namespace_pk = n.namespace_pk AND m.message_key = v.message_key);
+
+INSERT INTO i18n_message_text (message_pk, support_language_code, message_text, translation_status_code)
+SELECT m.message_pk, v.support_language_code, v.message_text, 'APPROVED'
+FROM i18n_message m
+JOIN i18n_namespace n ON n.namespace_pk = m.namespace_pk
+JOIN (VALUES
+    ('ORG.INVALID_CODE_VALUE', 'ko-KR', '사용할 수 없는 코드 값입니다.'),
+    ('ORG.INVALID_CODE_VALUE', 'en-US', 'The code value is not usable.'),
+    ('COMPANY.DUPLICATE', 'ko-KR', '이미 있는 회사 코드입니다.'),
+    ('COMPANY.DUPLICATE', 'en-US', 'The company code already exists.'),
+    ('COMPANY.DUPLICATE_BUSINESS_NO', 'ko-KR', '이미 있는 사업자등록번호입니다.'),
+    ('COMPANY.DUPLICATE_BUSINESS_NO', 'en-US', 'The business registration number already exists.'),
+    ('COMPANY.NOT_FOUND', 'ko-KR', '회사를 찾을 수 없습니다.'),
+    ('COMPANY.NOT_FOUND', 'en-US', 'The company was not found.'),
+    ('COMPANY.PARENT_CYCLE', 'ko-KR', '회사 계층이 순환합니다.'),
+    ('COMPANY.PARENT_CYCLE', 'en-US', 'The company hierarchy contains a cycle.'),
+    ('COMPANY.PARENT_INACTIVE', 'ko-KR', '상위 회사가 사용 중이 아닙니다.'),
+    ('COMPANY.PARENT_INACTIVE', 'en-US', 'The parent company is not active.'),
+    ('COMPANY.HAS_CHILD_COMPANY', 'ko-KR', '사용 중인 하위 회사가 있습니다.'),
+    ('COMPANY.HAS_CHILD_COMPANY', 'en-US', 'An active child company exists.'),
+    ('COMPANY.HAS_ACTIVE_DEPT', 'ko-KR', '사용 중인 부서가 있습니다.'),
+    ('COMPANY.HAS_ACTIVE_DEPT', 'en-US', 'An active department exists.'),
+    ('COMPANY.HAS_ACTIVE_ASSIGNMENT', 'ko-KR', '현재 소속이 있습니다.'),
+    ('COMPANY.HAS_ACTIVE_ASSIGNMENT', 'en-US', 'A current assignment exists.'),
+    ('COMPANY.LAST_OWN', 'ko-KR', '마지막 자사는 삭제할 수 없습니다.'),
+    ('COMPANY.LAST_OWN', 'en-US', 'The last own company cannot be deleted.'),
+    ('DEPT.DUPLICATE', 'ko-KR', '이미 있는 부서 코드입니다.'),
+    ('DEPT.DUPLICATE', 'en-US', 'The department code already exists.'),
+    ('DEPT.NOT_FOUND', 'ko-KR', '부서를 찾을 수 없습니다.'),
+    ('DEPT.NOT_FOUND', 'en-US', 'The department was not found.'),
+    ('DEPT.PARENT_CYCLE', 'ko-KR', '부서 계층이 순환합니다.'),
+    ('DEPT.PARENT_CYCLE', 'en-US', 'The department hierarchy contains a cycle.'),
+    ('DEPT.PARENT_COMPANY_MISMATCH', 'ko-KR', '다른 회사의 부서를 상위로 둘 수 없습니다.'),
+    ('DEPT.PARENT_COMPANY_MISMATCH', 'en-US', 'The parent department belongs to another company.'),
+    ('DEPT.PARENT_INACTIVE', 'ko-KR', '상위 부서가 사용 중이 아닙니다.'),
+    ('DEPT.PARENT_INACTIVE', 'en-US', 'The parent department is not active.'),
+    ('DEPT.HAS_CHILD', 'ko-KR', '사용 중인 하위 부서가 있습니다.'),
+    ('DEPT.HAS_CHILD', 'en-US', 'An active child department exists.'),
+    ('DEPT.HAS_ACTIVE_ASSIGNMENT', 'ko-KR', '현재 소속이 있습니다.'),
+    ('DEPT.HAS_ACTIVE_ASSIGNMENT', 'en-US', 'A current assignment exists.'),
+    ('DEPT.INVALID_DATE', 'ko-KR', '시작일은 종료일보다 늦을 수 없습니다.'),
+    ('DEPT.INVALID_DATE', 'en-US', 'The start date must not be after the end date.'),
+    ('PERSON.NOT_FOUND', 'ko-KR', '사람을 찾을 수 없습니다.'),
+    ('PERSON.NOT_FOUND', 'en-US', 'The person was not found.'),
+    ('PERSON.HAS_ACTIVE_ASSIGNMENT', 'ko-KR', '현재 소속이 있습니다.'),
+    ('PERSON.HAS_ACTIVE_ASSIGNMENT', 'en-US', 'A current assignment exists.'),
+    ('PERSON.HAS_ACCOUNT', 'ko-KR', '사용 중인 계정이 있습니다.'),
+    ('PERSON.HAS_ACCOUNT', 'en-US', 'An active account exists.'),
+    ('ASSIGNMENT.NOT_FOUND', 'ko-KR', '소속을 찾을 수 없습니다.'),
+    ('ASSIGNMENT.NOT_FOUND', 'en-US', 'The assignment was not found.'),
+    ('ASSIGNMENT.DEPT_COMPANY_MISMATCH', 'ko-KR', '부서가 회사와 맞지 않습니다.'),
+    ('ASSIGNMENT.DEPT_COMPANY_MISMATCH', 'en-US', 'The department does not belong to the company.'),
+    ('ASSIGNMENT.DEPT_INACTIVE', 'ko-KR', '사용 중인 부서가 아닙니다.'),
+    ('ASSIGNMENT.DEPT_INACTIVE', 'en-US', 'The department is not active.'),
+    ('ASSIGNMENT.COMPANY_INACTIVE', 'ko-KR', '사용 중인 회사가 아닙니다.'),
+    ('ASSIGNMENT.COMPANY_INACTIVE', 'en-US', 'The company is not active.'),
+    ('ASSIGNMENT.DUPLICATE', 'ko-KR', '같은 회사와 부서의 현재 소속이 있습니다.'),
+    ('ASSIGNMENT.DUPLICATE', 'en-US', 'A current assignment already exists for the same company and department.'),
+    ('ASSIGNMENT.EMPLOYEE_NO_DUPLICATE', 'ko-KR', '이미 있는 사원번호입니다.'),
+    ('ASSIGNMENT.EMPLOYEE_NO_DUPLICATE', 'en-US', 'The employee number already exists.'),
+    ('ASSIGNMENT.RESIGNED_REQUIRES_END', 'ko-KR', '퇴사 상태에는 종료일이 필요합니다.'),
+    ('ASSIGNMENT.RESIGNED_REQUIRES_END', 'en-US', 'A resigned assignment requires an end date.'),
+    ('ASSIGNMENT.DEPT_HEAD_REQUIRES_DEPT', 'ko-KR', '부서장 여부는 부서가 있을 때만 쓸 수 있습니다.'),
+    ('ASSIGNMENT.DEPT_HEAD_REQUIRES_DEPT', 'en-US', 'A department head flag requires a department.'),
+    ('ASSIGNMENT.INVALID_DATE', 'ko-KR', '시작일은 종료일보다 늦을 수 없습니다.'),
+    ('ASSIGNMENT.INVALID_DATE', 'en-US', 'The start date must not be after the end date.')
+) AS v(message_key, support_language_code, message_text)
+    ON v.message_key = m.message_key
+WHERE n.namespace_code = 'error'
+  AND NOT EXISTS (
+      SELECT 1 FROM i18n_message_text t
+      WHERE t.message_pk = m.message_pk AND t.support_language_code = v.support_language_code);

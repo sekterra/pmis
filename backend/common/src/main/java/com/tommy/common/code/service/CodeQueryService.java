@@ -6,6 +6,7 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -102,6 +103,21 @@ public class CodeQueryService {
 			throw new ApiException(404, "CODE.GROUP_NOT_FOUND", "코드 그룹을 찾을 수 없습니다.", 2);
 		}
 		return group;
+	}
+
+	public boolean isCurrentlyUsable(String groupCode, String codeValue) {
+		if (codeValue == null || codeValue.isBlank()) {
+			return true;
+		}
+		Optional<CodeGroup> found = codeGroupRepository.findByCodeGroupCode(groupCode);
+		if (found.isEmpty() || !found.get().inUse()) {
+			return false;
+		}
+		LocalDate today = tenantClock.today();
+		return commonCodeRepository
+				.findByCodeGroupCodeGroupPkAndCodeValueAndUseYn(found.get().getCodeGroupPk(), codeValue, "Y")
+				.filter(code -> within(code, today))
+				.isPresent();
 	}
 
 	private static boolean within(CommonCode code, LocalDate today) {
