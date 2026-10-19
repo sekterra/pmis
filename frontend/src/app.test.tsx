@@ -25,6 +25,16 @@ vi.mock('@/services/mdm/auth', () => ({
   refresh: (...args: unknown[]) => mockRefresh(...args),
   me: (...args: unknown[]) => mockMe(...args),
   logout: vi.fn(),
+  login: vi.fn(),
+  changePassword: vi.fn(),
+}));
+
+vi.mock('@/services/platform/auth', () => ({
+  refresh: vi.fn(),
+  me: vi.fn(),
+  logout: vi.fn(),
+  login: vi.fn(),
+  changePassword: vi.fn(),
 }));
 
 vi.mock('@/components', () => ({

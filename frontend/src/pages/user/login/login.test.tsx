@@ -6,11 +6,17 @@ import LoginPage from './index';
 
 const replace = vi.fn();
 
+const pageState = vi.hoisted(() => ({ contextStatus: undefined as string | undefined }));
+
 vi.mock('@umijs/max', () => ({
   useIntl: () => ({
-    formatMessage: ({ id }: { id: string }) => id,
+    formatMessage: ({ id, defaultMessage }: { id: string; defaultMessage?: string }) =>
+      defaultMessage ?? id,
   }),
-  useModel: () => ({ setInitialState: vi.fn() }),
+  useModel: () => ({
+    setInitialState: vi.fn(),
+    initialState: { contextStatus: pageState.contextStatus },
+  }),
   useSearchParams: () => [new URLSearchParams('redirect=/welcome')],
   history: { replace: (...args: unknown[]) => replace(...args) },
 }));
@@ -32,12 +38,12 @@ vi.mock('@/services/mdm/auth', () => ({
 describe('Login page', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    pageState.contextStatus = undefined;
   });
 
   it('shows one login card and a single failure message', async () => {
     vi.mocked(completeLogin).mockRejectedValue(new Error('fail'));
     render(<LoginPage />);
-    expect(screen.getByText('PMIS')).toBeTruthy();
     expect(screen.getByText('pages.login.loginId')).toBeTruthy();
     expect(screen.queryByText('pages.login.phoneLogin.tab')).toBeNull();
     fireEvent.change(screen.getByLabelText('pages.login.loginId'), {
@@ -65,5 +71,21 @@ describe('Login page', () => {
     await waitFor(() => {
       expect(replace).toHaveBeenCalledWith('/user/password');
     });
+  });
+
+  it('hides the form when the server cannot be reached', () => {
+    pageState.contextStatus = 'offline';
+    render(<LoginPage />);
+    expect(screen.getByText('서버에 연결할 수 없습니다')).toBeTruthy();
+    expect(screen.getByRole('button', { name: '다시 시도' })).toBeTruthy();
+    expect(screen.queryByLabelText('pages.login.loginId')).toBeNull();
+  });
+
+  it('hides the form for an unknown site', () => {
+    pageState.contextStatus = 'unknown';
+    render(<LoginPage />);
+    expect(screen.getByText('알 수 없는 사이트입니다')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: '다시 시도' })).toBeNull();
+    expect(screen.queryByLabelText('pages.login.loginId')).toBeNull();
   });
 });

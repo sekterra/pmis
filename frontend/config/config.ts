@@ -4,11 +4,7 @@ import { join } from 'node:path';
 import { defineConfig } from '@umijs/max';
 import defaultSettings from './defaultSettings';
 import proxy from './proxy';
-import tenantRoutes from './routes';
-import platformRoutes from './routes.platform';
-
-const appMode = process.env.APP_MODE === 'platform' ? 'platform' : 'tenant';
-const routes = appMode === 'platform' ? platformRoutes : tenantRoutes;
+import routes from './routes';
 
 const { UMI_ENV = 'dev' } = process.env;
 
@@ -39,18 +35,6 @@ const PUBLIC_PATH: string = '/';
 export default defineConfig({
   alias: {
     '@root': join(__dirname, '..'),
-    '@/core/i18n/extra': join(
-      __dirname,
-      appMode === 'platform'
-        ? '../src/core/i18n/extra.platform.ts'
-        : '../src/core/i18n/extra.ts',
-    ),
-    '@/core/menu/runtime': join(
-      __dirname,
-      appMode === 'platform'
-        ? '../src/core/menu/runtime.platform.tsx'
-        : '../src/core/menu/runtime.tsx',
-    ),
   },
   /**
    * @name 开启 hash 模式
@@ -129,7 +113,7 @@ export default defineConfig({
    * @name layout 插件
    * @doc https://umijs.org/docs/max/layout-menu
    */
-  title: appMode === 'platform' ? 'PMIS Platform Console' : 'PMIS',
+  title: 'PMIS',
   layout: {
     locale: true,
     ...defaultSettings,
@@ -209,7 +193,6 @@ export default defineConfig({
   exportStatic: {},
   define: {
     'process.env.CI': process.env.CI,
-    'process.env.APP_MODE': process.env.APP_MODE || 'tenant',
     'process.env.COMMIT_HASH': commitHash,
     __APP_VERSION__: require('./../package.json').version,
     __UMI_VERSION__: require('@umijs/max/package.json').version,

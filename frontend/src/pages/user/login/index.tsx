@@ -4,16 +4,17 @@ import React, { useState } from 'react';
 import BrandMark from '@/components/BrandMark';
 import LanguageSelect from '@/components/LanguageSelect';
 import { completeLogin, invalidCredentialsMessage } from '@/core/auth/actions';
+import { login, me } from '@/core/auth/authApi';
+import { accessContext, loadAccessContext } from '@/core/auth/context';
 import { getMenuSnapshot, noteAuthenticated } from '@/core/menu/runtime';
 import { toFormFields } from '@/core/request/errors';
-import { login, me } from '@/services/mdm/auth';
 import type { Me } from '@/services/mdm/data';
 
 const LoginPage: React.FC = () => {
   const intl = useIntl();
   const [form] = Form.useForm<{ loginId: string; password: string }>();
   const [searchParams] = useSearchParams();
-  const { setInitialState } = useModel('@@initialState');
+  const { initialState, setInitialState } = useModel('@@initialState');
   const [submitting, setSubmitting] = useState(false);
   const [errorText, setErrorText] = useState<string>();
 
@@ -56,6 +57,29 @@ const LoginPage: React.FC = () => {
     }
   };
 
+  const contextStatus = (initialState as { contextStatus?: string } | undefined)?.contextStatus;
+  const context = accessContext();
+  if (contextStatus === 'offline' || contextStatus === 'unknown') {
+    const message =
+      contextStatus === 'offline' ? '서버에 연결할 수 없습니다' : '알 수 없는 사이트입니다';
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <Card style={{ width: 360 }}>
+          <p>{message}</p>
+          {contextStatus === 'offline' ? (
+            <Button
+              onClick={() => {
+                void loadAccessContext().then(() => window.location.reload());
+              }}
+            >
+              다시 시도
+            </Button>
+          ) : null}
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div
       style={{
@@ -70,7 +94,18 @@ const LoginPage: React.FC = () => {
     >
       <Card style={{ width: 360 }}>
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
-          <BrandMark />
+          {context.kind === 'PLATFORM' ? (
+            <h1>
+              {intl.formatMessage({
+                id: 'pages.login.platformTitle',
+                defaultMessage: '플랫폼 콘솔',
+              })}
+            </h1>
+          ) : context.tenantName ? (
+            <h1>{context.tenantName}</h1>
+          ) : (
+            <BrandMark />
+          )}
         </div>
         <Form form={form} layout="vertical" onFinish={onFinish}>
           {errorText ? (

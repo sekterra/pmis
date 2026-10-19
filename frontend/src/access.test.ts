@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { resetAccessContext, setAccessContext } from '@/core/auth/context';
 import access from './access';
 import type { MenuSnapshot } from './core/menu/types';
 
@@ -30,5 +31,8 @@ describe('access', () => {
     expect(access({ menu: { status: 'loading', items: ready(['READ']).items } }).can('I18N', 'READ')).toBe(false);
     expect(access({ menu: { status: 'error', items: [] } }).can('I18N', 'READ')).toBe(false);
     expect(access().can('I18N', 'READ')).toBe(false);
+    setAccessContext({ kind: 'PLATFORM' });
+    expect(access({ menu: ready(['READ', 'CREATE']) }).can('I18N', 'READ')).toBe(false);
+    resetAccessContext();
   });
 });

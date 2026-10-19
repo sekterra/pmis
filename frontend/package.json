@@ -7,9 +7,7 @@
   "scripts": {
     "analyze": "cross-env ANALYZE=1 max build",
     "build": "max build",
-    "build:platform": "cross-env APP_MODE=platform max build",
     "dev": "cross-env UMI_ENV=dev MOCK=none node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON src/core/dev/runDev.ts",
-    "dev:platform": "cross-env APP_MODE=platform UMI_ENV=dev MOCK=none node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON src/core/dev/runDev.ts",
     "lint": "npm run biome:lint && npm run tsc",
     "lint-staged": "lint-staged",
     "biome:lint": "biome lint",

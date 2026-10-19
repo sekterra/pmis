@@ -46,10 +46,9 @@ describe('dev proxy', () => {
 });
 
 describe('dev port', () => {
-  it('uses 8000 and 8002 unless PORT is set', () => {
+  it('uses 8000 unless PORT is set', () => {
     expect(resolveDevPort({})).toBe(8000);
-    expect(resolveDevPort({ APP_MODE: 'platform' })).toBe(8002);
-    expect(resolveDevPort({ APP_MODE: 'platform', PORT: '9000' })).toBe(9000);
+    expect(resolveDevPort({ PORT: '9000' })).toBe(9000);
     expect(() => resolveDevPort({ PORT: 'nope' })).toThrow('PORT 값이 올바르지 않습니다.');
   });
 
@@ -63,7 +62,7 @@ describe('dev port', () => {
     const port = typeof address === 'object' && address ? address.port : 0;
     await expect(assertDevPortFree(port)).rejects.toThrow(portBusyMessage(port));
     expect(PORT_BUSY_MESSAGE).toBe(
-      '이미 다른 개발 서버가 떠 있을 수 있습니다. 8000/8002 포트를 확인하세요',
+      '이미 다른 개발 서버가 떠 있을 수 있습니다. 8000 포트를 확인하세요',
     );
     await new Promise<void>((resolve) => {
       server.close(() => resolve());

@@ -10,7 +10,7 @@ import {
 import { homePath } from '@/core/auth/mode';
 import { getMenuSnapshot, noteAuthenticated } from '@/core/menu/runtime';
 import { toApiError, toFormFields } from '@/core/request/errors';
-import { changePassword, logout, me } from '@/services/mdm/auth';
+import { changePassword, logout, me } from '@/core/auth/authApi';
 import type { Me } from '@/services/mdm/data';
 
 const PasswordPage: React.FC = () => {

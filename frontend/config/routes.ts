@@ -46,6 +46,21 @@ export default [
     component: './Welcome',
   },
   {
+    path: '/tenants/new',
+    hideInMenu: true,
+    component: './platform/tenants/new',
+  },
+  {
+    path: '/tenants/:tenantCode',
+    hideInMenu: true,
+    component: './platform/tenants/detail',
+  },
+  {
+    path: '/tenants',
+    hideInMenu: true,
+    component: './platform/tenants',
+  },
+  {
     name: 'exception',
     icon: 'warning',
     path: '/exception',
@@ -77,7 +92,7 @@ export default [
   },
   {
     path: '/',
-    redirect: '/welcome',
+    component: './HomeRedirect',
   },
   {
     component: './exception/404',

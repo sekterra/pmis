@@ -1,4 +1,5 @@
 import { toApiError } from '@/core/request/errors';
+import { accessKind } from '@/core/auth/context';
 import { fetchMyMenus } from '@/services/mdm/menu';
 import type { MenuSnapshot } from './types';
 
@@ -53,6 +54,11 @@ function isUnauthorized(error: unknown): boolean {
 }
 
 export function loadMenus(): Promise<MenuSnapshot> {
+  if (accessKind() === 'PLATFORM') {
+    snapshot = { status: 'ready', items: [] };
+    emit();
+    return Promise.resolve(snapshot);
+  }
   if (!allowed) {
     return Promise.resolve(snapshot);
   }

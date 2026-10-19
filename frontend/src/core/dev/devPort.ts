@@ -1,18 +1,14 @@
 import net from 'node:net';
 
 export const PORT_BUSY_MESSAGE =
-  '이미 다른 개발 서버가 떠 있을 수 있습니다. 8000/8002 포트를 확인하세요';
+  '이미 다른 개발 서버가 떠 있을 수 있습니다. 8000 포트를 확인하세요';
 
-const TENANT_PORT = 8000;
-const PLATFORM_PORT = 8002;
+const DEV_PORT = 8000;
 
-export function resolveDevPort(env: {
-  PORT?: string;
-  APP_MODE?: string;
-}): number {
+export function resolveDevPort(env: { PORT?: string }): number {
   const raw = env.PORT?.trim();
   if (!raw) {
-    return env.APP_MODE === 'platform' ? PLATFORM_PORT : TENANT_PORT;
+    return DEV_PORT;
   }
   if (!/^\d+$/.test(raw)) {
     throw new Error('PORT 값이 올바르지 않습니다.');

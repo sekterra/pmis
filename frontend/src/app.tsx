@@ -16,8 +16,10 @@ import {
 } from '@/components';
 import BrandMark from '@/components/BrandMark';
 import { recoverSession, startSession } from '@/core/auth/actions';
+import * as authApi from '@/core/auth/authApi';
 import { subscribeAuthBroadcast } from '@/core/auth/broadcast';
-import { authMode, homePath } from '@/core/auth/mode';
+import { loadAccessContext } from '@/core/auth/context';
+import { homePath } from '@/core/auth/mode';
 import { refreshAccess } from '@/core/auth/refresh';
 import { clearAccessToken } from '@/core/auth/token';
 import { loadPublicI18n } from '@/core/i18n/apply';
@@ -34,13 +36,8 @@ import {
   createRequestConfig,
   registerRequestRuntime,
 } from '@/core/request/runtime';
-import * as tenantSession from '@/services/mdm/auth';
 import type { Me } from '@/services/mdm/data';
-import * as platformSession from '@/services/platform/auth';
 import defaultSettings from '../config/defaultSettings';
-
-const sessionApi =
-  authMode.mode === 'platform' ? platformSession : tenantSession;
 
 dayjs.extend(relativeTime);
 
@@ -58,7 +55,7 @@ registerUnauthorized(leaveToLogin);
 
 registerRequestRuntime({
   refresh: () =>
-    refreshAccess(sessionApi.refresh, {
+    refreshAccess(authApi.refresh, {
       sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
       onFailure: leaveToLogin,
     }),
@@ -69,7 +66,7 @@ registerRequestRuntime({
     }
   },
   onAccountDisabled: () => {
-    void sessionApi
+    void authApi
       .logout()
       .catch(() => undefined)
       .finally(() => {
@@ -88,7 +85,7 @@ export async function getInitialState(): Promise<{
 }> {
   const fetchUserInfo = async () => {
     try {
-      return await sessionApi.me();
+      return await authApi.me();
     } catch {
       return undefined;
     }
@@ -104,17 +101,30 @@ function SessionBootstrap() {
   const { setInitialState } = useModel('@@initialState');
   useEffect(() => {
     let cancelled = false;
-    void startSession({
-      pathname: history.location.pathname,
-      search: history.location.search,
-      loadI18n: loadPublicI18n,
-      recover: () =>
-        recoverSession({
-          refresh: sessionApi.refresh,
-          loadMe: sessionApi.me,
-          sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
-        }),
-    }).then(async ({ user, next }) => {
+    void (async () => {
+      const context = await loadAccessContext();
+      if (cancelled) {
+        return;
+      }
+      if (context !== 'ready') {
+        setInitialState((current) => ({
+          ...current,
+          loading: false,
+          contextStatus: context,
+        }));
+        return;
+      }
+      const { user, next } = await startSession({
+        pathname: history.location.pathname,
+        search: history.location.search,
+        loadI18n: loadPublicI18n,
+        recover: () =>
+          recoverSession({
+            refresh: authApi.refresh,
+            loadMe: authApi.me,
+            sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+          }),
+      });
       if (cancelled) {
         return;
       }
@@ -129,9 +139,10 @@ function SessionBootstrap() {
         ...current,
         currentUser: user ?? undefined,
         loading: false,
+        contextStatus: 'ready',
         menu: getMenuSnapshot(),
       }));
-    });
+    })();
     return () => {
       cancelled = true;
     };

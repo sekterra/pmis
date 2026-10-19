@@ -12,13 +12,12 @@ import { menuNamespace } from '@/pages/mdm/i18n/fixtures';
 import I18nPage from '@/pages/mdm/i18n';
 import LanguagePage from '@/pages/mdm/language';
 import type { LanguageRecord } from '@/services/mdm/languageRecord';
-import { noteAuthenticated as notePlatform } from './runtime.platform';
-import { MenuFailureNotice } from './runtime';
+import { resetAccessContext, setAccessContext } from '@/core/auth/context';
+import { MenuFailureNotice, menuDataRender, noteAuthenticated } from './runtime';
 import { buildSideMenu } from './buildSideMenu';
 import { canAction } from './can';
 import {
   getMenuSnapshot,
-  noteAuthenticated,
   noteLocaleChanged,
   noteLoggedOut,
   registerUnauthorized,
@@ -168,6 +167,7 @@ const user = { passwordChangeRequired: false };
 describe('server menu', () => {
   beforeEach(() => {
     resetMenuState();
+    resetAccessContext();
     vi.clearAllMocks();
     localStorage.clear();
     sessionStorage.clear();
@@ -304,8 +304,34 @@ describe('server menu', () => {
   });
 
   it('does not call menus in platform mode', async () => {
-    await notePlatform(user);
+    setAccessContext({ kind: 'PLATFORM' });
+    await noteAuthenticated(user);
     expect(fetchMyMenus).not.toHaveBeenCalled();
+    const rendered = menuDataRender([{ path: '/welcome', name: 'welcome' }]);
+    expect(rendered).toHaveLength(1);
+    expect(rendered[0]).toMatchObject({ path: '/tenants', name: '테넌트 관리' });
+  });
+
+  it('sends a logged-in user to 403 when the path belongs to the other area', () => {
+    setAccessContext({ kind: 'PLATFORM' });
+    guardBag.pathname = '/mdm/language';
+    guardBag.user = user;
+    guardBag.menu = { status: 'ready', items: [] };
+    render(
+      <RouteGuard>
+        <div>본문</div>
+      </RouteGuard>,
+    );
+    expect(replace).toHaveBeenCalledWith('/exception/403');
+    cleanup();
+    resetAccessContext();
+    guardBag.pathname = '/tenants/new';
+    render(
+      <RouteGuard>
+        <div>본문</div>
+      </RouteGuard>,
+    );
+    expect(replace).toHaveBeenCalledWith('/exception/403');
   });
 
   it('sends a direct visit without read access to the 403 page and skips unrelated paths', () => {

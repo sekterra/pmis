@@ -3,6 +3,7 @@ export default {
   'menu.commonCode': 'Common codes',
   'menu.i18n': 'Messages',
   'menu.language': 'Languages',
+  'menu.tenants': 'Tenants',
   'menu.login': 'Login',
   'menu.exception': 'Exception',
   'menu.exception.403': '403',

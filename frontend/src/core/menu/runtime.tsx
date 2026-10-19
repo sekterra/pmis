@@ -4,10 +4,12 @@ import {
   HomeOutlined,
   SettingOutlined,
   TableOutlined,
+  TeamOutlined,
 } from '@ant-design/icons';
 import { useIntl } from '@umijs/max';
 import { Button } from 'antd';
 import React, { useSyncExternalStore } from 'react';
+import { accessKind, areaForbidden } from '@/core/auth/context';
 import { getI18nState } from '@/core/i18n/store';
 import enMenu from '@/locales/en-US/menu';
 import koMenu from '@/locales/ko-KR/menu';
@@ -48,6 +50,15 @@ function withIcon(node: SideMenuNode): SideMenuNode & { icon: React.ReactNode } 
 }
 
 export function menuDataRender<T>(items: T[]): T[] {
+  if (accessKind() === 'PLATFORM') {
+    return [
+      {
+        path: '/tenants',
+        name: localLabel('menu.tenants'),
+        icon: <TeamOutlined />,
+      } as T,
+    ];
+  }
   const serverItems = buildSideMenu(getMenuSnapshot().items, localLabel).map(withIcon);
   return [...(serverItems as T[]), ...items];
 }
@@ -60,6 +71,12 @@ export function viewFor(
   if (!hasUser) {
     return 'allow';
   }
+  if (areaForbidden(pathname)) {
+    return 'forbidden';
+  }
+  if (accessKind() === 'PLATFORM') {
+    return 'allow';
+  }
   return guardView(pathname, menu);
 }
 
@@ -68,6 +85,9 @@ export function canMenu(
   menuCode: string,
   action: MenuAction,
 ): boolean {
+  if (accessKind() === 'PLATFORM') {
+    return false;
+  }
   return canAction(menu, menuCode, action);
 }
 

@@ -4,9 +4,10 @@ import koKR from 'antd/locale/ko_KR';
 import dayjs from 'dayjs';
 import 'dayjs/locale/en';
 import 'dayjs/locale/ko';
-import { authMode } from '@/core/auth/mode';
+import { appMode } from '@/core/auth/mode';
 import { noteLocaleChanged } from '@/core/menu/runtime';
-import { extraMessages } from '@/core/i18n/extra';
+import { extraMessages as tenantExtra } from '@/core/i18n/extra';
+import { extraMessages as platformExtra } from '@/core/i18n/extra.platform';
 import { withTimeout } from '@/core/request/timeout';
 import enMessages from '@/locales/en-US';
 import koMessages from '@/locales/ko-KR';
@@ -41,7 +42,8 @@ export async function loadPublicI18n(preferred?: string): Promise<void> {
 
 async function applyPublicI18n(preferred?: string): Promise<void> {
   const saved = preferred ?? readSavedLocale();
-  const loaded = await loadCatalogForMode(authMode.mode, {
+  const extraMessages = appMode() === 'platform' ? platformExtra : tenantExtra;
+  const loaded = await loadCatalogForMode(appMode(), {
     fetchLanguages,
     fetchBundle,
     localMessages,

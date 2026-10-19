@@ -1,6 +1,7 @@
 import { history, useModel } from '@umijs/max';
 import { Spin } from 'antd';
 import React, { useEffect } from 'react';
+import { homePath } from '@/core/auth/mode';
 import { nextPathAfterRecover } from '@/core/auth/guard';
 import { MenuFailureNotice, viewFor } from '@/core/menu/runtime';
 import type { MenuSnapshot } from '@/core/menu/types';
@@ -32,6 +33,7 @@ const RouteGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       search,
       user,
       redirectQuery,
+      home: homePath(),
     });
     if (next) {
       history.replace(next);

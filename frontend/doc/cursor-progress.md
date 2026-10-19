@@ -563,4 +563,37 @@ git: `frontend`와 `D:\_project\PMIS` 모두 저장소가 아니다. `git status
 - 메뉴 응답이 401이거나 `AUTH.PASSWORD_CHANGE_REQUIRED`이면 다시 시도 안내를 띄우지 않는다. 401은 기존 로그인 이동을 호출한다
 - 기준정보 라우트의 `name`은 빵 부스러기용으로 남기고, 사이드 메뉴에는 `hideInMenu`로 나오지 않게 했다
 
+## [F6단계] 한 앱에서 접속 주소로 화면을 가름 - 2026-10-19
+
+### 변경/추가 파일
+
+- 추가: `src/core/auth/context.ts`, `src/core/auth/authApi.ts`, `src/pages/HomeRedirect.tsx`
+- 추가: `doc/f6-wireframe.md`, `doc/f6-manual-check.md`
+- 삭제: `src/pages/platform/login`, `src/pages/platform/password`, `src/core/menu/runtime.platform.tsx`, `config/routes.platform.ts`
+- 수정: 로그인·비밀번호·로그아웃·세션 복구가 `authApi`로 kind별 인증 API를 호출한다
+- 수정: `config/routes.ts`에 테넌트 화면과 `/tenants`를 같이 둔다. `/`는 런타임 홈으로 보낸다
+- 수정: `config/config.ts`에서 `APP_MODE`, 라우트 선택, extra/runtime 별칭을 뺐다. title은 `PMIS`
+- 수정: `package.json`에서 `dev:platform`, `build:platform`을 뺐다. 개발 포트 기본값은 8000
+- 수정: `README.md`, `doc/local-setup.md`, `.env.local.example`
+- 백엔드는 이 단계에서 수정하지 않았다
+
+### 검증 결과
+
+- `npm.cmd run lint`: 통과. biome 137파일, 이어서 `tsc --noEmit`. 종료 코드 0
+- `npm.cmd run test`: 통과. 29파일, 146개. 약 89초
+- `npm.cmd run build`: 통과. 종료 코드 0. `welcome`, `tenants`, `mdm/language` HTML이 한 산출물에 있다
+- 개발 서버와 백엔드는 띄우지 않았다. `dist`는 커밋하지 않는다
+
+### 질문/확인 필요
+
+- 플랫폼 문구는 기본 로케일 모듈에 합치지 않았다. kind가 PLATFORM일 때만 `extra.platform.ts`를 붙이고, 서버 `/i18n/bundles`는 테넌트일 때만 불러온다. 이 동작이 기존 플랫폼 콘솔과 같다.
+- CI 설정에는 플랫폼 전용 빌드가 없었다. 예전 수동 확인 문서의 `build:platform` 문장은 그 단계 기록으로 남겨 두었다.
+- 사용자가 직접 볼 항목은 `doc/f6-manual-check.md`에 있다.
+
+### 가정한 사항
+
+- 플랫폼 비밀번호 화면은 입력, 변경 강제, 취소, 로그아웃이 테넌트 화면과 같았다. 차이는 문구의 `defaultMessage`와 홈을 `/tenants`로 고정한 점뿐이었다. 합친 화면은 테넌트 화면이고, 홈은 context의 kind를 따른다.
+- 플랫폼에서 `can()`은 항상 false다. 화면 진입은 kind가 PLATFORM이고 로그인한 경우 `viewFor` 한 곳에서 허용한다.
+- 플랫폼 호스트가 아닌 잘못된 주소의 context 실패 코드 `TENANT.NOT_FOUND`, `TENANT.UNRESOLVED`, `TENANT.INACTIVE`는 모두 "알 수 없는 사이트입니다"다.
+
 

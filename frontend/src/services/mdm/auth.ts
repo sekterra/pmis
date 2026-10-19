@@ -1,9 +1,8 @@
-import { authMode } from '@/core/auth/mode';
 import { rawRequest } from '@/core/request/runtime';
 import type { LoginRequest, Me, PasswordChangeRequest, Session } from './data';
 
 function authUrl(path: string): string {
-  return `${authMode.authBasePath}${path}`;
+  return `/api/mdm/v1/auth${path}`;
 }
 
 export function login(body: LoginRequest): Promise<Session> {

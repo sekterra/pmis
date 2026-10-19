@@ -6,7 +6,7 @@ import React from 'react';
 import { logoutSession } from '@/core/auth/actions';
 import { getMenuSnapshot } from '@/core/menu/runtime';
 import { AUTH_CHANNEL } from '@/core/auth/broadcast';
-import { logout } from '@/services/mdm/auth';
+import { logout } from '@/core/auth/authApi';
 import type { Me } from '@/services/mdm/data';
 import HeaderDropdown from '../HeaderDropdown';
 
