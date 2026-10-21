@@ -345,3 +345,76 @@
 - 새 라이브러리는 추가하지 않는다(필요하면 구현 전에 질문). 공유 DB 에 마이그레이션을 적용하는 일은 이 단계에 없다.
 - 질문이 있으면 해당 부분만 멈추고 진행 기록의 질문 목록에 올린다. 진행 기록은 [9.4단계] 형식으로 doc/cursor-progress.md 에 추가하고, 보고서는 "작업 방식" 형식(docs/reports/9.4.md, 9.4.diff)으로 쓴다. 커밋은 `[9.4] 요약` 한 개, push 는 하지 않는다.
 ````
+
+## 9.5단계: 파일 보완 + 정리 스케줄러
+
+9.4 승인(검토 기록: `docs/reviews/2026-10-19-9.4.md`). 이번 단계는 9.4 검토에서 나온 보완 5건과, 파일 정리를 자동으로 실행하는 스케줄러다. DDL 변경은 원칙적으로 하지 않는다. 필요해 보이면 구현 전에 보고서 질문(d절)에 적고, 가장 작은 변경으로 진행한다.
+
+시작 전: `main` 으로 전환, `git pull --ff-only`, Claude 가 쓴 파일(지시서, `docs/reviews/*`)이 변경 상태면 먼저 `docs:` 커밋으로 올린다. 작업 방식은 이 파일 맨 위 "작업 방식" 블록을 따른다.
+
+### A. 파일 보완 (9.4 검토)
+
+1. **MIME 검사 강화** (`FileRules.assertMime`, `mimeType`)
+   - 확장자가 png, jpg, jpeg, gif, webp, pdf 인데 `sniff` 결과가 null 이면 `FILE.MIME_MISMATCH` 로 거부한다. 지금은 null 이면 통과한다.
+   - zip 계열(docx, xlsx 등)은 지금처럼 `PK` 판별을 쓰되, 판별 실패 시 거부한다.
+   - txt, csv 등 판별이 불가능한 확장자는 기존대로 허용한다. 대신 NUL 바이트(0x00)가 앞 8KB 에 있으면 거부한다(텍스트가 아닌 파일 위장 방지).
+   - 단위 테스트: `x.png` 에 일반 텍스트, `x.pdf` 에 PNG 바이트, `x.txt` 에 NUL 포함, 정상 파일 각각.
+2. **검색어 와일드카드 이스케이프**
+   - 공통 유틸(예: `com.tommy.common.global.query.LikeEscape.contains(String)`)을 만든다. `\`, `%`, `_` 를 이스케이프하고, 쿼리에 `escape '\'` 를 지정한다.
+   - 적용 대상: `FileService.filter` 와 회사, 부서, 사람, 팀, 사용자, 공통코드, 다국어 등 `keyword` 로 LIKE 검색하는 모든 곳. 먼저 `grep` 으로 `builder.like`, `LIKE` 사용처를 모두 찾아 보고서 b절에 목록으로 적는다.
+   - 9.3 에서 `left` 로 고친 메뉴 경로 비교는 건드리지 않는다.
+   - 통합 테스트: 파일 이름에 `a_b`, `aXb`, `100%` 를 두고 `_`, `%` 검색이 문자 그대로만 찾는지.
+3. **정리 집계 정확화** (`FileService.cleanup`)
+   - 이미 디스크에서 지워진 DELETED 파일이 실행마다 `purged` 로 세어지지 않게 한다. 디스크 삭제에 성공한 순간 `deleteScheduledDatetime` 을 NULL 로 만들어 다음 실행의 대상에서 뺀다(DDL 변경 없음).
+   - `StoredFile.markPurged(actor)` 같은 도메인 메서드로 두고, 복구(`restore`)는 이미 `FILE.PURGED` 로 막혀 있으므로 그 판단이 NULL 예약 시각과도 어긋나지 않는지 확인한다.
+   - 같은 정리를 두 번 연속 실행했을 때 두 번째는 `expired=0, purged=0` 인 통합 테스트.
+4. **고아 파일 방지** (`FileService.upload`)
+   - 디스크 쓰기 뒤 트랜잭션이 롤백되면 디스크 파일을 지운다. `TransactionSynchronizationManager.registerSynchronization` 의 `afterCompletion(STATUS_ROLLED_BACK)` 에서 `deleteQuiet`. 현재의 `saveAndFlush` 실패 처리도 같은 경로로 합쳐 중복을 없앤다.
+   - 단위 또는 슬라이스 테스트로 롤백 시 파일이 지워지는지.
+5. **다운로드 스트리밍은 이번에 하지 않는다.** 대신 `doc/api/mdm-api.md` 의 파일 절에 "현재 전체를 메모리에 올림, 최대 크기 상한으로 제한" 이라고 한 줄 남긴다.
+
+### B. 정리 스케줄러
+
+목적: 임시 파일 만료와 삭제 보관기간 경과 파일의 디스크 삭제를, 관리자가 API 를 부르지 않아도 정해진 시간에 자동 실행한다. 기본은 꺼짐이다.
+
+1. **설정** (`application.yaml`, 기본값은 꺼짐, `FileProperties` 에 묶는다)
+   ```yaml
+   mdm:
+     file:
+       cleanup:
+         enabled: false          # 운영에서만 true
+         cron: "0 0 3 * * *"     # 매일 03:00
+         zone: Asia/Seoul
+   ```
+   기존 `temp-ttl-hours`, `delete-retention-days` 는 그대로 쓴다. 환경 변수로도 덮어쓸 수 있게 `MDM_FILE_CLEANUP_ENABLED` 등을 `application.yaml` 에 연결한다. `application-dev.yaml` 은 꺼짐을 유지한다.
+2. **실행기** (`FileCleanupScheduler`, `@ConditionalOnProperty(mdm.file.cleanup.enabled=true)`)
+   - `@Scheduled(cron = "${mdm.file.cleanup.cron}", zone = "${mdm.file.cleanup.zone}")`. `@EnableScheduling` 은 설정 클래스에 두되, 꺼짐일 때는 스케줄러 빈 자체가 만들어지지 않아야 한다.
+   - `pmis.tenant` 에서 상태가 ACTIVE 인 테넌트를 모두 읽고, 테넌트마다 그 스키마 컨텍스트에서 정리를 실행한다. 컨텍스트 설정과 해제는 기존 테넌트 컨텍스트 방식을 그대로 쓴다(요청 필터가 쓰는 것과 같은 홀더). 반드시 `finally` 에서 해제한다.
+   - 정리 로직은 `FileService.cleanup()` 을 그대로 재사용한다. 단, 이 메서드는 지금 `permissions.check("FILE","DELETE")` 를 하므로, 권한 확인이 없는 내부용 메서드(`cleanupInternal(actorPk)`)로 분리하고 API 용은 권한 확인 후 그것을 부르게 한다.
+   - 실행자(`actor`)는 사람 사용자가 아니므로 감사 컬럼에는 시스템 계정이 필요하다. 시스템 사용자(`user_pk`)가 이미 있는지 확인하고 없으면 임시로 쓸 값과 이유를 보고서 d절 질문에 쓴다. 임의로 DDL 이나 시드를 만들지 않는다.
+   - 테넌트 하나가 실패해도 예외를 잡아 `WARN` 로그(테넌트 코드, 예외 종류만. 메시지에 파일 경로가 있으면 넣지 않는다)를 남기고 다음 테넌트로 진행한다.
+   - 실행이 끝나면 `INFO` 한 줄: 테넌트 수, 성공/실패 수, 만료·삭제·실패 파일 수의 합계.
+   - 서버가 한 대라는 전제다. 같은 인스턴스에서 이전 실행이 끝나기 전에 다음 실행이 시작되지 않게 `AtomicBoolean` 으로 막는다. 여러 대 환경의 중복 방지(DB 락 등)는 이번 범위가 아니며, `doc/api/mdm-api.md` 나 `local-setup.md` 에 "단일 인스턴스 전제" 로 적는다.
+3. **수동 API 유지**: `POST /api/mdm/v1/files/cleanup` 은 그대로 둔다. 응답 형식 변경 없음.
+4. **보안**: 스케줄러는 HTTP 로 노출하지 않는다. 새 엔드포인트를 만들지 않는다.
+
+### C. 테스트
+
+- 단위: `LikeEscape`, `FileRules.assertMime` 신규 케이스, 정리 집계(두 번째 실행 0건).
+- 통합 (`t_it_` 스키마 사용, 실제 `pmis.tenant` 행 불변 확인 유지):
+  - 스케줄러 빈은 `enabled=false` 일 때 없고, `true` 일 때 있다(`ApplicationContextRunner` 또는 프로퍼티 오버라이드).
+  - 스케줄러의 1회 실행 메서드를 직접 호출해, 테스트 테넌트 두 곳에서 만료 임시 파일이 정리되고, 한 테넌트가 실패해도 다른 테넌트가 정리되는지. 크론 시각을 기다리는 테스트는 만들지 않는다.
+  - 업로드 롤백 시 디스크 파일 삭제.
+- 기존 단위 81건, 통합 44건이 계속 통과해야 한다.
+
+### D. 문서
+
+- `doc/api/mdm-api.md`: 정리 절에 스케줄러 설명, 설정 키 표(`enabled`, `cron`, `zone`), 단일 인스턴스 전제, 메모리 사용 안내.
+- `doc/local-setup.md`: 운영 환경변수 목록에 `MDM_FILE_CLEANUP_ENABLED`, `MDM_FILE_CLEANUP_CRON` 추가.
+- `doc/cursor-progress.md` 에 9.5 항목 추가.
+
+### E. 마무리
+
+- 커밋: `[9.5] 파일 보완과 정리 스케줄러` (필요하면 둘로 나누어도 된다).
+- 보고서: `docs/reports/9.5.md` 와 `9.5.diff` (`.diff` 는 기존대로 추적하지 않음). a–e 형식에 git 상태 줄 포함. b절에 LIKE 사용처 점검 목록을 넣는다.
+- push 하지 않는다. 사용자가 "push 해줘" 라고 할 때만 한다.
