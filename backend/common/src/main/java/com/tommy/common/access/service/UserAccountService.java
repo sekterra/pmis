@@ -36,6 +36,7 @@ import com.tommy.common.access.repository.RoleRepository;
 import com.tommy.common.access.repository.UserAccountRepository;
 import com.tommy.common.access.repository.UserPasswordHistoryRepository;
 import com.tommy.common.access.repository.UserRoleRepository;
+import com.tommy.common.global.query.LikeEscape;
 import com.tommy.common.global.response.PageResponse;
 import com.tommy.common.global.security.CurrentTenantUser;
 import com.tommy.common.global.time.TenantClock;
@@ -410,10 +411,9 @@ public class UserAccountService {
 			List<Predicate> predicates = new ArrayList<>();
 			String text = OrgExceptions.trimToNull(keyword);
 			if (text != null) {
-				String pattern = "%" + text.toLowerCase(Locale.ROOT) + "%";
 				var person = root.join("person", JoinType.LEFT);
-				predicates.add(builder.or(builder.like(builder.lower(root.get("loginId")), pattern),
-						builder.like(builder.lower(person.get("personName")), pattern)));
+				predicates.add(builder.or(LikeEscape.contains(builder, root.get("loginId"), text),
+						LikeEscape.contains(builder, person.get("personName"), text)));
 			}
 			if (present(userStatusCode)) {
 				predicates.add(builder.equal(root.get("userStatusCode"), userStatusCode));

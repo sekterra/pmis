@@ -11,6 +11,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.tommy.common.global.query.LikeEscape;
 import com.tommy.common.global.response.PageResponse;
 import com.tommy.common.global.security.CurrentTenantUser;
 import com.tommy.common.org.dto.AssignmentResponse;
@@ -162,18 +163,17 @@ public class PersonService {
 			List<Predicate> predicates = new ArrayList<>();
 			String text = OrgExceptions.trimToNull(keyword);
 			if (text != null) {
-				String pattern = "%" + text.toLowerCase() + "%";
 				Subquery<Integer> employee = query.subquery(Integer.class);
 				Root<PersonAssignment> assignment = employee.from(PersonAssignment.class);
 				employee.select(builder.literal(1)).where(
 						builder.equal(assignment.get("person"), root),
 						builder.isNull(assignment.get("endDate")),
 						builder.equal(assignment.get("useYn"), "Y"),
-						builder.like(builder.lower(assignment.get("employeeNo")), pattern));
+						LikeEscape.contains(builder, assignment.get("employeeNo"), text));
 				predicates.add(builder.or(
-						builder.like(builder.lower(root.get("personName")), pattern),
-						builder.like(builder.lower(root.get("email")), pattern),
-						builder.like(builder.lower(root.get("mobilePhoneNo")), pattern),
+						LikeEscape.contains(builder, root.get("personName"), text),
+						LikeEscape.contains(builder, root.get("email"), text),
+						LikeEscape.contains(builder, root.get("mobilePhoneNo"), text),
 						builder.exists(employee)));
 			}
 			if (present(companyCode) || deptPk != null || present(employmentTypeCode) || present(assignmentStatusCode)) {

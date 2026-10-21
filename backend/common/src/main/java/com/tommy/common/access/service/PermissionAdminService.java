@@ -2,7 +2,6 @@ package com.tommy.common.access.service;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -14,6 +13,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.tommy.common.global.query.LikeEscape;
 import com.tommy.common.access.dto.PermissionRequest;
 import com.tommy.common.access.dto.PermissionResponse;
 import com.tommy.common.access.dto.PermissionUpdateRequest;
@@ -172,9 +172,8 @@ public class PermissionAdminService {
 			}
 			String text = OrgExceptions.trimToNull(keyword);
 			if (text != null) {
-				String pattern = "%" + text.toLowerCase(Locale.ROOT) + "%";
-				predicates.add(builder.or(builder.like(builder.lower(root.get("permissionCode")), pattern),
-						builder.like(builder.lower(root.get("permissionName")), pattern)));
+				predicates.add(builder.or(LikeEscape.contains(builder, root.get("permissionCode"), text),
+						LikeEscape.contains(builder, root.get("permissionName"), text)));
 			}
 			if (useYn != null && !useYn.isBlank()) {
 				predicates.add(builder.equal(root.get("useYn"), useYn));

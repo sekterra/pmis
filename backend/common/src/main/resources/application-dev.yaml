@@ -3,3 +3,5 @@ mdm:
     hosts: localhost,127.0.0.1
   file:
     local-root: build/mdm-files
+    cleanup:
+      enabled: false

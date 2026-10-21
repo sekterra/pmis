@@ -68,3 +68,7 @@ mdm:
     allowed-extensions: ${MDM_FILE_ALLOWED_EXTENSIONS:png,jpg,jpeg,gif,webp,pdf,zip,txt,csv}
     delete-retention-days: ${MDM_FILE_DELETE_RETENTION_DAYS:7}
     temp-ttl-hours: ${MDM_FILE_TEMP_TTL_HOURS:24}
+    cleanup:
+      enabled: ${MDM_FILE_CLEANUP_ENABLED:false}
+      cron: "${MDM_FILE_CLEANUP_CRON:0 0 3 * * *}"
+      zone: ${MDM_FILE_CLEANUP_ZONE:Asia/Seoul}

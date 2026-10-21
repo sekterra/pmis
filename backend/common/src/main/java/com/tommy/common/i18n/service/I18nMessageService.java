@@ -3,7 +3,6 @@ package com.tommy.common.i18n.service;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -14,6 +13,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.tommy.common.global.query.LikeEscape;
 import com.tommy.common.global.response.PageResponse;
 import com.tommy.common.i18n.I18nExceptions;
 import com.tommy.common.i18n.dto.MessageRequest;
@@ -251,10 +251,9 @@ public class I18nMessageService {
 				predicates.add(builder.equal(root.get("namespace").get("namespaceCode"), namespaceCode));
 			}
 			if (keyword != null && !keyword.isBlank()) {
-				String like = "%" + keyword.toLowerCase(Locale.ROOT) + "%";
 				predicates.add(builder.or(
-						builder.like(builder.lower(root.get("messageKey")), like),
-						builder.like(builder.lower(root.get("defaultMessage")), like)));
+						LikeEscape.contains(builder, root.get("messageKey"), keyword),
+						LikeEscape.contains(builder, root.get("defaultMessage"), keyword)));
 			}
 			if (messageTypeCode != null && !messageTypeCode.isBlank()) {
 				predicates.add(builder.equal(root.get("messageTypeCode"), messageTypeCode));

@@ -159,15 +159,22 @@ public final class FileRules {
 
 	public static void assertMime(String extension, byte[] data) {
 		String sniffed = sniff(data);
-		if (sniffed == null) {
+		if (requiresSignature(extension)) {
+			if (sniffed == null || !compatible(extension, sniffed)) {
+				rejectMime();
+			}
 			return;
 		}
-		if (!compatible(extension, sniffed)) {
-			throw new ApiException(400, "FILE.MIME_MISMATCH", "파일 내용과 확장자가 일치하지 않습니다.", 2);
+		if (sniffed != null && !compatible(extension, sniffed)) {
+			rejectMime();
+		}
+		if (sniffed == null && containsNul(data)) {
+			rejectMime();
 		}
 	}
 
 	public static String mimeType(String extension, byte[] data) {
+		assertMime(extension, data);
 		String sniffed = sniff(data);
 		if (sniffed != null) {
 			return sniffed;
@@ -300,6 +307,27 @@ public final class FileRules {
 		if (size > Math.min(storageLimit, appLimit)) {
 			throw new ApiException(413, "FILE.TOO_LARGE", "파일이 너무 큽니다.", 2);
 		}
+	}
+
+	private static boolean requiresSignature(String extension) {
+		return extension != null && (IMAGES.contains(extension) || "pdf".equals(extension) || ZIP_FAMILY.contains(extension));
+	}
+
+	private static boolean containsNul(byte[] data) {
+		if (data == null) {
+			return false;
+		}
+		int limit = Math.min(data.length, 8192);
+		for (int index = 0; index < limit; index++) {
+			if (data[index] == 0) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private static void rejectMime() {
+		throw new ApiException(400, "FILE.MIME_MISMATCH", "파일 내용과 확장자가 일치하지 않습니다.", 2);
 	}
 
 	private static boolean compatible(String extension, String sniffed) {

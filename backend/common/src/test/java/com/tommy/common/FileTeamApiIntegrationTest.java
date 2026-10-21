@@ -2,6 +2,7 @@ package com.tommy.common;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -45,6 +46,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationContext;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.HttpHeaders;
@@ -62,6 +64,7 @@ import com.tommy.common.access.entity.RolePermission;
 import com.tommy.common.access.entity.UserAccount;
 import com.tommy.common.access.entity.UserPasswordHistory;
 import com.tommy.common.access.entity.UserRole;
+import com.tommy.common.file.FileCleanupScheduler;
 import com.tommy.common.file.entity.FileAttachment;
 import com.tommy.common.file.entity.FileStorage;
 import com.tommy.common.file.entity.StoredFile;
@@ -143,6 +146,9 @@ class FileTeamApiIntegrationTest {
 	@Autowired
 	private EntityManager entityManager;
 
+	@Autowired
+	private ApplicationContext applicationContext;
+
 	private final List<String> tenantCodes = new ArrayList<>();
 
 	private final Map<String, String> tokens = new HashMap<>();
@@ -174,6 +180,28 @@ class FileTeamApiIntegrationTest {
 		}
 		deleteRoot();
 		Files.createDirectories(ROOT);
+	}
+
+	@Test
+	void cleanupSchedulerIsOffByDefault() {
+		assertEquals(0, applicationContext.getBeanNamesForType(FileCleanupScheduler.class).length);
+	}
+
+	@Test
+	void keywordUnderscoreAndPercentMatchLiteralsOnly() throws Exception {
+		String tenant = provision();
+		HttpHeaders admin = auth(tenant);
+		mockMvc.perform(multipart("/api/mdm/v1/files").file(file("a_b.png", PNG)).headers(admin)).andExpect(status().isOk());
+		mockMvc.perform(multipart("/api/mdm/v1/files").file(file("aXb.png", PNG)).headers(admin)).andExpect(status().isOk());
+		mockMvc.perform(multipart("/api/mdm/v1/files").file(file("100%.png", PNG)).headers(admin)).andExpect(status().isOk());
+		mockMvc.perform(get("/api/mdm/v1/files").headers(admin).param("keyword", "_")).andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.total").value(1))
+				.andExpect(jsonPath("$.data.items[0].originalFileName").value("a_b.png"));
+		mockMvc.perform(get("/api/mdm/v1/files").headers(admin).param("keyword", "%")).andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.total").value(1))
+				.andExpect(jsonPath("$.data.items[0].originalFileName").value("100%.png"));
+		mockMvc.perform(get("/api/mdm/v1/files").headers(admin).param("keyword", "a")).andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.total").value(2));
 	}
 
 	@Test
@@ -228,7 +256,9 @@ class FileTeamApiIntegrationTest {
 				.andExpect(status().isBadRequest()).andExpect(jsonPath("$.errorCode").value("FILE.EXTENSION_NOT_ALLOWED"));
 		mockMvc.perform(multipart("/api/mdm/v1/files").file(file("bad.png", PDF)).param("storageCode", "DEFAULT").headers(admin))
 				.andExpect(status().isBadRequest()).andExpect(jsonPath("$.errorCode").value("FILE.MIME_MISMATCH"));
-		mockMvc.perform(multipart("/api/mdm/v1/files").file(file("big.png", new byte[1024 * 1024 + 8])).param("storageCode", "CLOUD").headers(admin))
+		byte[] bigPng = new byte[1024 * 1024 + 8];
+		System.arraycopy(PNG, 0, bigPng, 0, PNG.length);
+		mockMvc.perform(multipart("/api/mdm/v1/files").file(file("big.png", bigPng)).param("storageCode", "CLOUD").headers(admin))
 				.andExpect(status().is(501)).andExpect(jsonPath("$.errorCode").value("FILE.STORAGE_TYPE_UNSUPPORTED"));
 
 		long limitedRole = pk(mockMvc.perform(post("/api/mdm/v1/roles").headers(admin).contentType(MediaType.APPLICATION_JSON)
@@ -336,6 +366,12 @@ class FileTeamApiIntegrationTest {
 				.andExpect(jsonPath("$.data.purgedCount").value(org.hamcrest.Matchers.greaterThan(0)));
 		assertEquals("1", scalar(schema(tenant), "SELECT count(*)::text FROM file WHERE file_pk = " + kept));
 		assertFalse(Files.exists(keptPath));
+		assertNull(scalar(schema(tenant), "SELECT delete_scheduled_datetime::text FROM file WHERE file_pk = " + kept));
+		mockMvc.perform(post("/api/mdm/v1/files/" + kept + "/restore").headers(admin)).andExpect(status().isConflict())
+				.andExpect(jsonPath("$.errorCode").value("FILE.PURGED"));
+		mockMvc.perform(post("/api/mdm/v1/files/cleanup").headers(admin)).andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.expiredTempCount").value(0))
+				.andExpect(jsonPath("$.data.purgedCount").value(0));
 		SetBefore blockedBefore = filesNow();
 		long blocked = json(mockMvc.perform(multipart("/api/mdm/v1/files").file(file("block.png", PNG)).headers(admin)).andExpect(status().isOk())
 				.andReturn()).get("data").get("filePk").asLong();

@@ -1,7 +1,6 @@
 package com.tommy.common.code.service;
 
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -11,6 +10,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.tommy.common.global.query.LikeEscape;
 import com.tommy.common.code.dto.CodeGroupRequest;
 import com.tommy.common.code.dto.CodeGroupResponse;
 import com.tommy.common.code.dto.TranslationRequest;
@@ -150,10 +150,10 @@ public class CodeGroupService {
 		return (root, query, builder) -> {
 			Predicate predicate = builder.conjunction();
 			if (keyword != null && !keyword.isBlank()) {
-				String pattern = "%" + keyword.trim().toLowerCase(Locale.ROOT) + "%";
+				String text = keyword.trim();
 				predicate = builder.and(predicate, builder.or(
-						builder.like(builder.lower(root.get("codeGroupCode")), pattern),
-						builder.like(builder.lower(root.get("codeGroupName")), pattern)));
+						LikeEscape.contains(builder, root.get("codeGroupCode"), text),
+						LikeEscape.contains(builder, root.get("codeGroupName"), text)));
 			}
 			if (solutionCode != null && !solutionCode.isBlank()) {
 				predicate = builder.and(predicate, builder.equal(root.get("solutionCode"), solutionCode));

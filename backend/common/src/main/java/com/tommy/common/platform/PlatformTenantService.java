@@ -7,7 +7,6 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -17,6 +16,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 import com.tommy.common.global.exception.ApiException;
+import com.tommy.common.global.query.LikeEscape;
 import com.tommy.common.global.multitenancy.SchemaNames;
 import com.tommy.common.global.multitenancy.TenantDirectory;
 import com.tommy.common.global.paging.PageRequests;
@@ -82,7 +82,7 @@ public class PlatformTenantService {
 		}
 		if (keyword != null && !keyword.isBlank()) {
 			where.append(" AND (lower(t.tenant_code) LIKE ? ESCAPE '\\' OR lower(t.tenant_name) LIKE ? ESCAPE '\\')");
-			String pattern = "%" + keyword.trim().toLowerCase(Locale.ROOT).replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%";
+			String pattern = LikeEscape.contains(keyword.trim());
 			args.add(pattern);
 			args.add(pattern);
 		}

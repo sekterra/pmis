@@ -10,6 +10,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.tommy.common.global.query.LikeEscape;
 import com.tommy.common.global.response.PageResponse;
 import com.tommy.common.global.security.CurrentTenantUser;
 import com.tommy.common.global.time.TenantClock;
@@ -297,9 +298,8 @@ public class DeptService {
 			}
 			String text = OrgExceptions.trimToNull(keyword);
 			if (text != null) {
-				String pattern = "%" + text.toLowerCase() + "%";
-				predicates.add(builder.or(builder.like(builder.lower(root.get("deptCode")), pattern),
-						builder.like(builder.lower(root.get("deptName")), pattern)));
+				predicates.add(builder.or(LikeEscape.contains(builder, root.get("deptCode"), text),
+						LikeEscape.contains(builder, root.get("deptName"), text)));
 			}
 			if (deptTypeCode != null && !deptTypeCode.isBlank()) {
 				predicates.add(builder.equal(root.get("deptTypeCode"), deptTypeCode));

@@ -3,7 +3,6 @@ package com.tommy.common.code.service;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -14,6 +13,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.tommy.common.global.query.LikeEscape;
 import com.tommy.common.code.CodeRules;
 import com.tommy.common.code.dto.CodeHistoryResponse;
 import com.tommy.common.code.dto.CommonCodeRequest;
@@ -332,10 +332,10 @@ public class CommonCodeService {
 			Join<Object, Object> group = root.join("codeGroup");
 			Predicate predicate = builder.equal(group.get("codeGroupCode"), groupCode);
 			if (keyword != null && !keyword.isBlank()) {
-				String pattern = "%" + keyword.trim().toLowerCase(Locale.ROOT) + "%";
+				String text = keyword.trim();
 				predicate = builder.and(predicate, builder.or(
-						builder.like(builder.lower(root.get("codeValue")), pattern),
-						builder.like(builder.lower(root.get("codeName")), pattern)));
+						LikeEscape.contains(builder, root.get("codeValue"), text),
+						LikeEscape.contains(builder, root.get("codeName"), text)));
 			}
 			if (useYn != null && !useYn.isBlank()) {
 				predicate = builder.and(predicate, builder.equal(root.get("useYn"), "Y".equalsIgnoreCase(useYn) ? "Y" : "N"));

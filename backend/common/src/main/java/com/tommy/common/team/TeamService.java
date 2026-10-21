@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.tommy.common.global.exception.ApiException;
+import com.tommy.common.global.query.LikeEscape;
 import com.tommy.common.global.response.PageResponse;
 import com.tommy.common.global.security.CurrentTenantUser;
 import com.tommy.common.global.time.TenantClock;
@@ -292,9 +293,8 @@ public class TeamService {
 			List<Predicate> predicates = new ArrayList<>();
 			String text = OrgExceptions.trimToNull(keyword);
 			if (text != null) {
-				String pattern = "%" + text.toLowerCase() + "%";
-				predicates.add(builder.or(builder.like(builder.lower(root.get("teamCode")), pattern),
-						builder.like(builder.lower(root.get("teamName")), pattern)));
+				predicates.add(builder.or(LikeEscape.contains(builder, root.get("teamCode"), text),
+						LikeEscape.contains(builder, root.get("teamName"), text)));
 			}
 			if (OrgExceptions.trimToNull(teamTypeCode) != null) {
 				predicates.add(builder.equal(root.get("teamTypeCode"), teamTypeCode.trim()));

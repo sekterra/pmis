@@ -110,6 +110,11 @@ public class StoredFile {
 		touch(userPk);
 	}
 
+	public void markPurged(Long userPk) {
+		this.deleteScheduledDatetime = null;
+		touch(userPk);
+	}
+
 	public void restore(String status, Long userPk) {
 		this.useYn = "Y";
 		this.fileStatusCode = status;

@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -14,6 +13,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.tommy.common.global.query.LikeEscape;
 import com.tommy.common.access.dto.PermissionCodesRequest;
 import com.tommy.common.access.dto.PermissionGrantItem;
 import com.tommy.common.access.dto.RoleRequest;
@@ -248,9 +248,8 @@ public class RoleAdminService {
 			List<Predicate> predicates = new ArrayList<>();
 			String text = OrgExceptions.trimToNull(keyword);
 			if (text != null) {
-				String pattern = "%" + text.toLowerCase(Locale.ROOT) + "%";
-				predicates.add(builder.or(builder.like(builder.lower(root.get("roleCode")), pattern),
-						builder.like(builder.lower(root.get("roleName")), pattern)));
+				predicates.add(builder.or(LikeEscape.contains(builder, root.get("roleCode"), text),
+						LikeEscape.contains(builder, root.get("roleName"), text)));
 			}
 			if (useYn != null && !useYn.isBlank()) {
 				predicates.add(builder.equal(root.get("useYn"), useYn));

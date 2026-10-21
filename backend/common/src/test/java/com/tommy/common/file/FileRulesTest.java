@@ -31,8 +31,25 @@ class FileRulesTest {
 	void checksMagicBytesAndSanitizesNames() {
 		byte[] png = new byte[] { (byte) 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a };
 		FileRules.assertMime("png", png);
+		assertEquals("image/png", FileRules.mimeType("png", png));
 		assertEquals("FILE.MIME_MISMATCH", assertThrows(ApiException.class, () -> FileRules.assertMime("txt", png)).errorCode());
+		assertEquals("FILE.MIME_MISMATCH", assertThrows(ApiException.class, () -> FileRules.assertMime("png", "hello".getBytes())).errorCode());
+		assertEquals("FILE.MIME_MISMATCH", assertThrows(ApiException.class, () -> FileRules.mimeType("pdf", png)).errorCode());
+		assertEquals("FILE.MIME_MISMATCH", assertThrows(ApiException.class, () -> FileRules.assertMime("docx", "hello".getBytes())).errorCode());
+		byte[] zip = new byte[] { 'P', 'K', 3, 4 };
+		FileRules.assertMime("docx", zip);
+		assertEquals("application/zip", FileRules.mimeType("xlsx", zip));
 		FileRules.assertMime("txt", "hello".getBytes());
+		FileRules.assertMime("csv", "a,b".getBytes());
+		assertEquals("text/plain", FileRules.mimeType("txt", "hello".getBytes()));
+		assertEquals("FILE.MIME_MISMATCH",
+				assertThrows(ApiException.class, () -> FileRules.assertMime("txt", new byte[] { 'a', 0, 'b' })).errorCode());
+		byte[] lateNul = new byte[8193];
+		java.util.Arrays.fill(lateNul, (byte) 'a');
+		lateNul[8192] = 0;
+		FileRules.assertMime("txt", lateNul);
+		lateNul[8191] = 0;
+		assertEquals("FILE.MIME_MISMATCH", assertThrows(ApiException.class, () -> FileRules.assertMime("csv", lateNul)).errorCode());
 		assertEquals("note.txt", FileRules.sanitizeName("..\\dir\\note.txt"));
 		assertFalse(FileRules.sanitizeName("a\u0001b.txt").contains("\u0001"));
 		String longName = "가".repeat(400) + ".txt";

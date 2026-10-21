@@ -18,6 +18,7 @@ import com.tommy.common.file.entity.FileStorage;
 import com.tommy.common.file.repository.FileStorageRepository;
 import com.tommy.common.file.repository.StoredFileRepository;
 import com.tommy.common.global.exception.ApiException;
+import com.tommy.common.global.query.LikeEscape;
 import com.tommy.common.global.response.PageResponse;
 import com.tommy.common.global.security.CurrentTenantUser;
 import com.tommy.common.org.service.OrgCodes;
@@ -263,9 +264,8 @@ public class FileStorageService {
 			List<Predicate> predicates = new ArrayList<>();
 			String text = OrgExceptions.trimToNull(keyword);
 			if (text != null) {
-				String pattern = "%" + text.toLowerCase() + "%";
-				predicates.add(builder.or(builder.like(builder.lower(root.get("storageCode")), pattern),
-						builder.like(builder.lower(root.get("storageName")), pattern)));
+				predicates.add(builder.or(LikeEscape.contains(builder, root.get("storageCode"), text),
+						LikeEscape.contains(builder, root.get("storageName"), text)));
 			}
 			if (OrgExceptions.trimToNull(storageTypeCode) != null) {
 				predicates.add(builder.equal(root.get("storageTypeCode"), storageTypeCode.trim()));

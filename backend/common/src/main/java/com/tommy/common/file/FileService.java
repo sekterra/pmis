@@ -26,6 +26,7 @@ import com.tommy.common.file.entity.StoredFile;
 import com.tommy.common.file.repository.FileAttachmentRepository;
 import com.tommy.common.file.repository.StoredFileRepository;
 import com.tommy.common.global.exception.ApiException;
+import com.tommy.common.global.query.LikeEscape;
 import com.tommy.common.global.response.PageResponse;
 import com.tommy.common.global.security.CurrentTenantUser;
 import com.tommy.common.global.security.DbPermissionChecker;
@@ -97,15 +98,10 @@ public class FileService {
 		String key = FileRules.storageKey(now);
 		java.nio.file.Path path = storages.locate(storage, key).path();
 		store.write(path, bytes);
+		RollbackFileCleanup.deleteOnRollback(store, path);
 		StoredFile file = StoredFile.upload(storage, key, name, extension, FileRules.mimeType(extension, bytes), bytes.length,
 				sha256(bytes), actor, now);
-		try {
-			files.saveAndFlush(file);
-		}
-		catch (RuntimeException ex) {
-			store.deleteQuiet(path);
-			throw ex;
-		}
+		files.saveAndFlush(file);
 		return response(file, false);
 	}
 
@@ -176,6 +172,11 @@ public class FileService {
 	@Transactional
 	public CleanupResponse cleanup() {
 		permissions.check("FILE", "DELETE");
+		return cleanupInternal(actor());
+	}
+
+	@Transactional
+	public CleanupResponse cleanupInternal(Long actorPk) {
 		LocalDateTime now = LocalDateTime.now();
 		int expired = 0;
 		int purged = 0;
@@ -189,7 +190,8 @@ public class FileService {
 				failures++;
 				continue;
 			}
-			file.markDeleted(now, actor());
+			file.markDeleted(now, actorPk);
+			file.markPurged(actorPk);
 			expired++;
 		}
 		List<StoredFile> due = entityManager.createQuery("""
@@ -201,6 +203,7 @@ public class FileService {
 				failures++;
 				continue;
 			}
+			file.markPurged(actorPk);
 			purged++;
 		}
 		return new CleanupResponse(expired, purged, failures);
@@ -349,7 +352,7 @@ public class FileService {
 			List<Predicate> predicates = new ArrayList<>();
 			String text = OrgExceptions.trimToNull(keyword);
 			if (text != null) {
-				predicates.add(builder.like(builder.lower(root.get("originalFileName")), "%" + text.toLowerCase() + "%"));
+				predicates.add(LikeEscape.contains(builder, root.get("originalFileName"), text));
 			}
 			if (OrgExceptions.trimToNull(fileStatusCode) != null) {
 				predicates.add(builder.equal(root.get("fileStatusCode"), fileStatusCode.trim()));

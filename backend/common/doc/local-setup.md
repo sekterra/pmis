@@ -78,6 +78,11 @@ gradlew.bat bootRun --args="--bootstrap-platform-admin"
 | `mdm.file.allowed-extensions` | `png,jpg,jpeg,gif,webp,pdf,zip,txt,csv` | 저장소 목록이 없을 때의 확장자 |
 | `mdm.file.delete-retention-days` | 7 | 논리 삭제 후 디스크를 지울 때까지의 일수 |
 | `mdm.file.temp-ttl-hours` | 24 | TEMP 파일을 정리 대상으로 보는 시간 |
+| `mdm.file.cleanup.enabled` | `false`. `MDM_FILE_CLEANUP_ENABLED` | 정리 스케줄러. 운영에서만 켠다. `dev`는 꺼 둔다 |
+| `mdm.file.cleanup.cron` | `0 0 3 * * *`. `MDM_FILE_CLEANUP_CRON` | 스케줄러가 켜졌을 때의 실행 시각 |
+| `mdm.file.cleanup.zone` | `Asia/Seoul`. `MDM_FILE_CLEANUP_ZONE` | 크론 시간대 |
+
+정리 스케줄러는 단일 인스턴스 전제다. 서버를 여러 대 띄우면 같은 정리가 중복될 수 있다.
 
 연결 설정과 `secret_ref`에는 비밀 값을 넣지 않는다. `secret_ref`는 외부 비밀 이름의 형식만 검사한다.
 

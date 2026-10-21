@@ -3,7 +3,6 @@ package com.tommy.common.menu;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 import org.slf4j.Logger;
@@ -14,6 +13,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.tommy.common.global.query.LikeEscape;
 import com.tommy.common.access.entity.Permission;
 import com.tommy.common.access.entity.RolePermission;
 import com.tommy.common.access.repository.PermissionRepository;
@@ -408,9 +408,8 @@ public class MenuAdminService {
 			List<Predicate> predicates = new ArrayList<>();
 			String text = OrgExceptions.trimToNull(keyword);
 			if (text != null) {
-				String pattern = "%" + text.toLowerCase(Locale.ROOT) + "%";
-				predicates.add(builder.or(builder.like(builder.lower(root.get("menuCode")), pattern),
-						builder.like(builder.lower(root.get("menuName")), pattern)));
+				predicates.add(builder.or(LikeEscape.contains(builder, root.get("menuCode"), text),
+						LikeEscape.contains(builder, root.get("menuName"), text)));
 			}
 			if (solutionCode != null && !solutionCode.isBlank()) {
 				predicates.add(builder.equal(root.get("solutionCode"), solutionCode));

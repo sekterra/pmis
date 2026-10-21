@@ -2,7 +2,6 @@ package com.tommy.common.i18n.service;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
@@ -11,6 +10,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.tommy.common.global.query.LikeEscape;
 import com.tommy.common.global.response.PageResponse;
 import com.tommy.common.i18n.I18nExceptions;
 import com.tommy.common.i18n.dto.NamespaceRequest;
@@ -95,10 +95,9 @@ public class I18nNamespaceService {
 		return (root, query, builder) -> {
 			List<Predicate> predicates = new ArrayList<>();
 			if (keyword != null && !keyword.isBlank()) {
-				String like = "%" + keyword.toLowerCase(Locale.ROOT) + "%";
 				predicates.add(builder.or(
-						builder.like(builder.lower(root.get("namespaceCode")), like),
-						builder.like(builder.lower(root.get("namespaceName")), like)));
+						LikeEscape.contains(builder, root.get("namespaceCode"), keyword),
+						LikeEscape.contains(builder, root.get("namespaceName"), keyword)));
 			}
 			if (useYn != null && !useYn.isBlank()) {
 				predicates.add(builder.equal(root.get("useYn"), useYn));

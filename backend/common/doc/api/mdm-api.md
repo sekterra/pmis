@@ -698,7 +698,7 @@ PAGE를 등록하면 같은 트랜잭션에서 `READ`, `CREATE`, `UPDATE`, `DELE
 | `PERSON` | UPDATE READ | 프로필 이미지 설정·해제는 UPDATE. 조회 권한이 없으면 404 |
 | `TEAM` | READ CREATE UPDATE DELETE | `/api/mdm/v1/teams`, `/team-members`. 복구와 종료는 UPDATE |
 
-`FILE_STORAGE`는 `TENANT_ADMIN`에만 준다. `FILE`와 `TEAM`은 기존 시드대로 `MANAGER`, `USER` 조회가 남아 있다. 다운로드는 `FILE:READ`이거나, 상태가 TEMP이고 올린 사람일 때 허용한다. Range는 받지 않고 전체를 준다.
+`FILE_STORAGE`는 `TENANT_ADMIN`에만 준다. `FILE`와 `TEAM`은 기존 시드대로 `MANAGER`, `USER` 조회가 남아 있다. 다운로드는 `FILE:READ`이거나, 상태가 TEMP이고 올린 사람일 때 허용한다. Range는 받지 않고 전체를 준다. 다운로드는 파일 전체를 메모리에 올리며, 크기는 업로드 상한으로 제한된다.
 
 ### 저장소
 
@@ -720,7 +720,7 @@ PAGE를 등록하면 같은 트랜잭션에서 `READ`, `CREATE`, `UPDATE`, `DELE
 
 확장자는 파일명 마지막 구간이다. 저장소 `allowed_extensions`가 있으면 그것만, 없으면 `mdm.file.allowed-extensions`다. `exe`, `bat`, `cmd`, `com`, `sh`, `js`, `jar`, `msi`, `dll`, `scr`, `ps1`, `vbs`는 항상 거절하고, 중간 구간에 있어도 `400 FILE.EXTENSION_NOT_ALLOWED`다.
 
-매직 바이트로 png, jpg, gif, webp, pdf, zip 계열을 본다. 확장자와 다르면 `400 FILE.MIME_MISMATCH`다. 알 수 없는 형식은 확장자만 본다. 클라이언트의 Content-Type은 믿지 않고 서버가 정한 `mimeType`을 저장한다. 상태는 TEMP다. 체크섬은 SHA-256이다. 임시 파일에 쓴 뒤 옮긴다. DB 저장이 실패하면 디스크 파일을 지운다.
+매직 바이트로 png, jpg, gif, webp, pdf, zip 계열을 본다. 이 확장자는 판별에 실패해도 `400 FILE.MIME_MISMATCH`다. txt, csv처럼 판별할 수 없는 확장자는 허용하되, 앞 8KB에 NUL 바이트가 있으면 거부한다. 클라이언트의 Content-Type은 믿지 않고 서버가 정한 `mimeType`을 저장한다. 상태는 TEMP다. 체크섬은 SHA-256이다. 임시 파일에 쓴 뒤 옮긴다. DB 저장이 실패하거나 트랜잭션이 롤백되면 디스크 파일을 지운다.
 
 다운로드는 저장된 MIME 또는 `application/octet-stream`이다. `Content-Disposition`은 attachment와 RFC 5987 파일명이다. `X-Content-Type-Options: nosniff`, `Cache-Control: private, no-store`다. 삭제됐거나 디스크가 없으면 `404 FILE.NOT_FOUND`다. 로그에는 파일 PK만 남긴다.
 
@@ -730,7 +730,19 @@ PAGE를 등록하면 같은 트랜잭션에서 `READ`, `CREATE`, `UPDATE`, `DELE
 
 복구는 디스크 파일이 있을 때만 된다. 없으면 `409 FILE.PURGED`다. 첨부 행이 하나라도 있거나 프로필로 참조되면 ACTIVE, 아니면 TEMP로 되돌린다. 예약 시각은 비운다.
 
-`POST /files/cleanup`은 스케줄러가 아니다. TEMP이면서 올린 시각이 `mdm.file.temp-ttl-hours`(기본 24)보다 오래되면 디스크를 지우고 DELETED, `use_yn=N`, 예약 시각은 지금으로 둔다. DELETED이면서 예약 시각이 지났으면 디스크만 지우고 행은 남긴다. 디스크 삭제 실패는 건너뛰고 `diskFailureCount`에 센다. 응답은 `expiredTempCount`, `purgedCount`, `diskFailureCount`다.
+`POST /files/cleanup`은 그대로 둔다. TEMP이면서 올린 시각이 `mdm.file.temp-ttl-hours`(기본 24)보다 오래되면 디스크를 지우고 DELETED, `use_yn=N`으로 둔다. DELETED이면서 예약 시각이 지났으면 디스크를 지우고 행은 남긴다. 디스크 삭제에 성공하면 `delete_scheduled_datetime`을 비워 다음 실행에서 다시 세지 않는다. 디스크 삭제 실패는 건너뛰고 `diskFailureCount`에 센다. 응답은 `expiredTempCount`, `purgedCount`, `diskFailureCount`다. 복구는 예약 시각이 비어 있어도 디스크가 없으면 `409 FILE.PURGED`다.
+
+### 정리 스케줄러
+
+기본은 꺼져 있다. `mdm.file.cleanup.enabled=true`일 때만 스케줄러 빈이 만들어지고, 매일 정해진 시각에 ACTIVE 테넌트 스키마를 차례로 정리한다. 수동 API와 같은 정리 로직이다. 스케줄러용 HTTP 엔드포인트는 없다. 감사 컬럼은 시스템 사용자가 없으면 비운다.
+
+| 키 | 환경 변수 | 기본 |
+| --- | --- | --- |
+| `mdm.file.cleanup.enabled` | `MDM_FILE_CLEANUP_ENABLED` | `false` |
+| `mdm.file.cleanup.cron` | `MDM_FILE_CLEANUP_CRON` | `0 0 3 * * *` |
+| `mdm.file.cleanup.zone` | `MDM_FILE_CLEANUP_ZONE` | `Asia/Seoul` |
+
+단일 인스턴스 전제다. 같은 프로세스에서 이전 실행이 끝나기 전에는 다음 실행을 시작하지 않는다. 서버가 여러 대일 때의 중복 방지는 없다.
 
 ### 첨부
 
@@ -797,7 +809,7 @@ PAGE를 등록하면 같은 트랜잭션에서 `READ`, `CREATE`, `UPDATE`, `DELE
 
 ### 한계
 
-Range는 지원하지 않는다. 정리 작업은 API로만 실행하고 `@Scheduled`는 없다. LOCAL 외 어댑터는 없다. 바이러스 검사는 없다. 업로드는 지금 `FILE:CREATE`가 필요하다.
+Range는 지원하지 않는다. 다운로드는 파일 전체를 메모리에 올리며, 크기는 업로드 상한으로 제한된다. 정리 스케줄러는 기본이 꺼져 있고 단일 인스턴스 전제다. LOCAL 외 어댑터는 없다. 바이러스 검사는 없다. 업로드는 지금 `FILE:CREATE`가 필요하다.
 
 
 

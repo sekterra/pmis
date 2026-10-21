@@ -1048,3 +1048,26 @@
   - 디스크 디렉터리는 테넌트 코드를 쓴다
   - 메뉴 경로 자식 비교는 `left(menu_path, char_length(old || '/')) = old || '/'`다
 
+## [9.5단계] 파일 보완과 정리 스케줄러 - 2026-10-21
+
+- 변경 파일:
+  - `FileRules`: png, jpg, jpeg, gif, webp, pdf, zip 계열은 매직 바이트가 없으면 거부. txt, csv는 앞 8KB의 NUL을 거부
+  - `LikeEscape`: 키워드 LIKE의 `\`, `%`, `_` 이스케이프. 회사, 부서, 사람, 팀, 사용자, 역할, 권한, 메뉴, 코드, 다국어, 저장소, 파일, 플랫폼 테넌트 검색에 적용
+  - `StoredFile.markPurged`, `FileService.cleanupInternal`: 디스크 삭제 성공 시 예약 시각을 비움
+  - `RollbackFileCleanup`: 업로드 트랜잭션 롤백 시 디스크 파일 삭제
+  - `FileCleanupScheduler`, `FileCleanupSchedulingConfig`, `FileProperties`: 기본 꺼짐. 켜면 ACTIVE 테넌트를 정리
+  - `application.yaml`, `application-dev.yaml`, `doc/api/mdm-api.md`, `doc/local-setup.md`
+  - `FileRulesTest`, `LikeEscapeTest`, `StoredFilePurgeTest`, `RollbackFileCleanupTest`, `FileCleanupSchedulerTest`, `FileTeamApiIntegrationTest`, `FileCleanupSchedulerIntegrationTest`
+- 검증 결과:
+  - `gradlew.bat test`: 86 통과, 실패 0, skip 0
+  - `gradlew.bat integrationTest`: 47 통과, 실패 0, skip 0. 대상 DB 이름은 `pmis`였다
+- ERD 반영 내역: 없음. DDL 변경 없음
+- 질문/확인 필요:
+  - 테넌트 시드에 시스템 `user_pk`가 없다. 스케줄러 감사 컬럼은 null로 뒀다. DDL과 시드는 만들지 않았다
+- 가정한 사항:
+  - 만료된 TEMP는 디스크 삭제에 성공하면 같은 실행에서 예약 시각을 비운다. `purged`로 다시 세지 않는다
+  - 예약 시각이 비어 있어도 디스크가 없으면 복구는 `FILE.PURGED`다
+  - 통합 테스트는 `runOnce(목록)`으로 테스트 테넌트만 넘긴다. 인자 없는 `runOnce()`는 ACTIVE 테넌트 전체를 정리하므로 공유 DB에서 호출하지 않았다
+  - 부서 경로 `dept_path LIKE`와 메뉴 `left` 비교는 키워드 검색이 아니라 그대로 뒀다
+  - 정리 스케줄러는 단일 인스턴스 전제이고 기본은 꺼져 있다
+

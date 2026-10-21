@@ -8,6 +8,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.tommy.common.global.query.LikeEscape;
 import com.tommy.common.global.response.PageResponse;
 import com.tommy.common.global.security.CurrentTenantUser;
 import com.tommy.common.i18n.entity.Nation;
@@ -211,11 +212,10 @@ public class CompanyService {
 			List<Predicate> predicates = new java.util.ArrayList<>();
 			String text = OrgExceptions.trimToNull(keyword);
 			if (text != null) {
-				String pattern = "%" + text.toLowerCase() + "%";
 				predicates.add(builder.or(
-						builder.like(builder.lower(root.get("companyCode")), pattern),
-						builder.like(builder.lower(root.get("companyName")), pattern),
-						builder.like(builder.lower(root.get("companyShortName")), pattern)));
+						LikeEscape.contains(builder, root.get("companyCode"), text),
+						LikeEscape.contains(builder, root.get("companyName"), text),
+						LikeEscape.contains(builder, root.get("companyShortName"), text)));
 			}
 			if (companyTypeCode != null && !companyTypeCode.isBlank()) {
 				predicates.add(builder.equal(root.get("companyTypeCode"), companyTypeCode));
