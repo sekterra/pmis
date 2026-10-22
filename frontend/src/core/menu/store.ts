@@ -1,3 +1,4 @@
+import { resetCodeOptionsCache } from '@/core/codes/useCodeOptions';
 import { toApiError } from '@/core/request/errors';
 import { accessKind } from '@/core/auth/context';
 import { fetchMyMenus } from '@/services/mdm/menu';
@@ -32,6 +33,7 @@ export function registerUnauthorized(handler: () => void): void {
 }
 
 export function noteLoggedOut(): void {
+  resetCodeOptionsCache();
   epoch += 1;
   allowed = false;
   pending = null;

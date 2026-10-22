@@ -1,6 +1,7 @@
 import { renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CommonCode } from '@/services/mdm/code';
+import { noteLoggedOut } from '@/core/menu/store';
 import { loadCodeGroup, resetCodeOptionsCache, useCodeOptions } from './useCodeOptions';
 
 const listGroupCodes = vi.hoisted(() => vi.fn());
@@ -48,5 +49,12 @@ describe('useCodeOptions', () => {
     await waitFor(() => expect(hook.result.current.loading).toBe(false));
     expect(hook.result.current.empty).toBe(true);
     expect(hook.result.current.options).toEqual([]);
+  });
+
+  it('loads the group again after logout clears the cache', async () => {
+    await loadCodeGroup('COMPANY_TYPE');
+    noteLoggedOut();
+    await loadCodeGroup('COMPANY_TYPE');
+    expect(listGroupCodes).toHaveBeenCalledTimes(2);
   });
 });

@@ -90,8 +90,10 @@ const CompanyPage: React.FC = () => {
 
   const fail = useCallback((error: unknown) => {
     const api = error instanceof ApiError ? error : new ApiError('');
-    setNotice(companyErrorText(api));
-  }, []);
+    setNotice(
+      companyErrorText(api, (id, fallback) => intl.formatMessage({ id, defaultMessage: fallback })),
+    );
+  }, [intl]);
 
   useEffect(() => {
     let alive = true;

@@ -30,6 +30,9 @@ export default defineConfig({
       ],
     },
     passWithNoTests: true,
-    testTimeout: 15000,
+    // 부서 화면 흐름 테스트가 한 파일에서 DatePicker·Tree를 연다.
+    // 파일을 동시에 돌리면 15초 제한과 findBy 대기가 같이 깨진다.
+    fileParallelism: false,
+    testTimeout: 30000,
   },
 });

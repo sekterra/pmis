@@ -72,12 +72,12 @@ const CompanyFormDrawer: React.FC<Props> = ({
       await onSubmit(body);
     } catch (error) {
       const api = error instanceof ApiError ? error : new ApiError('');
-      const fields = companyFormErrors(api);
+      const fields = companyFormErrors(api, text);
       if (fields.length > 0) {
         form.setFields(fields);
         return;
       }
-      onNotice(companyErrorText(api));
+      onNotice(companyErrorText(api, text));
     }
   };
 

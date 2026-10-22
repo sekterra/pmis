@@ -1,0 +1,19 @@
+.split {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.treePane {
+  width: 280px;
+  flex: none;
+}
+
+.detail {
+  flex: 1;
+  min-width: 0;
+}
+
+.closed {
+  color: rgba(0, 0, 0, 0.45);
+}

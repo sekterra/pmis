@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ApiError } from '@/core/request/errors';
 import type { Company } from '@/services/mdm/companyRecord';
-import { companyFormErrors, parentChoices, validCompanyCode } from './rules';
+import { companyErrorText, companyFormErrors, parentChoices, validCompanyCode } from './rules';
 
 function company(code: string, useYn = 'Y'): Company {
   return {
@@ -41,15 +41,17 @@ describe('company rules', () => {
     expect(validCompanyCode('')).toBe(false);
     const duplicate = new ApiError('이미 있는 회사 코드입니다.');
     duplicate.errorCode = 'COMPANY.DUPLICATE';
-    expect(companyFormErrors(duplicate)).toEqual([
+    const text = (_id: string, fallback: string) => fallback;
+    expect(companyFormErrors(duplicate, text)).toEqual([
       { name: 'companyCode', errors: ['이미 있는 회사 코드입니다.'] },
     ]);
     const cycle = new ApiError('');
     cycle.errorCode = 'COMPANY.PARENT_CYCLE';
-    expect(companyFormErrors(cycle)[0]?.name).toBe('parentCompanyCode');
+    expect(companyFormErrors(cycle, text)[0]?.name).toBe('parentCompanyCode');
+    expect(companyErrorText(cycle, (id) => id)).toBe('pages.org.company.errors.parentCycle');
     const fields = new ApiError('확인해 주세요.');
     fields.fieldErrors = [{ field: 'companyName', message: '이름이 필요합니다.' }];
-    expect(companyFormErrors(fields)[0]?.name).toBe('companyName');
+    expect(companyFormErrors(fields, text)[0]?.name).toBe('companyName');
   });
 
   it('drops the current company from parent choices', () => {

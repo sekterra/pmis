@@ -635,4 +635,49 @@ git: `frontend`와 `D:\_project\PMIS` 모두 저장소가 아니다. `git status
 - 국가 목록 API에는 `useYn`이 없다. 사용 중 국가만 화면에서 고른다. `nationListParams`는 바꾸지 않았다.
 - 플랫폼과 테넌트는 빌드가 하나다. `/org/company`는 그 라우트에 있고, 플랫폼 사용자는 `areaForbidden`으로 들어가지 못한다. 회사 API 모듈은 `services/mdm`에 둔다.
 
+## [F8단계] 부서 관리 화면 - 2026-10-22
+
+### 변경/추가 파일
+
+- 추가: `src/services/mdm/dept.ts`, `deptQuery.ts`, `deptRecord.d.ts`, `people.ts`, `peopleRecord.d.ts`와 부서 서비스·쿼리 테스트
+- 추가: `src/pages/org/dept`(트리, 상세 탭, Drawer, 규칙, 흐름 테스트)
+- 추가: `doc/f8-wireframe.md`, `doc/f8-manual-check.md`
+- 수정: `src/core/menu/store.ts`. `noteLoggedOut`에서 `resetCodeOptionsCache`를 호출한다
+- 수정: `src/pages/org/company/rules.ts`. 회사 오류 문구를 i18n 키로 옮겼다. 서버 `errorMessage`가 있으면 그 문구를 쓴다
+- 수정: `src/core/menu/menuRoutes.ts`에 `DEPT` → `/org/dept`
+- 수정: `config/routes.ts`에 `/org/dept`
+- 수정: `ko-KR`/`en-US`의 `menu.ts`, `pages.ts`에 부서 문구와 회사 오류 키
+- 수정: `vitest.config.ts`. 화면 흐름 테스트가 파일 병렬에서 시간 제한에 걸려 `fileParallelism: false`, `testTimeout: 30000`
+- 공통코드·다국어 화면과 백엔드는 수정하지 않았다
+
+### 검증 결과
+
+- `npm.cmd run lint`: 통과. biome 157파일, 이어서 `tsc --noEmit`. 종료 코드 0
+- `npx.cmd antd lint ./src`: 통과. 164파일, 이슈 0
+- `src/pages/org/dept/flow.test.tsx`를 3회 반복 실행했다. 매번 5개 통과(약 61초, 62초, 66초)
+- `npm.cmd test`: 통과. 40파일, 171개. 약 262초
+- `npm.cmd run build`: 통과. 종료 코드 0. 한 산출물에 `org/dept`, `org/company`, `tenants`가 있다
+- `build:platform` 스크립트는 F6에서 제거되어 실행하지 않았다
+- 개발 서버와 백엔드는 띄우지 않았다
+
+### 질문/확인 필요
+
+- 합의 와이어프레임 3절은 소속 인원 행 클릭 시 사람 화면으로 간다. F8은 사람 화면이 없어 행 이동을 만들지 말라고 해서 그대로 두었다. `doc/f8-wireframe.md`에 적었다.
+- 변경 이력의 상위 부서는 PK만 온다. 이름 조회 API가 없어 PK로 보이고, 안내 문구를 붙였다.
+- 부서 수정 API는 요청에 없는 `description`을 null로 덮어쓴다. 화면 입력칸은 없고, 수정 저장 때 상세 값을 다시 보낸다. 등록 때는 보내지 않는다.
+- 부서 코드는 회사 코드와 달리 정규식이 없다. 폼은 길이 1–50만 본다.
+- 회사 Select는 사용 중 회사 첫 페이지(size 200)만 담는다. 200건을 넘으면 뒤 페이지는 목록에 없다.
+- 사용자가 직접 볼 항목은 `doc/f8-manual-check.md` 맨 위에 모았다.
+
+### 가정한 사항
+
+- 코드 목록 응답은 `CommonCodeService.toResponse`가 언어별 번역을 모두 싣는다. 화면은 `codeOptionLabel`이 현재 언어를 고르므로 언어 변경 때 캐시를 비우지 않는다. 로그아웃, 401 로그인 이동, 다른 탭 로그아웃은 모두 `noteLoggedOut`을 타서 캐시를 비운다.
+- 이력·소속 인원 표는 회사 화면과 같이 antd `Table`이다.
+- 종료는 본문 없이 DELETE 한다. 서버가 종료일을 오늘로 둔다.
+- 상위 부서 후보는 현재 트리의 사용 중 행이다. 목록 API는 두었고 이 화면은 호출하지 않는다.
+- 기준일과 종료 포함은 [조회]를 누를 때 적용한다. 회사를 바꾸면 선택을 비우고 트리를 다시 불러온다.
+- 이름 번역은 F7 `NameTranslations`를 그대로 쓴다. 공통코드 화면은 고치지 않았다.
+- 트리는 `motion={false}`, `virtual={false}`다. 짧은 조직도가 펼친 뒤 바로 보이게 하기 위해서다.
+- 플랫폼과 테넌트는 빌드가 하나다. `/org/dept`는 그 라우트에 있고, 플랫폼 사용자는 기존 `areaForbidden`이 `/org/**`를 막는다.
+
 

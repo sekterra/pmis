@@ -4,6 +4,7 @@ export default {
   'menu.i18n': 'Messages',
   'menu.language': 'Languages',
   'menu.org.company': 'Companies',
+  'menu.org.dept': 'Departments',
   'menu.tenants': 'Tenants',
   'menu.login': 'Login',
   'menu.exception': 'Exception',
