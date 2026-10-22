@@ -596,4 +596,43 @@ git: `frontend`와 `D:\_project\PMIS` 모두 저장소가 아니다. `git status
 - 플랫폼에서 `can()`은 항상 false다. 화면 진입은 kind가 PLATFORM이고 로그인한 경우 `viewFor` 한 곳에서 허용한다.
 - 플랫폼 호스트가 아닌 잘못된 주소의 context 실패 코드 `TENANT.NOT_FOUND`, `TENANT.UNRESOLVED`, `TENANT.INACTIVE`는 모두 "알 수 없는 사이트입니다"다.
 
+## [F7단계] 조직 화면 기반과 회사 관리 화면 - 2026-10-22
+
+### 변경/추가 파일
+
+- 추가: `src/services/mdm/company.ts`, `companyQuery.ts`, `companyRecord.d.ts`와 해당 테스트
+- 추가: `src/core/codes/options.ts`, `useCodeOptions.ts`와 테스트
+- 추가: `src/pages/org/shared/NameTranslations.tsx`, `useYn.ts`
+- 추가: `src/pages/org/company`(목록, Drawer, 규칙, 흐름 테스트)
+- 추가: `doc/f7-wireframe.md`, `doc/f7-manual-check.md`
+- 수정: `src/core/menu/menuRoutes.ts`에 `COMPANY` → `/org/company`
+- 수정: `config/routes.ts`에 `/org/company`
+- 수정: `src/core/auth/context.ts`의 `areaForbidden`. 플랫폼 접속은 `/org`와 `/org/**`도 막는다
+- 수정: `ko-KR`/`en-US`의 `menu.ts`, `pages.ts`에 회사 문구
+- 수정: `src/core/menu/flow.test.tsx`가 회사 메뉴를 알려진 화면으로 기대한다
+- 공통코드 화면과 백엔드는 수정하지 않았다
+
+### 검증 결과
+
+- `npm.cmd run lint`: 통과. biome 149파일, 이어서 `tsc --noEmit`. 종료 코드 0
+- `npx.cmd antd lint ./src`: 통과. 150파일, 이슈 0
+- `src/pages/org/company/flow.test.tsx`를 3회 반복 실행했다. 매번 3개 통과
+- `npm.cmd run test`: 통과. 35파일, 158개. 약 106초
+- `npm.cmd run build`: 통과. 한 산출물에 `org/company`와 `tenants`가 있다
+- `build:platform` 스크립트는 F6에서 제거되어 실행하지 않았다
+- 개발 서버와 백엔드는 띄우지 않았다
+
+### 질문/확인 필요
+
+- 합의 화면과 같다. 이름 번역은 공통코드 화면을 고치지 않고 `NameTranslations`를 새로 만들었다. 공통코드 번역은 나중에 이 컴포넌트로 옮길 수 있다.
+- 수정 API는 요청에 없는 주소·전화·설명 등을 null로 덮어쓴다. 화면에는 그 입력칸이 없고, 수정 저장 때 상세에 있던 값을 다시 보낸다.
+- 사용자가 직접 볼 항목은 `doc/f7-manual-check.md` 맨 위에 모았다.
+
+### 가정한 사항
+
+- 목록은 공통코드 화면과 같이 antd `Table`이다. 지시서의 ProTable 문구보다 기존 화면 방식을 따랐다.
+- 회사 유형은 API가 필수라 폼에서도 필수로 둔다.
+- 국가 목록 API에는 `useYn`이 없다. 사용 중 국가만 화면에서 고른다. `nationListParams`는 바꾸지 않았다.
+- 플랫폼과 테넌트는 빌드가 하나다. `/org/company`는 그 라우트에 있고, 플랫폼 사용자는 `areaForbidden`으로 들어가지 못한다. 회사 API 모듈은 `services/mdm`에 둔다.
+
 

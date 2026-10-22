@@ -40,6 +40,12 @@ export default [
     component: './mdm/language',
   },
   {
+    path: '/org/company',
+    name: 'company',
+    hideInMenu: true,
+    component: './org/company',
+  },
+  {
     path: '/welcome',
     name: 'welcome',
     icon: 'home',

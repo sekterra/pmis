@@ -198,8 +198,10 @@ describe('server menu', () => {
       ['다국어', '/mdm/i18n'],
       ['언어·국가', '/mdm/language'],
       ['공통코드', '/mdm/common-code'],
+      ['회사', '/org/company'],
     ]);
-    expect(buildSideMenu([system, company], (key) => key)).toEqual([]);
+    const unknown = menu({ menuCode: 'NOT_A_SCREEN', menuName: '없는메뉴', sortOrder: 40 });
+    expect(buildSideMenu([system, unknown], (key) => key)).toEqual([]);
   });
 
   it('uses the local name for a secondary screen and refreshes the server name', () => {

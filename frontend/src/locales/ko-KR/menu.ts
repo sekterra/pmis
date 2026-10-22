@@ -3,6 +3,7 @@ export default {
   'menu.commonCode': '공통코드',
   'menu.i18n': '다국어',
   'menu.language': '언어·국가',
+  'menu.org.company': '회사',
   'menu.tenants': '테넌트 관리',
   'menu.login': '로그인',
   'menu.exception': '예외',

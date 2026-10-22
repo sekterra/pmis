@@ -3,6 +3,7 @@ export default {
   'menu.commonCode': 'Common codes',
   'menu.i18n': 'Messages',
   'menu.language': 'Languages',
+  'menu.org.company': 'Companies',
   'menu.tenants': 'Tenants',
   'menu.login': 'Login',
   'menu.exception': 'Exception',

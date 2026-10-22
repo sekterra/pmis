@@ -53,7 +53,12 @@ export function homePath(): string {
 
 export function areaForbidden(pathname: string): boolean {
   if (accessKind() === 'PLATFORM') {
-    return pathname === '/mdm' || pathname.startsWith('/mdm/');
+    return (
+      pathname === '/mdm' ||
+      pathname.startsWith('/mdm/') ||
+      pathname === '/org' ||
+      pathname.startsWith('/org/')
+    );
   }
   return pathname === '/tenants' || pathname.startsWith('/tenants/');
 }
