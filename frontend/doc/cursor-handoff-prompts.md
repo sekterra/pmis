@@ -638,3 +638,56 @@ A. F7 보완 (먼저 처리)
 검증: lint, antd lint, tsc, test, build. 개발 서버와 백엔드는 띄우지 않는다. 사용자가 직접 볼 항목(실제 서버로 조직도 보기, 부서 등록·수정·이동·종료·재개, 이력, 소속 인원, 기준일 변경, 권한이 적은 사용자, 사용감)만 frontend/doc/f8-manual-check.md 맨 위에 모으고 나머지는 자동 테스트 이름을 표시한다. 값(주소, 계정, 비밀번호)은 쓰지 않는다.
 진행 기록은 [F8단계] 형식으로 frontend/doc/cursor-progress.md 에 추가한다. 보고서는 "작업 방식"의 형식으로 docs/reports/F8.md 와 F8.diff 를 만든다. 커밋 메시지는 [F8] 요약. push 는 하지 않는다. 완료 후 멈춘다.
 ````
+
+---
+
+## F9단계: 사람 관리 화면 (목록 + Drawer 탭: 기본 정보·소속·프로필 이미지)
+
+F8 승인(`docs/reviews/2026-10-22-F8.md`). 사용자 결정(2026-10-22): 사람 상세는 오른쪽 Drawer + 탭이고 프로필 이미지는 이 단계에 포함한다. 와이어프레임은 `frontend/doc/org-screens-wireframe.md` 4절로 합의했다. 이 단계만 수행하고 멈춘다.
+
+````
+기준 문서: frontend/doc/org-screens-wireframe.md (1절 공통 규칙, 4절 사람), backend/common/doc/api/mdm-api.md "조직·사람"의 사람·소속 절과 오류 표, "파일·팀"의 업로드·프로필 이미지 절. 응답 필드명은 명세와 백엔드 DTO(backend/common 의 org 패키지 PersonResponse 등, file 패키지 dto)를 대조해 정확히 맞추고, 다르면 DTO 를 따르되 보고서 "질문"에 올린다. 현재 코드 src/pages/org/company, src/pages/org/dept(트리·탭·Drawer 패턴), src/pages/org/shared, src/services/mdm/people.ts(F8 의 최소 함수), src/core/codes, src/core/request, src/core/menu/menuRoutes.ts. 구현 전에 frontend/doc/f9-wireframe.md 에 목록 컬럼, Drawer 탭별 필드와 표시 조건, 소속 폼 규칙, 프로필 이미지 흐름, 오류 문구 매핑을 텍스트로 정리한다. org-screens-wireframe.md 와 다른 점이 있으면 구현 전에 멈추고 "질문"에 올린다.
+
+A. F8 보완 (먼저 처리)
+ 1. 부서 화면의 이력·소속 인원 조회(src/pages/org/dept/index.tsx)에 응답 도착 시점 검사를 넣는다. 부서를 빠르게 바꾸거나 페이지를 넘길 때 늦게 도착한 이전 응답이 화면을 덮으면 안 된다(요청 시작 시 키를 저장해 두고 도착 시 현재 키와 같을 때만 반영하거나 alive 플래그를 쓴다. 기존 dedupe 키 방식은 유지). 이 케이스를 테스트에 추가한다(느린 응답 → 부서 변경 → 이전 응답이 도착해도 화면은 새 부서 데이터).
+ 2. 부서 이력 변경 유형 문구(CHANGE_LABELS)의 한글 기본값을 i18n 로컬 번들 키로 완전히 옮긴다(키는 이미 text() 호출이 쓰고 있으니 번들에 ko-KR/en-US 값이 있는지 확인하고 없으면 추가한다).
+
+1. 서비스와 타입 (src/services/mdm)
+ - people.ts 확장(F8 의 최소 함수를 유지): 목록(GET /people), 상세, 등록, 수정, 삭제, 복구. 소속: 목록(GET /people/{personPk}/assignments), 등록, 수정(PUT /person-assignments/{assignmentPk}), 삭제, 종료(POST .../end), 복구(POST .../restore). 타입은 peopleRecord.d.ts 에 명세와 같은 필드명으로. 목록 쿼리: page, size, sort(personName, email, personPk), keyword, companyCode, deptPk, employmentTypeCode, assignmentStatusCode, useYn. 목록 항목에는 주 소속 요약(primaryAssignment)이 있고 없으면 null. 상세에는 translations 와 현재 소속 목록이 있다.
+ - 프로필 이미지: files.ts(업로드 POST /files multipart 필드 file, 응답의 filePk 사용), PUT/DELETE/GET /people/{personPk}/profile-image. 업로드는 core/request 의 방식에 맞게 FormData 로 보내고 Content-Type 헤더는 브라우저가 정하게 둔다(수동으로 multipart 헤더를 쓰지 않는다). 기존 core/request 가 FormData 를 지원하지 않으면 최소한으로 확장하고 보고한다.
+ - 프로필 이미지 보기: GET .../profile-image 는 Authorization 헤더가 필요해서 <img src> 로 직접 쓸 수 없다. 응답을 blob 으로 받아 URL.createObjectURL 로 보여 주고, 사람을 바꾸거나 Drawer 를 닫거나 이미지를 바꿀 때 URL.revokeObjectURL 로 정리한다. 404 FILE.NOT_FOUND 는 "사진 없음" 상태로 처리한다(오류 알림 아님). 목록에서는 hasProfileImage 로 사진 유무 표시만 하고(작은 아이콘 또는 표시), 목록 행마다 이미지를 내려받지 않는다.
+ - 회사/부서/코드 옵션은 F7·F8 의 서비스와 useCodeOptions 를 재사용한다.
+
+2. 메뉴·라우트
+ - menuRoutes.ts: PERSON → /org/person (primary). config/routes.ts 에 /org/person 추가, 플랫폼 영역 차단에 포함되는지 확인하고 테스트에 넣는다.
+ - 권한: 메뉴 PERSON, READ/CREATE/UPDATE/DELETE. 복구는 UPDATE. 소속 추가·수정·종료·삭제·복구도 PERSON 의 UPDATE 로 판단한다(명세의 소속 API 권한을 확인해 다르면 명세를 따르고 보고). 프로필 이미지 설정·삭제는 PERSON:UPDATE 이고 업로드는 FILE:CREATE 도 필요하다. FILE:CREATE 가 없으면 이미지 올리기 버튼을 숨기거나 비활성으로 하고 이유 안내를 한 줄 보인다.
+ - F8 부서 화면의 소속 인원 탭에서 행 클릭 시 /org/person?personPk= 로 이동하는 연결을 이 단계에서 만든다(PERSON:READ 가 있을 때만). 사람 화면은 ?personPk= 쿼리가 있으면 그 사람의 Drawer 를 바로 연다.
+
+3. 목록 화면 (src/pages/org/person)
+ - 검색: keyword(이름·이메일·휴대전화·사원번호), 회사 Select, 부서 선택(선택한 회사의 부서. tree API 로 받아 Select 또는 TreeSelect 로. 회사를 먼저 고르기 전에는 비활성), 고용 유형(useCodeOptions('EMPLOYMENT_TYPE')), 재직 상태('ASSIGNMENT_STATUS'), 사용 여부(전체는 파라미터 없음). [조회] [초기화].
+ - 표 열: 이름, 이메일, 휴대전화, 회사, 부서, 직위('POSITION' 코드 이름, 값이 없으면 코드 그대로 또는 '-'), 사원번호, 재직 상태, 사진 유무, 사용 여부. 회사·부서·직위·사원번호·재직 상태는 모두 주 소속 요약 값이고 주 소속이 없으면 '-'. 서버 페이징·정렬(이름, 이메일). 사용 중지 행은 흐리게. 행 클릭 또는 [상세]로 Drawer 를 연다. [+ 사람 등록] 버튼(CREATE).
+
+4. Drawer (넓은 폭, 탭 2개)
+ - 등록 모드: 기본 정보 탭만 활성(소속·프로필 이미지는 저장 후 사용 가능하다는 안내). 저장하면 같은 Drawer 가 수정 모드로 전환되고 소속 탭이 열린다.
+ - 탭 1 기본 정보: 이름(필수), 이메일(형식만 검사. 서버 오류가 오면 칸에 표시), 휴대전화, 이름 번역 표(NameTranslations 재사용). 그 밖에 상세 응답에 있고 수정 API 가 받는 필드는 화면에 없어도 상세 값을 다시 실어 보낸다(F7·F8 방식). 프로필 이미지 영역: 현재 이미지(blob), [이미지 올리기](파일 선택. 클라이언트에서 확장자 png/jpg/jpeg/gif/webp 와 크기 상한 안내만 가볍게 검사하고, 최종 판정은 서버 오류 FILE.EXTENSION_NOT_ALLOWED / MIME_MISMATCH / TOO_LARGE / NOT_IMAGE 문구를 그대로 보여 준다), [이미지 삭제]. 올리기 = 업로드 후 PUT profile-image 를 순서대로 호출하고, 두 번째 호출이 실패하면 올린 파일이 TEMP 로 남는다는 점을 오류 문구에 쓰지 말고(사용자에게 의미 없음) 조용히 둔다(정리는 서버 스케줄러 몫). 연타 방지.
+ - 탭 2 소속: 목록(과거 포함, 시작일 내림차순, 사용 여부 필터). 열: 회사, 부서, 고용 유형, 직위, 직책, 사원번호, 기간(시작~종료), 주 소속, 부서장, 재직 상태, 사용 여부, 작업(수정/종료/삭제/복구). [+ 소속 추가].
+ - 소속 폼(작은 모달 또는 중첩 Drawer): 회사(필수, 사용 중), 부서(선택한 회사의 사용 중 부서. 회사를 바꾸면 부서를 비운다), 고용 유형, 재직 상태, 직위, 직책, 사원번호, 시작일(필수), 종료일(시작일 이상), 부서장 여부(부서가 있을 때만 켤 수 있음), 주 소속 여부. 규칙: 첫 현재 소속은 서버가 주 소속으로 만든다는 안내(체크 비활성 + 문구는 이 사람의 현재 소속이 없을 때), 다른 소속을 주 소속으로 바꾸면 기존 주 소속이 해제된다는 안내 한 줄, 재직 상태가 퇴직(RESIGNED)이면 종료일 필수(폼에서 먼저 검사), 부서 없이 부서장 불가. 코드 값 Select 가 비어 있으면(POSITION, JOB_TITLE 은 시드 값이 없을 수 있다) 비활성 + "공통코드에서 값을 먼저 등록하세요" 안내.
+ - 종료: 종료일(기본 오늘)과 재직 상태(기본 RESIGNED)를 받는 작은 대화상자. 이미 종료된 소속에는 버튼을 숨긴다. 사용 중지된 소속은 종료 대신 복구 후 종료하라는 서버 메시지(ASSIGNMENT.INACTIVE)를 그대로 보여 준다.
+ - 서버 오류 매핑: ASSIGNMENT.DUPLICATE / EMPLOYEE_NO_DUPLICATE → 사원번호 또는 부서 칸 근처, ASSIGNMENT.DEPT_COMPANY_MISMATCH / DEPT_INACTIVE → 부서 칸, COMPANY_INACTIVE → 회사 칸, INVALID_DATE → 날짜 칸, DEPT_HEAD_REQUIRES_DEPT → 부서장 칸, RESIGNED_REQUIRES_END → 종료일 칸, ORG.INVALID_CODE_VALUE 와 fieldErrors 는 해당 칸. 나머지는 서버 errorMessage 알림.
+ - 사람 삭제/복구: 헤더의 [삭제](DELETE) / [복구](UPDATE). 삭제 거절(PERSON.HAS_ACTIVE_ASSIGNMENT, PERSON.HAS_ACCOUNT)은 서버 메시지를 그대로 보여 준다. 사용 중지 사람은 소속 추가·수정과 이미지 변경을 막고(버튼 숨김) 안내한다(서버는 PERSON.INACTIVE).
+
+5. 문구는 모두 i18n 키(ko-KR/en-US 로컬 번들, menu.org.person 포함). 서버 errorMessage 우선 규칙 유지.
+
+6. 만들지 않는 것: 사용자 계정 연결·생성 화면(읽기 전용 표시도 하지 않는다), 첨부 파일 탭, 파일 관리 화면, 팀 화면, 대량 가져오기·내보내기, 소속 이동 전용 흐름, 사진 자르기·편집, 새 라이브러리, 기존 공통코드·다국어 화면 수정.
+
+테스트(vitest, 서비스 목, 실제 네트워크 호출 0건을 매 테스트 뒤 확인):
+ (a) 서비스: 목록 쿼리(전체 useYn 생략, 정렬 화이트리스트), 등록·수정 본문(빈 값 null, 번역 변환), 소속 본문(부서 없음 → null, 종료 본문 기본값), 업로드 FormData 구성(필드명 file, 수동 Content-Type 없음)
+ (b) 규칙: 소속 폼 검증(퇴직 → 종료일 필수, 부서 없이 부서장 불가, 날짜 순서), 첫 소속 안내 조건, 오류 → 칸 매핑
+ (c) 프로필 이미지: 올리기 = 업로드 → PUT 순서, 업로드 실패 시 PUT 호출 없음, blob URL 생성·해제(Drawer 닫기, 사람 변경), 404 는 사진 없음 상태, FILE:CREATE 없을 때 올리기 숨김
+ (d) 화면 흐름: 검색 → 목록 → 등록(저장 후 수정 모드 전환·소속 탭 활성) → 소속 추가(첫 소속 주 소속 안내) → 주 소속 변경 안내 → 종료 대화상자 → 복구, 사람 삭제 거절 메시지, 권한별 버튼(READ 만 / 모두), 직접 접근 가드, 플랫폼 영역 차단, ?personPk= 로 Drawer 자동 열기
+ (e) 부서 화면: 소속 인원 행 클릭 → /org/person?personPk= 이동(PERSON:READ 없으면 이동 없음), A 항목(늦게 도착한 응답이 화면을 덮지 않음)
+ 새 흐름 테스트 파일은 3회 반복 실행해 통과를 기록한다. 전체 테스트 시간이 길어지면(현재 약 260초) 느린 파일을 보고하고, 설정(fileParallelism, testTimeout)은 바꾸지 말고 제안만 한다.
+
+검증: lint, antd lint, tsc, test, build. 개발 서버와 백엔드는 띄우지 않는다. 사용자가 직접 볼 항목(실제 서버로 사람 등록·수정, 소속 추가·종료·주 소속 변경, 프로필 이미지 올리기·삭제·보기, 부서 화면에서 사람으로 이동, 권한이 적은 사용자, 사용감)만 frontend/doc/f9-manual-check.md 맨 위에 모으고 나머지는 자동 테스트 이름을 표시한다. 값(주소, 계정, 비밀번호)은 쓰지 않는다.
+진행 기록은 [F9단계] 형식으로 frontend/doc/cursor-progress.md 에 추가한다. 보고서는 "작업 방식"의 형식으로 docs/reports/F9.md 와 F9.diff 를 만든다. 커밋 메시지는 [F9] 요약. push 는 하지 않는다. 완료 후 멈춘다.
+````
