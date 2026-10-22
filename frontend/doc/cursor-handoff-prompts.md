@@ -585,3 +585,56 @@ F6 승인. 사용자 결정(2026-10-22): 조직 화면은 회사(F7) → 부서(
 검증: lint, antd lint, tsc, test, build, build:platform. 개발 서버와 백엔드는 띄우지 않는다. 사용자가 직접 볼 항목(실제 서버로 목록·등록·수정·삭제·복구, 상위 회사 선택, 번역 입력, 메뉴 노출, 권한이 적은 사용자의 버튼, 사용감)만 frontend/doc/f7-manual-check.md 맨 위에 모으고 나머지는 자동 테스트 이름을 표시한다. 값(주소, 계정, 비밀번호)은 쓰지 않는다.
 진행 기록은 [F7단계] 형식으로 frontend/doc/cursor-progress.md 에 추가한다. 보고서는 "작업 방식"의 형식으로 docs/reports/F7.md 와 F7.diff 를 만든다. 커밋 메시지는 [F7] 요약. push 는 하지 않는다. 완료 후 멈춘다.
 ````
+
+---
+
+## F8단계: 부서 관리 화면 (조직도 트리 + 상세 탭)
+
+F7 승인(`docs/reviews/2026-10-22-F7.md`). 사용자 결정(2026-10-22): 부서 화면은 왼쪽 조직도 트리 + 오른쪽 상세 탭(기본 정보, 변경 이력, 소속 인원)이다. 와이어프레임은 `frontend/doc/org-screens-wireframe.md` 3절로 합의했다. 이 단계만 수행하고 멈춘다.
+
+````
+기준 문서: frontend/doc/org-screens-wireframe.md (1절 공통 규칙, 3절 부서), backend/common/doc/api/mdm-api.md "조직·사람"의 부서·이력·사람 목록(deptPk 필터) 절과 오류 표. 응답 필드명은 명세와 백엔드 DTO(backend/common 의 org 패키지 dto)를 대조해 정확히 맞추고, 명세와 DTO 가 다르면 DTO 를 따르되 보고서 "질문"에 올린다. 현재 코드 src/pages/org/company(구조·Drawer·rules), src/pages/org/shared, src/core/codes, src/core/menu/menuRoutes.ts, src/services/mdm/company*.ts, config/routes.ts. 구현 전에 frontend/doc/f8-wireframe.md 에 트리 표시 규칙, 탭별 내용, Drawer 필드와 표시 조건, 오류 문구 매핑을 텍스트로 정리한다. org-screens-wireframe.md 와 다른 점이 있으면 구현 전에 멈추고 "질문"에 올린다.
+
+A. F7 보완 (먼저 처리)
+ 1. useCodeOptions 캐시(src/core/codes): 로그아웃, 401 로 인한 로그인 이동, 다른 탭 로그아웃 수신, 언어 변경(해당 언어 번역이 응답에 이미 모두 있으면 불필요하니 그렇게 확인하고 근거를 적는다) 때 resetCodeOptionsCache() 가 호출되게 연결한다. 다른 테넌트나 다른 사용자로 로그인했을 때 이전 코드 목록이 보이면 안 된다. 테스트 추가(로그아웃 후 재호출 시 서비스가 다시 불린다).
+ 2. 회사 화면의 오류 문구(src/pages/org/company/rules.ts 의 LOCAL_ERRORS)를 로컬 번들 i18n 키로 옮긴다(ko-KR/en-US). 서버 errorMessage 우선 규칙은 그대로. 부서 화면은 처음부터 i18n 키를 쓴다.
+
+1. 서비스와 타입 (src/services/mdm)
+ - dept.ts / deptQuery.ts / deptRecord.d.ts: 부서 트리(GET /departments/tree?companyCode=&asOfDate=&includeClosed=), 목록(GET /departments, 필요한 곳에서만), 상세, 등록, 수정, 삭제(종료), 복구(재개), 이력(GET /departments/{deptPk}/history, 서버 페이징). 사람 목록 조회 서비스(GET /people)는 F9 에서 본격적으로 만들기 때문에, 여기서는 deptPk 로 거른 목록을 읽는 최소 함수만 둔다(people.ts, 이름·직위·재직 상태에 필요한 필드만 타입에 둔다. F9 에서 확장).
+ - 등록·수정 본문: 수정에는 deptCode, 회사가 없다. 빈 값은 null. 날짜는 'YYYY-MM-DD'. 번역은 입력한 언어만.
+ - 회사 목록 Select 용으로 F7 의 회사 목록 서비스를 재사용한다(useYn=Y, size 200).
+
+2. 메뉴·라우트
+ - menuRoutes.ts: DEPT → /org/dept (primary). config/routes.ts 에 /org/dept 추가. 플랫폼 영역 차단 목록(areaForbidden)에 포함돼 있는지 확인하고 테스트에 넣는다.
+ - 권한: 메뉴 DEPT, READ/CREATE/UPDATE/DELETE. 복구(재개)는 UPDATE. 사람 소속 인원 탭은 PERSON:READ 가 있을 때만 내용을 보이고, 없으면 "조회 권한이 없습니다" 안내를 보인다(탭 자체는 보인다).
+
+3. 화면 (src/pages/org/dept)
+ - 상단: 회사 Select(필수, 사용 중 회사. 기본값은 목록의 첫 회사. 선택은 URL 쿼리 ?company= 로 유지), 기준일 DatePicker(기본 오늘, 비우면 서버 기본), "종료된 부서 포함" 체크, [조회]. 회사가 하나도 없으면 "회사를 먼저 등록하세요" 안내.
+ - 왼쪽 트리: tree API 결과(전위 순회 배열)를 deptPath 로 중첩 변환한다. 변환 함수는 순수 함수로 두고 테스트한다(부모가 결과에 없으면 최상위로, 순서 유지). 노드 표시: 부서명 + 코드, 종료된 부서는 회색 + "종료" 표시. 선택한 부서는 URL 쿼리 ?dept= 로 유지한다. 맨 아래 [+ 최상위 부서] 버튼(CREATE). 트리는 기본 전체 펼침이 아니라 2레벨까지 펼침, 선택 노드의 조상은 펼친다.
+ - 오른쪽 상단: 선택 부서 이름, [하위 부서 추가](CREATE, 종료된 부서에는 숨김), [수정](UPDATE), [종료](DELETE), 종료된 부서는 [재개](UPDATE). 부서를 선택하기 전에는 안내 문구.
+ - 탭 1 기본 정보: 읽기 화면(코드, 회사, 유형(코드 이름), 상위 부서, 유효기간, 레벨, 정렬, 이름 번역 목록, 사용 여부). 상세 API 로 채운다.
+ - 탭 2 변경 이력: 서버 페이징 표. 열: 변경 유형(CREATE/RENAME/MOVE/CLOSE/REOPEN 을 문구로), 적용일, 변경 전→후 이름, 변경 전→후 상위 부서(PK 만 오면 PK 로 표시하고 이름 조회 API 가 없다는 점을 보고), 사유, 변경 시각. 수정·삭제 버튼 없음. 탭을 처음 열 때만 호출하고 부서가 바뀌면 다시 호출한다.
+ - 탭 3 소속 인원: GET /people?deptPk= 서버 페이징 표(이름, 직위, 재직 상태). 행 클릭 이동은 사람 화면(F9)이 생기기 전이라 만들지 않는다. 주 소속 기준이라는 안내 문구를 둔다.
+
+4. Drawer (등록/수정)
+ - 필드: 부서 코드(등록만. 회사는 상단 선택값을 사용하고 화면에 읽기 전용으로 표시), 부서명(필수), 부서 유형(useCodeOptions('DEPT_TYPE')), 상위 부서(트리 선택. 같은 회사의 사용 중 부서만, 수정 시 자기 자신과 하위는 선택 불가. "하위 부서 추가"로 열면 상위가 미리 채워진다), 정렬 순서, 유효 시작일(등록 기본 오늘), 유효 종료일(시작일 이상 검증), 이름 번역 표(F7 의 NameTranslations 재사용).
+ - 수정에서 이름 또는 상위 부서가 바뀌면 "적용일(기본 오늘)"과 "변경 사유(선택)" 칸을 보인다. 바뀌지 않으면 보이지 않고 보내지도 않는다. 두 가지가 동시에 바뀌면 이력이 두 줄 남는다는 안내를 한 줄 넣는다.
+ - 종료: 확인창에 "종료일이 오늘로 설정되고 이력이 남습니다"를 적는다. 거절 사유(DEPT.HAS_CHILD, DEPT.HAS_ACTIVE_ASSIGNMENT)는 서버 메시지를 그대로 보여 준다. 재개 거절(DEPT.PARENT_INACTIVE)도 같다.
+ - 서버 오류 매핑: DEPT.DUPLICATE → 부서 코드 칸, DEPT.PARENT_CYCLE / PARENT_COMPANY_MISMATCH / PARENT_INACTIVE → 상위 부서 칸, DEPT.INVALID_DATE → 날짜 칸, 그 밖의 fieldErrors 는 해당 칸. 저장 중 버튼 비활성(연타 방지).
+ - 저장·종료·재개 뒤에는 트리를 다시 불러오고 선택 부서를 유지한다(종료로 사라지는 경우 포함 옵션이 꺼져 있으면 선택을 비운다).
+
+5. 문구는 모두 i18n 키(ko-KR/en-US 로컬 번들, menu.org.dept 포함). 
+
+6. 만들지 않는 것: 사람 화면과 사람 상세 이동, 드래그로 부서 이동, 조직도 이미지 내보내기, 부서 첨부 파일, 변경 이력의 이름 조회, 새 라이브러리, 기존 공통코드·다국어 화면 수정.
+
+테스트(vitest, 서비스 목, 실제 네트워크 호출 0건을 매 테스트 뒤 확인):
+ (a) 트리 변환(부모 누락, 순서, 종료 노드 표시), 조상 펼침 계산
+ (b) 서비스: tree/history/people 쿼리 파라미터, 등록·수정 본문(코드·회사 없음, 이름·상위가 바뀔 때만 적용일·사유 포함, 빈 값 null)
+ (c) 규칙: 유효기간 검증, 상위 부서 선택 불가 계산(자기·하위), 오류 → 칸 매핑
+ (d) 화면 흐름: 회사 선택 → 트리 → 부서 선택 → 탭 3개 호출 시점 → 하위 부서 추가(상위 미리 채움) → 수정(이름만 바뀜: 적용일·사유 표시) → 종료 확인 → 재개, 서버 409 문구, 권한별 버튼(READ 만 / 모두), PERSON:READ 없을 때 소속 인원 탭 안내, 직접 접근 가드, 플랫폼 영역 차단
+ (e) A 항목: 로그아웃 뒤 코드 캐시 재조회, 회사 오류 문구 i18n
+ 새 흐름 테스트 파일은 3회 반복 실행해 통과를 기록한다.
+
+검증: lint, antd lint, tsc, test, build. 개발 서버와 백엔드는 띄우지 않는다. 사용자가 직접 볼 항목(실제 서버로 조직도 보기, 부서 등록·수정·이동·종료·재개, 이력, 소속 인원, 기준일 변경, 권한이 적은 사용자, 사용감)만 frontend/doc/f8-manual-check.md 맨 위에 모으고 나머지는 자동 테스트 이름을 표시한다. 값(주소, 계정, 비밀번호)은 쓰지 않는다.
+진행 기록은 [F8단계] 형식으로 frontend/doc/cursor-progress.md 에 추가한다. 보고서는 "작업 방식"의 형식으로 docs/reports/F8.md 와 F8.diff 를 만든다. 커밋 메시지는 [F8] 요약. push 는 하지 않는다. 완료 후 멈춘다.
+````
