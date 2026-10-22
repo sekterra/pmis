@@ -25,6 +25,7 @@ const listGroupCodes = vi.hoisted(() => vi.fn());
 const rawRequest = vi.hoisted(() => vi.fn());
 const fetchMock = vi.hoisted(() => vi.fn());
 const replace = vi.hoisted(() => vi.fn());
+const push = vi.hoisted(() => vi.fn());
 const accessBag = vi.hoisted(() => ({
   can: (_menu: string, _action: string): boolean => true,
 }));
@@ -43,11 +44,20 @@ vi.mock('@ant-design/pro-components', () => {
 
 vi.mock('@umijs/max', () => ({
   useIntl: () => ({
-    formatMessage: ({ defaultMessage, id }: { defaultMessage?: string; id: string }) => defaultMessage ?? id,
+    formatMessage: ({ defaultMessage, id }: { defaultMessage?: string; id: string }) => {
+      const labels: Record<string, string> = {
+        'pages.org.dept.change.CREATE': '생성',
+        'pages.org.dept.change.RENAME': '개명',
+        'pages.org.dept.change.MOVE': '이동',
+        'pages.org.dept.change.CLOSE': '종료',
+        'pages.org.dept.change.REOPEN': '재개',
+      };
+      return defaultMessage || labels[id] || id;
+    },
   }),
   useAccess: () => ({ can: (menu: string, action: string) => accessBag.can(menu, action) }),
   useLocation: () => ({ pathname: '/org/dept', search: '' }),
-  history: { replace },
+  history: { replace, push },
 }));
 
 vi.mock('@/services/mdm/company', () => ({
@@ -153,6 +163,7 @@ describe('department page', () => {
   beforeEach(() => {
     accessBag.can = () => true;
     replace.mockReset();
+    push.mockReset();
     listCompanies.mockReset();
     listDepartmentTree.mockReset();
     getDepartment.mockReset();
@@ -267,6 +278,66 @@ describe('department page', () => {
     await screen.findByText('홍길동');
     expect(listPeople).toHaveBeenCalledWith({ deptPk: 2, page: 1, size: 20 });
     expect(screen.getByText('주 소속 기준입니다.')).toBeTruthy();
+    fireEvent.click(screen.getByText('홍길동'));
+    expect(push).toHaveBeenCalledWith('/org/person?personPk=7');
+  });
+
+  it('keeps the newer department when an older history response arrives late', async () => {
+    let resolveFirst: (value: unknown) => void = () => undefined;
+    listDepartmentHistory.mockReset();
+    listDepartmentHistory.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveFirst = resolve;
+        }),
+    );
+    listDepartmentHistory.mockResolvedValueOnce({
+      items: [
+        {
+          historyPk: 2,
+          deptPk: 1,
+          changeTypeCode: 'CREATE',
+          effectiveDate: '2026-01-01',
+          beforeDeptName: '본사',
+          afterDeptName: '본사후',
+          beforeParentDeptPk: null,
+          afterParentDeptPk: null,
+          changeReason: null,
+          changeDatetime: '2026-01-01T00:00:00',
+          changeUserPk: null,
+        },
+      ],
+      total: 1,
+      page: 1,
+      size: 20,
+    });
+    await openDevelopment();
+    fireEvent.click(screen.getByRole('tab', { name: '변경 이력' }));
+    await waitFor(() => expect(listDepartmentHistory).toHaveBeenCalledWith(2, { page: 1, size: 20 }));
+    fireEvent.click(screen.getByText('본사 HQ'));
+    resolveFirst({
+      items: [
+        {
+          historyPk: 1,
+          deptPk: 2,
+          changeTypeCode: 'RENAME',
+          effectiveDate: '2026-02-01',
+          beforeDeptName: '늦은',
+          afterDeptName: '늦은개발',
+          beforeParentDeptPk: 1,
+          afterParentDeptPk: 1,
+          changeReason: null,
+          changeDatetime: '2026-02-01T00:00:00',
+          changeUserPk: null,
+        },
+      ],
+      total: 1,
+      page: 1,
+      size: 20,
+    });
+    fireEvent.click(screen.getByRole('tab', { name: '변경 이력' }));
+    expect(await screen.findByText('본사 → 본사후')).toBeTruthy();
+    expect(screen.queryByText('늦은 → 늦은개발')).toBeNull();
   });
 
   it('adds a child with the parent filled and sends an effective date when the name changes', async () => {
@@ -373,6 +444,7 @@ describe('department page', () => {
     fireEvent.click(screen.getByRole('tab', { name: '소속 인원' }));
     expect(screen.getByText('조회 권한이 없습니다.')).toBeTruthy();
     expect(listPeople).not.toHaveBeenCalled();
+    expect(push).not.toHaveBeenCalled();
   });
 
   it('blocks a direct visit without read and keeps the department route out of the platform area', () => {

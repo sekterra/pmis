@@ -95,6 +95,23 @@ export function toFormFields(fieldErrors?: FieldErrorItem[] | null) {
   }));
 }
 
+export async function toBlobApiError(source: unknown): Promise<ApiError> {
+  const response =
+    source && typeof source === 'object' && 'response' in source
+      ? (source as { response?: { data?: unknown; status?: number } }).response
+      : undefined;
+  const data = response?.data;
+  if (typeof Blob !== 'undefined' && data instanceof Blob) {
+    try {
+      const parsed = JSON.parse(await data.text()) as unknown;
+      return toApiError({ response: { data: parsed, status: response?.status } });
+    } catch {
+      return toApiError(source);
+    }
+  }
+  return toApiError(source);
+}
+
 export function unwrapData<T>(
   body: unknown,
   options?: { wrapped?: boolean },

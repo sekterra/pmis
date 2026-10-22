@@ -52,6 +52,12 @@ export default [
     component: './org/dept',
   },
   {
+    path: '/org/person',
+    name: 'person',
+    hideInMenu: true,
+    component: './org/person',
+  },
+  {
     path: '/welcome',
     name: 'welcome',
     icon: 'home',

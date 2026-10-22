@@ -1,7 +1,7 @@
 import type { RequestConfig } from '@umijs/max';
 import { request } from '@umijs/max';
 import { getAccessToken } from '@/core/auth/token';
-import { type ApiError, presentError, toApiError, unwrapData } from './errors';
+import { ApiError, presentError, toApiError, toBlobApiError, unwrapData } from './errors';
 import { getFeedback } from './feedback';
 
 type RetryRunner = () => Promise<string | null>;
@@ -22,6 +22,19 @@ export function registerRequestRuntime(handlers: {
   goLogin = handlers.goLogin;
   goPassword = handlers.goPassword;
   onAccountDisabled = handlers.onAccountDisabled;
+}
+
+export function headersForBody(
+  headers: Record<string, string> | undefined,
+  data: unknown,
+): Record<string, string> | undefined {
+  if (!(typeof FormData !== 'undefined' && data instanceof FormData) || !headers) {
+    return headers;
+  }
+  const next = { ...headers };
+  delete next['Content-Type'];
+  delete next['content-type'];
+  return next;
 }
 
 function isPublicAuth(url: string): boolean {
@@ -62,7 +75,9 @@ export function createRequestConfig(): RequestConfig {
         url?: string;
         headers?: Record<string, string>;
         skipAuth?: boolean;
+        data?: unknown;
       }) => {
+        config.headers = headersForBody(config.headers, config.data);
         const url = config.url ?? '';
         const token = getAccessToken();
         if (token && !config.skipAuth && !isPublicAuth(url)) {
@@ -130,5 +145,23 @@ export async function rawRequest<T>(
     });
   } catch (error) {
     throw toApiError(error);
+  }
+}
+
+export async function rawBlob(url: string): Promise<Blob> {
+  try {
+    const payload = await request(url, {
+      responseType: 'blob',
+      skipErrorHandler: true,
+    });
+    if (payload instanceof Blob) {
+      return payload;
+    }
+    throw new ApiError('Request failed');
+  } catch (error) {
+    if (error instanceof ApiError) {
+      throw error;
+    }
+    throw await toBlobApiError(error);
   }
 }

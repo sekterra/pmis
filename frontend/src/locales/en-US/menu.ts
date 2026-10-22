@@ -5,6 +5,7 @@ export default {
   'menu.language': 'Languages',
   'menu.org.company': 'Companies',
   'menu.org.dept': 'Departments',
+  'menu.org.person': 'People',
   'menu.tenants': 'Tenants',
   'menu.login': 'Login',
   'menu.exception': 'Exception',

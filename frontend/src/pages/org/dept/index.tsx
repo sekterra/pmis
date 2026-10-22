@@ -40,14 +40,6 @@ function toTreeData(nodes: DeptNode[], closedText: string): DataNode[] {
   }));
 }
 
-const CHANGE_LABELS: Record<string, string> = {
-  CREATE: '생성',
-  RENAME: '개명',
-  MOVE: '이동',
-  CLOSE: '종료',
-  REOPEN: '재개',
-};
-
 function readQuery(search: string): { company: string; dept?: number } {
   const params = new URLSearchParams(search);
   const dept = Number(params.get('dept'));
@@ -208,12 +200,22 @@ const DeptPage: React.FC = () => {
       return;
     }
     historyKey.current = key;
+    let alive = true;
     listDepartmentHistory(selectedPk, { page: historyPage, size: 20 })
       .then((result) => {
-        setHistoryRows(result.items);
-        setHistoryTotal(result.total);
+        if (alive && historyKey.current === key) {
+          setHistoryRows(result.items);
+          setHistoryTotal(result.total);
+        }
       })
-      .catch((error: unknown) => failRef.current(error));
+      .catch((error: unknown) => {
+        if (alive && historyKey.current === key) {
+          failRef.current(error);
+        }
+      });
+    return () => {
+      alive = false;
+    };
   }, [tab, selectedPk, historyPage, reload]);
 
   useEffect(() => {
@@ -225,12 +227,22 @@ const DeptPage: React.FC = () => {
       return;
     }
     peopleKey.current = key;
+    let alive = true;
     listPeople({ deptPk: selectedPk, page: peoplePage, size: 20 })
       .then((result) => {
-        setPeopleRows(result.items);
-        setPeopleTotal(result.total);
+        if (alive && peopleKey.current === key) {
+          setPeopleRows(result.items);
+          setPeopleTotal(result.total);
+        }
       })
-      .catch((error: unknown) => failRef.current(error));
+      .catch((error: unknown) => {
+        if (alive && peopleKey.current === key) {
+          failRef.current(error);
+        }
+      });
+    return () => {
+      alive = false;
+    };
   }, [tab, selectedPk, peoplePage, canPeople, reload]);
 
   const selectDept = (deptPk?: number) => {
@@ -282,8 +294,11 @@ const DeptPage: React.FC = () => {
     {
       title: text('pages.org.dept.historyType', '변경 유형'),
       dataIndex: 'changeTypeCode',
-      render: (value: string) =>
-        CHANGE_LABELS[value] ? text(`pages.org.dept.change.${value}`, CHANGE_LABELS[value]) : value,
+      render: (value: string) => {
+        const id = `pages.org.dept.change.${value}`;
+        const label = intl.formatMessage({ id });
+        return label === id ? value : label;
+      },
     },
     { title: text('pages.org.dept.effectiveDate', '적용일'), dataIndex: 'effectiveDate' },
     {
@@ -497,6 +512,13 @@ const DeptPage: React.FC = () => {
                             dataSource={peopleRows}
                             pagination={{ current: peoplePage, pageSize: 20, total: peopleTotal, showSizeChanger: false }}
                             onChange={(pagination) => setPeoplePage(pagination.current ?? 1)}
+                            onRow={(row) => ({
+                              onClick: () => {
+                                if (canPeople) {
+                                  history.push(`/org/person?personPk=${row.personPk}`);
+                                }
+                              },
+                            })}
                           />
                         </>
                       ) : (

@@ -12,6 +12,7 @@ export const MENU_ROUTES: MenuRoute[] = [
   { menuCode: 'I18N', path: '/mdm/language', labelKey: 'menu.language', primary: false },
   { menuCode: 'COMPANY', path: '/org/company', labelKey: 'menu.org.company', primary: true },
   { menuCode: 'DEPT', path: '/org/dept', labelKey: 'menu.org.dept', primary: true },
+  { menuCode: 'PERSON', path: '/org/person', labelKey: 'menu.org.person', primary: true },
 ];
 
 export function routeForPath(pathname: string): MenuRoute | undefined {

@@ -680,4 +680,49 @@ git: `frontend`와 `D:\_project\PMIS` 모두 저장소가 아니다. `git status
 - 트리는 `motion={false}`, `virtual={false}`다. 짧은 조직도가 펼친 뒤 바로 보이게 하기 위해서다.
 - 플랫폼과 테넌트는 빌드가 하나다. `/org/dept`는 그 라우트에 있고, 플랫폼 사용자는 기존 `areaForbidden`이 `/org/**`를 막는다.
 
+## [F9단계] 사람 관리 화면 - 2026-10-22
+
+### 변경/추가 파일
+
+- 추가: `src/pages/org/person`(목록, Drawer, 소속 폼, 프로필, 규칙, 흐름 테스트)
+- 추가: `doc/f9-wireframe.md`, `doc/f9-manual-check.md`
+- 확장: `src/services/mdm/people.ts`, `peopleQuery.ts`, `peopleRecord.d.ts`. 소속 API를 포함한다
+- 추가: `src/services/mdm/files.ts`. 업로드와 프로필 이미지
+- 수정: `src/core/request/runtime.ts`, `errors.ts`. FormData 의 수동 Content-Type 을 빼고, 이미지 응답은 blob 으로 받는다
+- 수정: `src/pages/org/dept/index.tsx`. 이력·소속 인원의 늦은 응답을 버리고, 변경 유형 문구는 번들 키만 쓴다. 소속 인원 행은 `/org/person?personPk=` 로 이동한다
+- 수정: `src/core/menu/menuRoutes.ts`에 `PERSON` → `/org/person`
+- 수정: `config/routes.ts`에 `/org/person`
+- 수정: `ko-KR`/`en-US`의 `menu.ts`, `pages.ts`에 사람 문구
+- 공통코드·다국어 화면과 백엔드는 수정하지 않았다. `vitest.config.ts` 는 바꾸지 않았다
+
+### 검증 결과
+
+- `npm.cmd run lint`: 통과. biome 167파일, 이어서 `tsc --noEmit`. 종료 코드 0
+- `npx.cmd antd lint ./src`: 통과. 177파일, 이슈 0
+- `src/pages/org/person/flow.test.tsx`를 3회 반복 실행했다. 매번 5개 통과(약 21초, 21초, 21초)
+- `npm.cmd test`: 통과. 46파일, 189개. 약 262초
+- `npm.cmd run build`: 통과. 종료 코드 0. 한 산출물에 `org/person`이 있다
+- `build:platform` 스크립트는 F6에서 제거되어 실행하지 않았다
+- 개발 서버와 백엔드는 띄우지 않았다
+
+### 질문/확인 필요
+
+- 합의 와이어프레임은 계정 연결을 이 화면에서 읽기만 한다고 했다. F9는 읽기 전용 표시도 하지 말라고 해서 계정 정보는 두지 않았다.
+- 소속 API 권한은 지시서의 "모두 UPDATE"와 다르다. 등록은 `PERSON:CREATE`, 수정·종료·복구는 `UPDATE`, 삭제는 `DELETE`다. 명세를 따랐다.
+- 프로필 설정 본문 필드는 `fileId`다. 업로드 응답의 `filePk`를 넣는다.
+- 사람 수정은 사무실 전화·설명을, 소속 수정은 설명을 상세 값으로 다시 보낸다. 화면 입력칸은 없다.
+- 같은 회사·부서의 현재 소속 중복은 부서 칸, 사원번호 중복은 사원번호 칸에 둔다.
+- 회사 Select는 사용 중 회사 첫 페이지(size 200)만 담는다.
+- 클라이언트 크기 검사는 문서의 기본 상한 50MB다. 저장소 한도가 더 작으면 서버 문구를 보여 준다.
+- 전체 테스트는 약 262초로 F8과 비슷하다. 사람 흐름 파일은 약 21초다. 테스트 설정은 바꾸지 않았다.
+- 사용자가 직접 볼 항목은 `doc/f9-manual-check.md` 맨 위에 모았다.
+
+### 가정한 사항
+
+- 목록·소속 표는 회사 화면과 같이 antd `Table`이다.
+- 고용 유형과 재직 상태는 API가 필수라 폼에서도 필수로 둔다.
+- 사진이 없다고 표시된 사람은 이미지 GET을 하지 않는다. 있다고 표시된 뒤 404면 사진 없음으로 둔다.
+- 부서 화면의 변경 유형 한글은 컴포넌트에 두지 않고 `ko-KR`/`en-US` 번들만 쓴다.
+- 플랫폼과 테넌트는 빌드가 하나다. `/org/person`은 그 라우트에 있고, 플랫폼 사용자는 기존 `areaForbidden`이 `/org/**`를 막는다.
+
 
