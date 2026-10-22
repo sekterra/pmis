@@ -538,3 +538,50 @@ F5 승인. 사용자 결정(2026-10-19): 관리자(플랫폼 운영자)와 일�
 8. 사용자 확인용으로 frontend/doc/f6-manual-check.md 를 만든다: (a) DEV_TENANT_CODE 설정 상태에서 테넌트 관리자·일반 사용자로 로그인해 같은 화면인지와 메뉴 차이, (b) DEV_TENANT_CODE 비움 상태에서 플랫폼 운영자 로그인과 "테넌트 관리" 메뉴, (c) 플랫폼 로그인 상태에서 /mdm/language 직접 입력 → 403, (d) 비밀번호 변경 강제 계정, (e) 서버를 끈 상태의 연결 안내. 접속 정보·비밀번호는 문서에 쓰지 않는다.
 9. 진행 기록은 frontend/doc/cursor-progress.md 에 [F6단계] 형식으로 추가하고, 보고서는 파일 앞의 "작업 방식" 형식(docs/reports/F6.md, F6.diff)으로 쓴다. 커밋은 `[F6] 요약` 한 개, push 는 하지 않는다.
 ````
+
+---
+
+## F7단계: 조직 화면 기반 + 회사 관리 화면
+
+F6 승인. 사용자 결정(2026-10-22): 조직 화면은 회사(F7) → 부서(F8) → 사람(F9) 순서로 만든다. 와이어프레임은 `frontend/doc/org-screens-wireframe.md` 로 합의했다(부서 = 트리 + 상세 탭, 사람 = 오른쪽 Drawer + 탭, 프로필 이미지는 F9). 이 단계는 회사 화면과 F8·F9 도 쓰는 조직 공통 기반만 만든다. 이 단계만 수행하고 멈춘다.
+
+````
+기준 문서: frontend/doc/org-screens-wireframe.md (1절 공통 규칙, 2절 회사), backend/common/doc/api/mdm-api.md 의 "조직·사람" 절(회사, 오류 표)과 코드 조회(/codes, /nations), 현재 코드 src/pages/mdm/common-code(화면·Drawer·rules 구조), src/core/menu(menuRoutes.ts, can), src/core/request(table.ts), config/routes.ts, src/locales. 명세에 없는 필드·동작은 만들지 말고 질문으로 올린다. 구현 전에 frontend/doc/f7-wireframe.md 에 회사 화면의 컬럼·검색·Drawer 필드·버튼 표시 조건·오류 문구 매핑을 텍스트로 정리한다. org-screens-wireframe.md 와 다른 점이 있으면 구현 전에 멈추고 보고서 "질문"에 올린다.
+
+1. 서비스와 타입 (src/services/mdm)
+   - org.ts(또는 company.ts): 회사 목록(GET /companies), 상세, 등록, 수정, 삭제, 복구. 타입은 data.d.ts 계열 파일에 명세와 같은 필드명으로 둔다: 목록·상세 응답(companyPk, companyCode, companyName, companyShortName, companyTypeCode, businessRegistrationNo, nationPk, nationCode, parentCompanyPk, parentCompanyCode, sortOrder, useYn 등 명세에 있는 것만. 상세만 translations), 등록·수정 요청(수정 본문에는 companyCode 없음). 목록 쿼리: page(1부터), size, sort, keyword, companyTypeCode, useYn. 허용 정렬 필드는 companyCode, companyName, sortOrder, companyPk.
+   - 국가 목록은 기존 /nations 서비스를 재사용한다(새로 만들지 않는다). 공통코드 옵션은 기존 코드 조회 서비스/훅을 재사용한다. 없으면 만든다: useCodeOptions(groupCode) 는 사용 중이고 유효기간 안인 코드만, 현재 언어 이름으로 Select 옵션(value=코드 값, label=이름)을 돌려주고 같은 그룹은 캐시한다. 이 훅은 F8·F9 도 쓰므로 src/core/codes 아래에 둔다(core 는 pages 를 import 하지 않는다).
+   - 컴포넌트에서 fetch/axios 를 직접 쓰지 않는다. 기존 src/core/request 를 쓴다.
+
+2. 조직 공통 컴포넌트 (src/components 또는 src/pages/mdm/org/shared 중 기존 구조에 맞는 쪽)
+   - 이름 번역 입력 표: 지원 언어(GET /i18n/languages, 화면 진입 때 1회)를 행으로 보여 주고 언어별 이름 입력. 값은 [{supportLanguageCode, text}] 로 주고받고, 비워 둔 언어는 요청에 넣지 않는다(서버는 요청에 없는 언어를 그대로 둔다). 기존 공통코드 화면의 언어별 이름 탭에 재사용 가능한 부분이 있어도 그 화면들은 수정하지 않는다. 새 공통 컴포넌트를 만들고, 기존 화면을 나중에 옮길 수 있다는 점만 보고서에 적는다.
+   - 사용 여부 필터 값 처리: 전체는 useYn 파라미터를 보내지 않고, 사용·중지는 Y/N 을 보낸다(명세: ALL 없음).
+   - 서버 오류 → 화면 반영 헬퍼: fieldErrors 는 해당 입력칸에, 그 밖의 업무 오류(409 등)는 서버 errorMessage 를 알림으로 보여 주고 없으면 로컬 문구. 기존 core/request 의 오류 처리와 겹치면 그것을 쓰고 중복을 만들지 않는다.
+
+3. 메뉴·라우트 연결
+   - src/core/menu/menuRoutes.ts 에 한 줄 추가: COMPANY → /org/company (primary). 새 화면의 부모 그룹은 서버 menus/my 의 parentMenuCode 로 정한다(F5 방식). 서버에서 COMPANY 의 부모가 무엇인지 코드로 가정하지 말고 응답대로 따른다.
+   - config/routes.ts 에 /org/company 라우트를 추가한다. 테넌트 앱에만 넣고 플랫폼 빌드에는 섞이지 않게 한다(F6 이후의 구조에 맞게 처리하고 방법을 보고).
+   - 권한: 메뉴 COMPANY, READ/CREATE/UPDATE/DELETE. 복구는 UPDATE. 버튼은 can(메뉴, 동작) 하나로 판단하고 권한 없는 버튼은 숨긴다. READ 가 없으면 F5 진입 가드로 403 화면.
+
+4. 회사 화면 (src/pages/org/company)
+   - 구성: 검색 영역 + ProTable + 우측 Drawer (공통코드 화면 방식). 검색: keyword(코드·이름·약칭), 회사 유형(useCodeOptions('COMPANY_TYPE')), 사용 여부. 목록 열: 코드, 회사명, 약칭, 유형(코드 이름), 상위 회사(parentCompanyCode), 국가(nationCode), 정렬, 사용 여부, 작업. 정렬 가능 열은 코드, 회사명, 정렬. 서버 페이징(size 20 기본). 사용 중지 행은 흐리게, 작업에 [복구]. 사용 중인 행의 작업은 [수정] [삭제].
+   - Drawer 필드(등록/수정 공통): 회사 코드(등록만 입력, 수정은 읽기 전용, 형식 대문자·숫자·밑줄·하이픈 1~50자), 회사명(필수), 약칭, 회사 유형(Select), 사업자등록번호(앞뒤 공백 제거, 하이픈 유지), 국가(Select, 사용 중 국가), 상위 회사(검색형 Select: 회사 목록 API 를 keyword 로 호출, useYn=Y, 자기 자신 제외, 선택 해제 가능), 정렬 순서(정수), 이름 번역 표. 수정 Drawer 를 열 때 상세 API 로 translations 를 채운다.
+   - 값이 없는 선택 필드는 null 로 보낸다(빈 문자열 금지). 코드 값 Select 가 비어 있으면(그룹 값 없음) 비활성 + 안내.
+   - 삭제: 논리 삭제임을 확인창에 적는다. 거절 사유(COMPANY.HAS_CHILD_COMPANY, HAS_ACTIVE_DEPT, HAS_ACTIVE_ASSIGNMENT, LAST_OWN)는 서버 메시지를 그대로 보여 준다. 복구 거절(COMPANY.PARENT_INACTIVE)도 같다. 실행 뒤 목록을 다시 불러온다.
+   - 저장 중 버튼 비활성(연타 방지). 409 COMPANY.DUPLICATE, DUPLICATE_BUSINESS_NO 는 해당 입력칸 근처에 보인다. COMPANY.PARENT_CYCLE 은 상위 회사 칸에 보인다.
+   - 문구는 모두 i18n 키로 ko-KR/en-US 로컬 번들에 추가한다(menu.org.company 포함).
+
+5. 만들지 않는 것: 부서·사람 화면, 첨부 파일, 회사 트리 보기(목록만), 새 라이브러리, 기존 화면 리팩터링, 플랫폼 콘솔 변경, 사용자 이름 조회.
+
+테스트(vitest, 서비스 목, 실제 네트워크 호출 0건을 매 테스트 뒤 확인):
+ (a) 서비스: 목록 쿼리 파라미터 생성(page/size/sort/useYn 전체 생략), 등록·수정 본문 변환(빈 값 null, 수정에 companyCode 없음, 번역은 입력된 언어만)
+ (b) 규칙: 회사 코드 형식, 사업자번호 공백 제거, 번역 변환
+ (c) useCodeOptions: 사용 중·유효기간 안 코드만, 현재 언어 이름, 캐시, 빈 그룹
+ (d) 화면 흐름: 목록 호출 → 검색 → 등록 Drawer 저장 → 수정에서 코드 읽기 전용 → 삭제 확인 → 복구, 서버 fieldErrors 와 409 오류 문구, 권한별 버튼 표시(READ 만 / 모두), 직접 접근 가드
+ (e) 상위 회사 선택에서 자기 자신 제외, 선택 해제
+ (f) 플랫폼 빌드에 /org/company 와 회사 서비스가 섞이지 않음
+ 새 흐름 테스트 파일은 3회 반복 실행해 통과를 기록한다.
+
+검증: lint, antd lint, tsc, test, build, build:platform. 개발 서버와 백엔드는 띄우지 않는다. 사용자가 직접 볼 항목(실제 서버로 목록·등록·수정·삭제·복구, 상위 회사 선택, 번역 입력, 메뉴 노출, 권한이 적은 사용자의 버튼, 사용감)만 frontend/doc/f7-manual-check.md 맨 위에 모으고 나머지는 자동 테스트 이름을 표시한다. 값(주소, 계정, 비밀번호)은 쓰지 않는다.
+진행 기록은 [F7단계] 형식으로 frontend/doc/cursor-progress.md 에 추가한다. 보고서는 "작업 방식"의 형식으로 docs/reports/F7.md 와 F7.diff 를 만든다. 커밋 메시지는 [F7] 요약. push 는 하지 않는다. 완료 후 멈춘다.
+````
