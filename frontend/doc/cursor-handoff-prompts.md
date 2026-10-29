@@ -877,3 +877,45 @@ A. F8/F10 보완 (먼저 처리)
 검증: lint, antd lint, tsc, test, build. 개발 서버와 백엔드는 띄우지 않는다. 사용자가 직접 볼 항목(플랫폼 로그인 → 테넌트 등록 → [테넌트 접속] → 새 탭 진입 → 띠, 모든 메뉴, 사용자 등록·임시 비밀번호, 종료, 만료, 테넌트 관리자로 로그인해 접속 기록 확인, 플랫폼 기록 화면)만 frontend/doc/f12-manual-check.md 맨 위에 모으고 나머지는 자동 테스트 이름을 표시한다. 값(주소, 계정, 비밀번호, 티켓)은 쓰지 않는다.
 진행 기록은 [F12단계] 형식으로 frontend/doc/cursor-progress.md 에 추가한다. 보고서는 "작업 방식"의 형식으로 docs/reports/F12.md 와 F12.diff 를 만든다. 커밋 메시지는 [F12] 요약. push 는 하지 않는다. 완료 후 멈춘다.
 ````
+
+---
+
+## F12.1단계: 로그인 후 화면 오류 긴급 수정 + F12 검토 보완
+
+사용자가 실제 서버로 로그인하자 모든 화면이 "화면을 표시하지 못했습니다"로 바뀌었다. 개발자 도구 오류: `Error: React.Children.only expected to receive a single React element child. The above error occurred in the <Dropdown> component` (스택: UserMenu → HeaderDropdown → Dropdown). 이 단계만 수행하고 멈춘다. 1번이 가장 급하다.
+
+````
+1. 긴급: src/components/RightContent/UserMenu.tsx
+ - 원인: `<HeaderDropdown>` 안에 자식이 둘이다(`<span>{user.displayName}</span>` 과 `{children}`). antd Dropdown 은 자식이 React 요소 하나여야 한다. 단위 테스트가 Dropdown 을 목으로 대체해 걸리지 않았을 가능성이 높다.
+ - 수정: 자식 둘을 하나의 요소(예: `<span style=...>` 또는 `<Space>` 단, 트리거가 되려면 ref 를 받을 수 있는 DOM 요소여야 한다)로 감싼다. 표시와 동작(메뉴 열기, 비밀번호 변경, 로그아웃, 지원 접속 중 비밀번호 메뉴 숨김)은 그대로 유지한다.
+ - 같은 종류의 문제가 다른 곳에도 있는지 찾는다: src 전체에서 antd `Dropdown`, `Popover`, `Tooltip`, `Popconfirm`, `HeaderDropdown` 의 자식이 여러 개이거나 Fragment 인 곳. 있으면 함께 고치고 보고서에 목록을 쓴다.
+ - 회귀 테스트: UserMenu 를 **실제 antd Dropdown(목 없이)** 으로 렌더해 오류 없이 그려지고, 트리거를 눌러 메뉴 항목이 보이고, 지원 접속 사용자(user.support 있음)에서는 비밀번호 항목이 없고 로그아웃만 있음을 확인한다. 일반 사용자는 둘 다 보인다.
+ - 이 종류가 앞으로 걸리도록 ErrorBoundary 를 켠 채 레이아웃 전체(ProLayout 의 헤더·사이드바 사용자 영역)를 목 없이 렌더하는 스모크 테스트를 하나 추가한다(플랫폼 모드, 테넌트 모드 각 1건). 서비스 호출만 목으로 한다. 오류 화면이 나타나지 않고 사용자 이름이 보이면 통과.
+
+2. 진입 화면 이중 실행 (F12 검토 보완 1)
+ - src/pages/support-access/index.tsx: React StrictMode 에서 effect 가 두 번 실행되면 첫 실행은 `cancelled` 로 결과를 버리고, 두 번째 실행은 주소의 티켓이 이미 지워져 "유효하지 않은 접속 주소"가 된다(티켓은 이미 소모됨). 티켓 읽기와 교환 호출을 모듈 수준에서 한 번만 실행하는 약속(promise)으로 담아 두 실행이 같은 결과를 쓰게 한다. 페이지를 벗어났다 다시 들어오는 경우를 위해 성공·실패 후에는 약속을 비운다.
+ - StrictMode 로 렌더하는 테스트로 교환 호출이 정확히 1번이고 화면이 성공 상태가 됨을 확인한다.
+ - `setView(code === ... || code ? 'invalid' : 'invalid')` 같은 의미 없는 조건을 정리한다.
+
+3. 개발 환경의 테넌트 코드 전달 (F12 검토 보완 2)
+ - 지금은 `X-Tenant-Code` 가 교환 요청에만 붙는다. 교환 후의 요청(me, menus 등)이 어떤 테넌트로 가는지 코드로 확인한다(백엔드 `TenantRequestIdentifier` 규칙: 토큰만 있고 헤더가 없을 때 동작, dev 프록시 `proxyRules.ts` 가 DEV_TENANT_CODE 로 헤더를 넣는지). 확인 결과를 보고서에 표로 쓴다.
+ - 문제가 있으면 지원 세션 동안 같은 테넌트 코드를 메모리에 보관했다가 `/api/mdm` 요청에 붙인다(dev 에서만. 운영 빌드에서는 붙이지 않는다). 세션 종료·토큰 삭제 때 지운다.
+ - `.env.local` 에 `DEV_TENANT_CODE` 가 이미 있는 경우와 없는 경우(플랫폼 콘솔로 쓰는 경우, 지원 접속 새 탭)를 모두 설명하는 한 줄을 frontend/doc/local-setup.md 에 추가한다. 플랫폼 콘솔 탭에서 헤더가 잘못 붙어 플랫폼 요청이 깨지지 않는지도 확인한다.
+
+4. 메뉴 번역 경고 정리
+ - 브라우저 콘솔에 `[React Intl] Missing message: "menu.company"`(dept, person, role, user, supportAccess)와 `"menu.테넌트 관리"`, `"menu.지원 접속 기록"` 경고가 난다. 앞의 것은 라우트 이름 키가 번들에 없는 것이고, 뒤의 것은 이미 번역된 이름을 레이아웃이 한 번 더 번역하려 하는 것이다.
+ - 라우트의 `name` 이 레이아웃에서 `menu.<name>` 으로 번역되는 규칙을 확인하고, 화면에 보이는 메뉴 이름이 바뀌지 않게 하면서 경고가 없도록 한다(키를 번들에 추가하거나, menuDataRender 가 돌려주는 항목에 `locale: false` 를 쓰는 등. 이미 번역된 이름은 다시 번역하지 않는다). 서버 메뉴(menus/my)로 만든 항목과 플랫폼 정적 항목 모두 포함.
+ - 테스트: IntlProvider 의 onError 를 감시해 메뉴 렌더 중 Missing message 가 0건임을 확인한다(플랫폼 모드, 테넌트 모드).
+
+5. 기록 화면 흐름 테스트 (F12 검토 보완 3)
+ - 플랫폼 /support-accesses 와 테넌트 /access/support-access 각각: 목록 조회 → 필터 입력 → 조회 → 행 클릭 Drawer 의 쓰기 요청 목록 호출(값 의존성만 effect 에) → 권한 없는 사용자의 접근 차단. 서비스는 목.
+
+6. 모든 오류 화면의 진단 개선(작게)
+ - ErrorBoundary 화면(src/components/ErrorBoundary 또는 index.tsx)은 개발 모드(process.env.NODE_ENV === 'development')에서만 오류 메시지 한 줄을 화면에 보여 준다(운영 빌드에서는 지금처럼 일반 문구만). 오류 스택은 콘솔에 계속 남긴다.
+
+7. 보고서와 산출물 형식
+ - 보고서 .md 와 .diff 는 UTF-8 로 쓴다. PowerShell 의 `>` 리디렉션은 UTF-16 으로 저장될 수 있으므로 `git diff A..B --output=docs/reports/F12.1.diff` 처럼 git 의 옵션을 쓰거나 `| Out-File -Encoding utf8` 를 사용하고, 저장 후 파일이 UTF-8 인지(첫 줄 `diff --git` 이 일반 텍스트로 읽히는지) 확인한다.
+
+검증: lint, antd lint, tsc, test, build. 새 테스트 파일은 3회 반복 실행해 통과를 기록한다. 개발 서버와 백엔드는 띄우지 않는다. 사용자가 직접 볼 항목은 frontend/doc/f12-manual-check.md 맨 위에 "다시 확인" 절을 만들어 1번 후 로그인 화면이 열리는지부터 적는다.
+진행 기록은 [F12.1단계] 형식으로 frontend/doc/cursor-progress.md 에 추가한다. 보고서는 "작업 방식"의 형식으로 docs/reports/F12.1.md 와 F12.1.diff 를 만든다. 커밋 메시지는 [F12.1] 요약. push 는 하지 않는다. 완료 후 멈춘다.
+````

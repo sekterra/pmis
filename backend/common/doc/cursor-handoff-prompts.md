@@ -605,3 +605,12 @@ target=tenant:
 
  - 커밋: `[9.8] 요약`. 보고서: `docs/reports/9.8.md` 와 `9.8.diff` (`.diff` 는 추적하지 않음). a–e 형식에 git 상태 줄 포함. 보고서에 티켓, 토큰, 비밀번호 값을 적지 않는다.
  - push 하지 않는다. 사용자가 "push 해줘" 라고 할 때만 한다.
+
+## 9.9단계: 지원 접속 보완 (9.8 검토 반영)
+
+`docs/reviews/2026-10-29-9.8.md` 의 보완 3건이다. 이 단계만 수행하고 멈춘다. 시작 전: `main` 으로 전환, `git pull --ff-only`, Claude 가 쓴 파일이 변경 상태면 먼저 `docs:` 커밋. 작업 방식은 맨 위 "작업 방식" 블록을 따른다.
+
+ 1. `SupportAccessService.requireSession` 의 60초 캐시: 의도를 정한다. 종료·폐기·운영자 비활성화·만료가 다른 경로(직접 DB 변경 포함)로 일어나도 즉시 반영되게 하려면 캐시를 없앤다(요청마다 1쿼리). 성능상 두고 싶으면 TTL 을 5초 이하로 줄이고 종료·폐기 코드 경로가 항상 캐시를 지우는지 테스트한다. 결정과 이유를 `auth-design.md` "구현 차이"와 보고서에 적는다. (지난 보고서는 "캐시를 두지 않았다"고 했으나 실제로는 있었다. 보고서와 코드가 어긋나지 않게 한다.)
+ 2. `SupportAuditStore.failNextInsert()` 같은 테스트용 훅을 운영 클래스에서 없앤다. 테스트 소스에서 `SupportAuditStore` 를 대체하는 테스트 전용 빈(`@TestConfiguration` 또는 `@MockitoSpyBean`)으로 같은 시나리오(감사 기록 실패 → 503, 데이터 변경 없음)를 검증한다.
+ 3. 만료된 ACTIVE 행 정리: 그 토큰으로 다시 요청이 오지 않으면 영원히 ACTIVE 로 저장된다. 다음 중 하나로 정한다(권장: 둘 다 최소로). (a) 접속 기록 조회(플랫폼·테넌트)가 만료된 ACTIVE 행을 읽기 전에 EXPIRED 로 갱신하는 한 번의 UPDATE(`expire_datetime < now`), 또는 (b) 새 티켓 교환 때 같은 테넌트의 만료 행을 정리. 이 UPDATE 는 `end_reason_code='EXPIRED'`, `ended_datetime=expire_datetime` 으로 채운다. 읽기 API 가 쓰기를 하게 되는 점을 보고서에 적는다.
+ 4. 마무리: 단위·통합 전부 통과를 확인하고, 커밋 `[9.9] 요약`, 보고서 `docs/reports/9.9.md` 와 `9.9.diff`(UTF-8). push 하지 않는다.
