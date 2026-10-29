@@ -1129,3 +1129,23 @@
   - ACTIVE 후보는 `tenant_status_code='ACTIVE'`이고 `use_yn='Y'`인 행이다
   - 공유 DB의 ACTIVE 테넌트가 1개라, 코드를 비운 적용은 그 테넌트를 바꾸게 된다. 통합 테스트는 그 경로를 실행하지 않았다. 0개·2개 이상 거절과 1개 선택은 단위 테스트가 맡는다
 
+## [9.8단계] 플랫폼 지원 접속 - 2026-10-29
+
+- 변경/추가 파일:
+  - 추가: 공용 `V5__create_tenant_support_access.sql`, 시드의 시스템 사용자 `$platform-support`와 `SUPPORT_ACCESS` 메뉴
+  - 추가: `supportaccess` 패키지(발급, 교환, 종료, 목록, 감사 필터, 세션 확인)
+  - 수정: JWT `sup`/`act`, 로그인 거절, 사용자 목록·마지막 관리자·역할 보유 수에서 시스템 계정 제외
+  - 수정: `doc/api/mdm-api.md`, `doc/api/platform-api.md`, `doc/local-setup.md`, `doc/auth-design.md` 끝의 구현 차이, 공용 ERD
+  - 추가: `SupportAccessRulesTest`, `SupportAccessIntegrationTest`
+- 검증 결과:
+  - `gradlew.bat test --offline`: 92 통과, 실패 0, skip 0. 이전 89에 단위 3
+  - `gradlew.bat integrationTest --offline`: 61개 중 마이그레이션 2개가 ERD에 테이블이 없어 실패했다. ERD에 두 테이블을 넣은 뒤 그 2개는 통과했다. 나머지 59개는 그 실행에서 통과했다. 이전 53에 통합 8
+  - 스키마는 `it-` / `t_it_`만 만들고 지원 접속 행과 테스트 운영자 행을 지웠다. 공유 테넌트에 업그레이드 명령은 실행하지 않았다
+- ERD 반영 내역: `erd-model-tenant-20261009.json`에 `tenant_support_access`, `tenant_support_access_action`
+- 질문/확인 필요: 메뉴 그룹은 시드에 `ACCESS`가 없어 `SYSTEM` 아래에 두었다. 운영자 비활성화 API는 없어서 요청마다 상태를 본다
+- 가정한 사항:
+  - 상태 컬럼은 `status_code`다. 기간 필터는 발급 시각이다
+  - `$platform-support` 로그인 실패는 실패 횟수를 올리지 않는다
+  - 60초 캐시는 두지 않고 매 요청 DB를 본다
+  - 대표 도메인은 대표, 검증됨, 사용 중을 모두 요구한다. `dev`는 도메인 없이 프론트 주소를 쓴다
+
