@@ -691,3 +691,54 @@ A. F8 보완 (먼저 처리)
 검증: lint, antd lint, tsc, test, build. 개발 서버와 백엔드는 띄우지 않는다. 사용자가 직접 볼 항목(실제 서버로 사람 등록·수정, 소속 추가·종료·주 소속 변경, 프로필 이미지 올리기·삭제·보기, 부서 화면에서 사람으로 이동, 권한이 적은 사용자, 사용감)만 frontend/doc/f9-manual-check.md 맨 위에 모으고 나머지는 자동 테스트 이름을 표시한다. 값(주소, 계정, 비밀번호)은 쓰지 않는다.
 진행 기록은 [F9단계] 형식으로 frontend/doc/cursor-progress.md 에 추가한다. 보고서는 "작업 방식"의 형식으로 docs/reports/F9.md 와 F9.diff 를 만든다. 커밋 메시지는 [F9] 요약. push 는 하지 않는다. 완료 후 멈춘다.
 ````
+
+---
+
+## F10단계: 역할 관리 화면 (목록 + Drawer: 기본 정보·권한 체크박스 표)
+
+F9 승인(`docs/reviews/2026-10-22-F9.md`). 사용자 결정(2026-10-29): 추천안으로 진행한다. 역할(F10) 다음에 사용자(F11), 권한 관리 화면은 이번 묶음에서 제외, 역할 권한 편집은 체크박스 표 한 화면. 와이어프레임은 `frontend/doc/users-roles-wireframe.md` 1절(공통)과 3절(역할)이다. 이 단계만 수행하고 멈춘다.
+
+````
+기준 문서: frontend/doc/users-roles-wireframe.md (1절, 3절), backend/common/doc/api/mdm-api.md "사용자·역할·권한"의 역할 절과 오류 표. 응답 필드명은 명세와 백엔드 DTO(backend/common 의 access 패키지 dto)를 대조해 정확히 맞추고, 다르면 DTO 를 따르되 보고서 "질문"에 올린다. 현재 코드 src/pages/org/company(목록+Drawer 패턴), src/pages/org/shared(NameTranslations, useYn), src/core/codes, src/core/menu/menuRoutes.ts, config/routes.ts, src/core/auth/context.ts(areaForbidden). 구현 전에 frontend/doc/f10-wireframe.md 에 목록 컬럼, Drawer 탭, 권한 표의 동작 규칙(켜기·끄기·자동 연동), 저장 흐름, 오류 문구 매핑을 텍스트로 정리한다. users-roles-wireframe.md 와 다른 점이 있으면 구현 전에 멈추고 "질문"에 올린다.
+
+A. F9 보완 (먼저 처리)
+ 1. 사람 Drawer 의 소속 목록 조회 effect(src/pages/org/person/PersonDrawer.tsx)가 `person` 객체를 의존성에 두고 같은 조회 키면 재호출을 건너뛴다. 조회 도중 person 객체가 새로 만들어지면 이전 요청 결과는 alive=false 로 버려지고 새 요청은 건너뛰어 소속 표가 빈 채로 남을 수 있다. 의존성을 값(personPk, open, tab 등)으로 바꾸고, 같은 키로 요청이 진행 중일 때 객체만 바뀌어도 결과가 반영되는지 확인하는 테스트를 추가한다(느린 응답 + person 객체 교체 → 표 채워짐). 같은 패턴이 다른 화면(src/pages/org/dept, company)에 있는지 확인해 있으면 같이 고치고 보고한다.
+
+1. 서비스와 타입 (src/services/mdm)
+ - roles.ts / rolesQuery.ts / rolesRecord.d.ts: 목록(GET /roles: page, size, sort(roleCode, roleName, sortOrder, rolePk), keyword, useYn), 상세, 등록, 수정, 삭제, 복구, 권한 조회(GET /roles/{rolePk}/permissions, 선택 쿼리 granted), 권한 교체(PUT /roles/{rolePk}/permissions 본문 {permissionCodes: string[]}). 목록 항목에 userCount, 상세에 translations 가 있다. 수정 본문에는 roleCode 가 없다. 빈 값은 null, 번역은 입력한 언어만(F7 방식).
+ - 권한 조회 항목: permissionPk, permissionCode, menuCode, menuName, actionCode, permissionName, granted. 페이지 없는 배열이다.
+
+2. 메뉴·라우트·권한
+ - menuRoutes.ts: ROLE → /access/role (primary). config/routes.ts 에 /access/role 추가. 새 경로 접두사 /access 가 플랫폼 영역에서 막히는지 areaForbidden 을 확인하고 필요하면 추가한다(테스트 포함). 부모 그룹은 서버 menus/my 의 parentMenuCode 를 따른다(코드로 가정하지 않는다).
+ - 권한: 메뉴 ROLE, READ/CREATE/UPDATE/DELETE. 복구와 권한 교체는 UPDATE. 버튼은 can('ROLE', 동작) 하나로 판단한다.
+
+3. 목록 (src/pages/access/role)
+ - 검색: keyword(코드·이름), 사용 여부(전체는 파라미터 없음), [조회] [초기화]. 열: 코드, 역할명, 정렬, 사용자 수, 사용 여부, 작업(수정/삭제 또는 복구). 서버 페이징·정렬(코드, 역할명, 정렬). 사용 중지 행은 흐리게. 행 클릭 또는 [상세]로 Drawer. [+ 역할 등록](CREATE). TENANT_ADMIN 행은 삭제 버튼을 숨기고 보호 역할 표시를 한다.
+
+4. Drawer (넓은 폭, 탭 2개)
+ - 등록 모드: 기본 정보 탭만 활성(권한 탭은 저장 후 사용 가능하다는 안내). 저장하면 같은 Drawer 가 수정 모드로 바뀌고 권한 탭이 열린다.
+ - 탭 1 기본 정보: 역할 코드(등록만 입력, 형식 ^[A-Z][A-Z0-9_]{1,49}$ 를 폼에서 먼저 검사, 수정은 읽기 전용), 역할명(필수), 정렬 순서, 설명, 이름 번역 표(NameTranslations 재사용). 수정 때 화면에 없는 필드는 상세 값을 다시 싣는다(F7 방식). TENANT_ADMIN 은 이름·설명 수정은 되고(서버 규칙), 삭제는 불가라는 안내를 보인다.
+ - 탭 2 권한(체크박스 표): 탭을 처음 열 때 GET /roles/{rolePk}/permissions 를 호출한다(역할을 바꾸면 다시). 응답을 메뉴 단위 행(menuCode, 서버가 준 순서 유지, 이름은 menuName)과 기능 단위 열로 변환하는 순수 함수를 둔다. 열은 응답에 나온 actionCode 의 합집합을 READ, CREATE, UPDATE, DELETE, EXPORT 순으로 먼저 놓고 나머지(APPROVE 등)는 뒤에 붙인다. 열 이름은 로컬 i18n 키(기능 코드별)로 하고 없는 코드는 코드 그대로 보인다. 어떤 메뉴에 없는 기능 칸은 비워 둔다. 칸은 체크박스, granted 가 초기 값이다.
+   - 연동 규칙: READ 가 아닌 기능을 켜면 같은 메뉴의 READ 도 켠다. READ 를 끄면 같은 메뉴의 나머지 기능을 모두 끈다. 메뉴 이름 칸을 누르면 그 메뉴 전체 켜기/끄기(켜면 모두, 이미 모두 켜져 있으면 모두 끔). 열 머리를 눌러 전체 켜기/끄기는 만들지 않는다.
+   - 저장: 변경이 없으면 [저장] 비활성. 저장하면 켜진 칸의 permissionCode 전체를 permissionCodes 로 보낸다(교체 방식이므로 이 역할에 부여될 전부). 성공하면 표를 다시 불러오고 "권한은 즉시 반영되지만 화면 메뉴는 다음 로그인 또는 새로고침 때 바뀝니다" 안내를 보인다. 서버 오류 ROLE.READ_REQUIRED 와 fieldErrors(메뉴 코드)는 해당 메뉴 행 옆에 표시하고, PERMISSION.NOT_FOUND 는 알림, ROLE.PROTECTED 는 서버 메시지. [되돌리기] 버튼은 마지막으로 불러온 상태로 복원한다.
+   - 편집 권한은 can('ROLE','UPDATE') 이다. 없거나 TENANT_ADMIN 이거나 사용 중지 역할이면 표를 읽기 전용(체크박스 비활성)으로 보인다. 읽기 전용인 이유를 한 줄로 안내한다. 변경이 있는 상태에서 Drawer 를 닫거나 탭을 옮기면 확인창으로 버릴지 묻는다.
+   - 메뉴가 많을 때를 대비해 표 위에 메뉴 이름 검색(클라이언트 필터) 입력을 둔다. 필터 중에도 변경 상태는 유지된다.
+ - 삭제/복구: 삭제 확인창(논리 삭제). 거절(ROLE.IN_USE: 사용 중인 부여, ROLE.PROTECTED)은 서버 메시지를 그대로 보여 준다. 복구는 UPDATE.
+ - 서버 오류 매핑: ROLE.DUPLICATE → 역할 코드 칸, 그 밖의 fieldErrors 는 해당 칸, 나머지는 서버 errorMessage 알림(없으면 로컬 i18n 문구). 저장 중 버튼 비활성.
+
+5. 문구는 모두 i18n 키(ko-KR/en-US 로컬 번들, menu.access.role 포함). 오류 문구도 처음부터 번들 키를 쓴다. 서버 errorMessage 우선 규칙 유지.
+
+6. 만들지 않는 것: 사용자 화면(F11), 권한(PERMISSION) 관리 화면, 역할 복사, 권한 변경 이력, 열 단위 전체 선택, 새 라이브러리, 기존 화면 리팩터링(A 항목 제외).
+
+테스트(vitest, 서비스 목, 실제 네트워크 호출 0건을 매 테스트 뒤 확인):
+ (a) 서비스: 목록 쿼리(전체 useYn 생략, 정렬 화이트리스트), 등록·수정 본문(빈 값 null, 수정에 roleCode 없음, 번역 변환), 권한 교체 본문(permissionCodes 전체)
+ (b) 권한 표 변환 순수 함수: 메뉴 행·기능 열 구성, 없는 칸, 기능 열 순서, 메뉴 순서 유지
+ (c) 연동 규칙 순수 함수: 비READ 켜기 → READ 자동, READ 끄기 → 나머지 끄기, 메뉴 전체 켜기/끄기, 변경 여부(dirty) 계산, 되돌리기
+ (d) 규칙: 역할 코드 형식, 오류 → 칸 매핑(ROLE.DUPLICATE, ROLE.READ_REQUIRED 의 메뉴 행)
+ (e) 화면 흐름: 목록 → 검색 → 등록(저장 후 수정 모드·권한 탭 활성) → 권한 탭 호출 시점(처음 열 때만, 역할이 바뀌면 다시) → 체크 변경 → 저장 본문 → 저장 후 안내, TENANT_ADMIN 읽기 전용, 변경 중 탭 이동 확인창, 삭제 거절 메시지, 복구, 권한별 버튼(READ 만 / 모두), 직접 접근 가드, 플랫폼 영역 차단(/access/role)
+ (f) A 항목: 느린 응답 + person 객체 교체에서도 소속 표가 채워진다
+ 새 흐름 테스트 파일은 3회 반복 실행해 통과를 기록한다. 전체 테스트 시간이 더 늘면 느린 파일을 보고하고 설정은 바꾸지 말고 제안만 한다.
+
+검증: lint, antd lint, tsc, test, build. 개발 서버와 백엔드는 띄우지 않는다. 사용자가 직접 볼 항목(실제 서버로 역할 목록·등록·수정·삭제·복구, 권한 표 켜기·끄기와 자동 연동, 저장 후 해당 역할을 가진 사용자의 메뉴 변화, TENANT_ADMIN 읽기 전용, 권한이 적은 사용자, 사용감)만 frontend/doc/f10-manual-check.md 맨 위에 모으고 나머지는 자동 테스트 이름을 표시한다. 값(주소, 계정, 비밀번호)은 쓰지 않는다.
+진행 기록은 [F10단계] 형식으로 frontend/doc/cursor-progress.md 에 추가한다. 보고서는 "작업 방식"의 형식으로 docs/reports/F10.md 와 F10.diff 를 만든다. 커밋 메시지는 [F10] 요약. push 는 하지 않는다. 완료 후 멈춘다.
+````
