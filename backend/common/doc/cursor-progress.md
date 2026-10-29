@@ -1113,3 +1113,19 @@
   - 사용 여부가 N인 테넌트는 없는 테넌트로 거절한다. 상태가 ACTIVE가 아니면 사용할 수 없다고 거절한다
   - refresh 철회 사유는 기존 재발급과 같은 `ADMIN`이다. 비밀번호 이력은 `RESET`이다
 
+## [9.7단계] 테넌트 코드 생략 - 2026-10-29
+
+- 변경/추가 파일:
+  - 수정: `DevSetAdminRules.resolveOmittedTenant`, `DevSetAdminService`의 ACTIVE 테넌트 조회
+  - 수정: `DevSetAdminRulesTest`, `DevSetAdminIntegrationTest`
+  - 수정: `doc/local-setup.md`
+- 검증 결과:
+  - `gradlew.bat test --offline`: 89 통과, 실패 0, skip 0
+  - `gradlew.bat integrationTest --offline`: 53 통과, 실패 0, skip 0. 대상 DB 이름은 `pmis`
+  - 공유 DB에 `--dev-set-admin`은 실행하지 않았다
+- ERD 반영 내역: 없음
+- 질문/확인 필요: 없음
+- 가정한 사항:
+  - ACTIVE 후보는 `tenant_status_code='ACTIVE'`이고 `use_yn='Y'`인 행이다
+  - 공유 DB의 ACTIVE 테넌트가 1개라, 코드를 비운 적용은 그 테넌트를 바꾸게 된다. 통합 테스트는 그 경로를 실행하지 않았다. 0개·2개 이상 거절과 1개 선택은 단위 테스트가 맡는다
+
