@@ -57,6 +57,11 @@ export function menuDataRender<T>(items: T[]): T[] {
         name: localLabel('menu.tenants'),
         icon: <TeamOutlined />,
       } as T,
+      {
+        path: '/support-accesses',
+        name: localLabel('menu.supportAccesses'),
+        icon: <SettingOutlined />,
+      } as T,
     ];
   }
   const serverItems = buildSideMenu(getMenuSnapshot().items, localLabel).map(withIcon);

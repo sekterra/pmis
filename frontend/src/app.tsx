@@ -21,6 +21,11 @@ import { subscribeAuthBroadcast } from '@/core/auth/broadcast';
 import { loadAccessContext } from '@/core/auth/context';
 import { homePath } from '@/core/auth/mode';
 import { refreshAccess } from '@/core/auth/refresh';
+import {
+  clearSupportSessionFlag,
+  hadSupportSession,
+  isSupportSession,
+} from '@/core/auth/supportSession';
 import { clearAccessToken } from '@/core/auth/token';
 import { loadPublicI18n } from '@/core/i18n/apply';
 import {
@@ -37,13 +42,19 @@ import {
   registerRequestRuntime,
 } from '@/core/request/runtime';
 import type { Me } from '@/services/mdm/data';
+import SupportAccessBanner from '@/components/SupportAccessBanner';
 import defaultSettings from '../config/defaultSettings';
 
 dayjs.extend(relativeTime);
 
 const loginPath = '/user/login';
+const supportEndedPath = '/support-access/ended';
 
 function leaveToLogin(): void {
+  if (isSupportSession() || hadSupportSession()) {
+    leaveToSupportEnded();
+    return;
+  }
   noteLoggedOut();
   const { pathname, search, hash } = history.location;
   if (pathname !== loginPath) {
@@ -51,14 +62,27 @@ function leaveToLogin(): void {
   }
 }
 
+function leaveToSupportEnded(): void {
+  clearAccessToken();
+  clearSupportSessionFlag();
+  noteLoggedOut();
+  if (history.location.pathname !== supportEndedPath) {
+    history.replace(supportEndedPath);
+  }
+}
+
 registerUnauthorized(leaveToLogin);
 
 registerRequestRuntime({
-  refresh: () =>
-    refreshAccess(authApi.refresh, {
+  refresh: () => {
+    if (isSupportSession()) {
+      return Promise.resolve(null);
+    }
+    return refreshAccess(authApi.refresh, {
       sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
       onFailure: leaveToLogin,
-    }),
+    });
+  },
   goLogin: leaveToLogin,
   goPassword: () => {
     if (history.location.pathname !== '/user/password') {
@@ -75,6 +99,7 @@ registerRequestRuntime({
         history.replace(loginPath);
       });
   },
+  onSupportEnded: leaveToSupportEnded,
 });
 
 export async function getInitialState(): Promise<{
@@ -126,6 +151,17 @@ function SessionBootstrap() {
           }),
       });
       if (cancelled) {
+        return;
+      }
+      if (!user && hadSupportSession()) {
+        clearSupportSessionFlag();
+        noteLoggedOut();
+        history.replace(supportEndedPath);
+        setInitialState((current) => ({
+          ...current,
+          loading: false,
+          contextStatus: 'ready',
+        }));
         return;
       }
       await noteAuthenticated(user);
@@ -181,7 +217,12 @@ export const layout: RunTimeLayoutConfig = ({ initialState }) => {
       </Link>
     ),
     ErrorBoundary,
-    childrenRender: (children) => children,
+    childrenRender: (children) => (
+      <>
+        <SupportAccessBanner />
+        {children}
+      </>
+    ),
     ...initialState?.settings,
   };
 };

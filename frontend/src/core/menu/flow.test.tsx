@@ -310,8 +310,12 @@ describe('server menu', () => {
     await noteAuthenticated(user);
     expect(fetchMyMenus).not.toHaveBeenCalled();
     const rendered = menuDataRender([{ path: '/welcome', name: 'welcome' }]);
-    expect(rendered).toHaveLength(1);
+    expect(rendered).toHaveLength(2);
     expect(rendered[0]).toMatchObject({ path: '/tenants', name: '테넌트 관리' });
+    expect(rendered[1]).toMatchObject({
+      path: '/support-accesses',
+      name: '지원 접속 기록',
+    });
   });
 
   it('sends a logged-in user to 403 when the path belongs to the other area', () => {

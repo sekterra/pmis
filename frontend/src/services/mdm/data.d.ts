@@ -30,6 +30,12 @@ export type PasswordChangeRequest = {
   newPassword: string;
 };
 
+export type SupportSessionInfo = {
+  supportAccessId: number;
+  operatorLoginId: string;
+  expireDatetime: string;
+};
+
 export type Me = {
   userPk: number;
   loginId: string;
@@ -38,6 +44,7 @@ export type Me = {
   timezoneId: string;
   roleCodes: string[];
   passwordChangeRequired: boolean;
+  support?: SupportSessionInfo | null;
 };
 
 export type SupportLanguage = {

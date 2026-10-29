@@ -8,6 +8,8 @@ export default {
   'menu.org.person': 'People',
   'menu.access.role': 'Roles',
   'menu.access.user': 'Users',
+  'menu.access.supportAccess': 'Support access history',
+  'menu.supportAccesses': 'Support access history',
   'menu.tenants': 'Tenants',
   'menu.login': 'Login',
   'menu.exception': 'Exception',

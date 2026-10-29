@@ -10,7 +10,12 @@ export function nextPathAfterRecover(input: {
   const { pathname, user } = input;
   const search = input.search ?? '';
   if (!user) {
-    if (pathname === '/user/login' || pathname.startsWith('/exception')) {
+    if (
+      pathname === '/user/login' ||
+      pathname.startsWith('/exception') ||
+      pathname === '/support-access' ||
+      pathname === '/support-access/ended'
+    ) {
       return null;
     }
     return loginPathWithRedirect(pathname, search);

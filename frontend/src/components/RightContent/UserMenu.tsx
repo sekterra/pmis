@@ -20,6 +20,7 @@ const UserMenu: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       typeof BroadcastChannel === 'undefined'
         ? undefined
         : new BroadcastChannel(AUTH_CHANNEL);
+    const support = Boolean(user?.support);
     await logoutSession(logout, channel);
     channel?.close();
     setInitialState((current) => ({
@@ -27,15 +28,19 @@ const UserMenu: React.FC<{ children: React.ReactNode }> = ({ children }) => {
       currentUser: undefined,
       menu: getMenuSnapshot(),
     }));
-    history.replace('/user/login');
+    history.replace(support ? '/support-access/ended' : '/user/login');
   };
 
   const items: MenuProps['items'] = [
-    {
-      key: 'password',
-      icon: <LockOutlined />,
-      label: intl.formatMessage({ id: 'pages.account.password' }),
-    },
+    ...(user?.support
+      ? []
+      : [
+          {
+            key: 'password',
+            icon: <LockOutlined />,
+            label: intl.formatMessage({ id: 'pages.account.password' }),
+          },
+        ]),
     {
       key: 'logout',
       icon: <LogoutOutlined />,

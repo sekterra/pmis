@@ -838,4 +838,46 @@ git: `frontend`와 `D:\_project\PMIS` 모두 저장소가 아니다. `git status
 - vitest가 도는 테스트 import와 `config/proxy.ts`의 import는 확장자를 붙이지 않았다. Node가 직접 읽는 사슬만 `.ts`다.
 - 빌드가 통과해 번들러는 `proxyRules.ts` 안의 `tenantHeader.ts` import를 받아들인다.
 
+## [F12단계] 지원 접속 화면 - 2026-10-29
+
+### 변경/추가 파일
+
+- 추가: `doc/f12-wireframe.md`, `doc/f12-manual-check.md`
+- 추가: `src/services/platform/supportAccess.ts`, `supportAccess.test.ts`
+- 추가: `src/services/mdm/supportAccess.ts`, `supportAccess.test.ts`
+- 추가: `src/core/supportAccess/rules.ts`, `rules.test.ts`
+- 추가: `src/core/auth/supportSession.ts`
+- 추가: `src/components/SupportAccessBanner.tsx`
+- 추가: `src/components/supportAccess/SupportAccessHistory.tsx`, `SupportAccessDrawer.tsx`
+- 추가: `src/pages/support-access`(진입, 종료, 흐름 테스트)
+- 추가: `src/pages/platform/tenants/SupportAccessModal.tsx`, `supportAccessModal.test.tsx`
+- 추가: `src/pages/platform/support-accesses`, `src/pages/access/support-access`
+- 수정: 플랫폼/테넌트 타입의 지원 접속 필드. `routes.ts`, `menuRoutes.ts`, `runtime.tsx`(플랫폼 메뉴)
+- 수정: `app.tsx`(띠·지원 세션 401), `token.ts`, `guard.ts`, `request/runtime.ts`(dev 테넌트 헤더)
+- 수정: `UserMenu.tsx`(비밀번호 변경 숨김·종료 이동), `TenantActionBar`/`detail`, `actions.test.tsx`
+- 수정: `ko-KR`/`en-US`/`platform` 로케일. `menu/flow.test.tsx`(플랫폼 메뉴 2개)
+- 새 라이브러리는 없다
+
+### 검증 결과
+
+- `npm.cmd run lint`: 통과. biome 198파일, `tsc --noEmit`. 종료 코드 0
+- `npm.cmd exec antd -- lint ./src`: 통과. 218파일, 이슈 0
+- `src/pages/support-access/flow.test.tsx` + `supportAccessModal.test.tsx` 3회: 매번 7개 통과. 약 17초, 16초, 15초
+- `npm.cmd test`: 통과. 59파일, 230개. 약 367초
+- `npm.cmd run build`: 통과. `support-access`, `support-accesses`, `access/support-access` 산출물 있음
+- 개발 서버와 백엔드는 띄우지 않았다
+
+### 질문/확인 필요
+
+- 모달 카운트다운 0 테스트는 fake timers가 antd Modal과 맞물려 타임아웃이 나서 real timers로 바꿨다. 만료 시각을 과거로 두어 기다리지 않는다
+- 기록 화면 전용 흐름 테스트는 두지 않았다. 서비스·규칙·진입·모달·영역 차단·버튼 표시로 나눴다
+- happy-dom이 링크 클릭 시 스크립트 로드를 시도해 `NotSupportedError` 로그가 난다. 테스트는 통과한다
+
+### 가정한 사항
+
+- 지원 세션 표시는 메모리 플래그 + `sessionStorage`의 `mdm_support_session`만 쓴다. 티켓·accessUrl·토큰은 저장하지 않는다
+- 플랫폼 메뉴에 `/support-accesses`를 고정으로 추가했다. 테넌트 기록은 `SUPPORT_ACCESS` → `/access/support-access`
+- 공용 기록 UI는 `src/components/supportAccess`에 두고 pages 간 import는 하지 않았다
+- antd 6 권고에 맞춰 `App.useApp().modal`, `destroyOnHidden`, `Alert title`, `Space orientation`, `Drawer size`, `Spin description`을 썼다
+
 

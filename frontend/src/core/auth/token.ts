@@ -1,3 +1,5 @@
+import { endSupportSession } from './supportSession';
+
 let accessToken: string | null = null;
 let epoch = 0;
 
@@ -17,4 +19,5 @@ export function setAccessToken(token: string | null): void {
 export function clearAccessToken(): void {
   accessToken = null;
   epoch += 1;
+  endSupportSession();
 }

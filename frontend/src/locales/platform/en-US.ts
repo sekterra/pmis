@@ -1,5 +1,16 @@
 export default {
   'menu.tenants': 'Tenants',
+  'menu.supportAccesses': 'Support access history',
+  'pages.platform.tenantAccess': 'Tenant access',
+  'pages.platform.tenantAccessPrepare': 'Prepare access',
+  'pages.platform.tenantAccessNotice':
+    'You will enter with full tenant admin rights. Every write is recorded and visible to tenant admins.',
+  'pages.platform.tenantAccessReason': 'Reason',
+  'pages.platform.tenantAccessReasonHint':
+    'If empty, the access time and operator ID are recorded',
+  'pages.platform.tenantAccessCountdown': 'Ticket expires in {seconds}s',
+  'pages.platform.tenantAccessOpen': 'Open in a new tab',
+  'pages.platform.tenantAccessReissue': 'Reissue',
   'pages.platform.title': 'PMIS Platform Console',
   'pages.platform.keyword': 'Keyword',
   'pages.platform.status': 'Status',

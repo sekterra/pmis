@@ -8,6 +8,8 @@ export default {
   'menu.org.person': '사람',
   'menu.access.role': '역할',
   'menu.access.user': '사용자',
+  'menu.access.supportAccess': '지원 접속 기록',
+  'menu.supportAccesses': '지원 접속 기록',
   'menu.tenants': '테넌트 관리',
   'menu.login': '로그인',
   'menu.exception': '예외',

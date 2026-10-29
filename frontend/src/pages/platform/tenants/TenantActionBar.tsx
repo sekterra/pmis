@@ -9,11 +9,13 @@ type TenantActionBarProps = {
     resume: string;
     retry: string;
     reissue: string;
+    tenantAccess: string;
   };
   onSuspend: () => void;
   onResume: () => void;
   onRetry: () => void;
   onReissue: () => void;
+  onTenantAccess: () => void;
 };
 
 const TenantActionBar: React.FC<TenantActionBarProps> = ({
@@ -23,6 +25,7 @@ const TenantActionBar: React.FC<TenantActionBarProps> = ({
   onResume,
   onRetry,
   onReissue,
+  onTenantAccess,
 }) => {
   const actions = visibleActions(status);
   return (
@@ -36,6 +39,11 @@ const TenantActionBar: React.FC<TenantActionBarProps> = ({
       {actions.retry ? <Button onClick={onRetry}>{labels.retry}</Button> : null}
       {actions.reissue ? (
         <Button onClick={onReissue}>{labels.reissue}</Button>
+      ) : null}
+      {status === 'ACTIVE' ? (
+        <Button type="primary" onClick={onTenantAccess}>
+          {labels.tenantAccess}
+        </Button>
       ) : null}
     </div>
   );

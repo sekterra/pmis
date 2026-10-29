@@ -26,6 +26,7 @@ import {
   suspendTenant,
 } from '@/services/platform/tenants';
 import { HOSTNAME, secretView, stepItems } from './rules';
+import SupportAccessModal from './SupportAccessModal';
 import TemporaryPasswordModal from './TemporaryPasswordModal';
 import TenantActionBar from './TenantActionBar';
 
@@ -49,6 +50,7 @@ const TenantDetailPage: React.FC = () => {
   >(null);
   const [domainName, setDomainName] = useState('');
   const [secret, setSecret] = useState<Secret | null>(null);
+  const [supportOpen, setSupportOpen] = useState(false);
   const text = (id: string, defaultMessage: string) =>
     intl.formatMessage({ id, defaultMessage });
 
@@ -160,6 +162,7 @@ const TenantDetailPage: React.FC = () => {
               resume: text('pages.platform.resume', '재개'),
               retry: text('pages.platform.retry', '프로비저닝 재시도'),
               reissue: text('pages.platform.reissue', '임시 비밀번호 재발급'),
+              tenantAccess: text('pages.platform.tenantAccess', '테넌트 접속'),
             }}
             onSuspend={() => setReasonOpen('SUSPENDED')}
             onResume={() => setReasonOpen('ACTIVE')}
@@ -181,6 +184,7 @@ const TenantDetailPage: React.FC = () => {
               );
               setConfirmAction('reissue');
             }}
+            onTenantAccess={() => setSupportOpen(true)}
           />
         ) : null
       }
@@ -325,6 +329,11 @@ const TenantDetailPage: React.FC = () => {
         copyLoginLabel={text('pages.platform.copyLogin', '아이디 복사')}
         closeLabel={text('pages.platform.close', '닫기')}
         onClose={() => setSecret(null)}
+      />
+      <SupportAccessModal
+        open={supportOpen}
+        tenantCode={tenantCode}
+        onClose={() => setSupportOpen(false)}
       />
     </PageContainer>
   );

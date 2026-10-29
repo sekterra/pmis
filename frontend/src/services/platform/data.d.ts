@@ -91,3 +91,45 @@ export type PlatformMe = {
   email: string;
   passwordChangeRequired: boolean;
 };
+
+export type IssuedSupportAccess = {
+  supportAccessId: number;
+  accessUrl: string;
+  ticketExpireDatetime: string;
+};
+
+export type SupportAccessItem = {
+  supportAccessId: number;
+  tenantCode?: string | null;
+  operatorLoginId: string;
+  reason: string;
+  reasonDefault: boolean;
+  status: string;
+  issuedDatetime: string;
+  startedDatetime: string | null;
+  expireDatetime: string | null;
+  endedDatetime: string | null;
+  endReasonCode: string | null;
+  startIp: string | null;
+  writeCount: number;
+};
+
+export type SupportAccessActionItem = {
+  actionId: number;
+  occurredDatetime: string;
+  httpMethod: string;
+  path: string;
+  statusCode: number | null;
+  sensitive: boolean;
+};
+
+export type SupportAccessListQuery = {
+  tenantCode?: string;
+  platformLoginId?: string;
+  status?: string;
+  from?: string;
+  to?: string;
+  page?: number;
+  size?: number;
+  sort?: string[];
+};

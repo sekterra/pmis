@@ -8,10 +8,11 @@ const labels = {
   resume: '재개',
   retry: '프로비저닝 재시도',
   reissue: '임시 비밀번호 재발급',
+  tenantAccess: '테넌트 접속',
 };
 
 describe('tenant action buttons', () => {
-  it('shows suspend only for an active tenant', () => {
+  it('shows suspend and tenant access only for an active tenant', () => {
     render(
       <TenantActionBar
         status="ACTIVE"
@@ -20,13 +21,30 @@ describe('tenant action buttons', () => {
         onResume={vi.fn()}
         onRetry={vi.fn()}
         onReissue={vi.fn()}
+        onTenantAccess={vi.fn()}
       />,
     );
     expect(screen.getByRole('button', { name: '중지' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: '테넌트 접속' })).toBeTruthy();
     expect(screen.queryByRole('button', { name: '재개' })).toBeNull();
     expect(
       screen.queryByRole('button', { name: '프로비저닝 재시도' }),
     ).toBeNull();
+  });
+
+  it('hides tenant access when the tenant is not active', () => {
+    render(
+      <TenantActionBar
+        status="SUSPENDED"
+        labels={labels}
+        onSuspend={vi.fn()}
+        onResume={vi.fn()}
+        onRetry={vi.fn()}
+        onReissue={vi.fn()}
+        onTenantAccess={vi.fn()}
+      />,
+    );
+    expect(screen.queryByRole('button', { name: '테넌트 접속' })).toBeNull();
   });
 
   it('requires a change reason before suspend', () => {

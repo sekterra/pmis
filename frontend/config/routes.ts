@@ -1,5 +1,15 @@
 export default [
   {
+    path: '/support-access',
+    layout: false,
+    component: './support-access',
+  },
+  {
+    path: '/support-access/ended',
+    layout: false,
+    component: './support-access/ended',
+  },
+  {
     path: '/user',
     layout: false,
     routes: [
@@ -68,6 +78,17 @@ export default [
     name: 'user',
     hideInMenu: true,
     component: './access/user',
+  },
+  {
+    path: '/access/support-access',
+    name: 'supportAccess',
+    hideInMenu: true,
+    component: './access/support-access',
+  },
+  {
+    path: '/support-accesses',
+    hideInMenu: true,
+    component: './platform/support-accesses',
   },
   {
     path: '/welcome',

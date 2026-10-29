@@ -1,5 +1,6 @@
 import type { RequestConfig } from '@umijs/max';
 import { request } from '@umijs/max';
+import { isSupportSession } from '@/core/auth/supportSession';
 import { getAccessToken } from '@/core/auth/token';
 import { ApiError, presentError, toApiError, toBlobApiError, unwrapData } from './errors';
 import { getFeedback } from './feedback';
@@ -11,17 +12,20 @@ let refreshRunner: RetryRunner = async () => null;
 let goLogin: Navigate = () => undefined;
 let goPassword: Navigate = () => undefined;
 let onAccountDisabled: (error: ApiError) => void = () => undefined;
+let onSupportEnded: Navigate = () => undefined;
 
 export function registerRequestRuntime(handlers: {
   refresh: RetryRunner;
   goLogin: Navigate;
   goPassword: Navigate;
   onAccountDisabled: (error: ApiError) => void;
+  onSupportEnded?: Navigate;
 }): void {
   refreshRunner = handlers.refresh;
   goLogin = handlers.goLogin;
   goPassword = handlers.goPassword;
   onAccountDisabled = handlers.onAccountDisabled;
+  onSupportEnded = handlers.onSupportEnded ?? (() => undefined);
 }
 
 export function headersForBody(
@@ -38,7 +42,7 @@ export function headersForBody(
 }
 
 function isPublicAuth(url: string): boolean {
-  return /\/auth\/(login|refresh|jwks)(\?|$)/.test(url);
+  return /\/auth\/(login|refresh|jwks|support-access\/exchange)(\?|$)/.test(url);
 }
 
 export function createRequestConfig(): RequestConfig {
@@ -55,6 +59,13 @@ export function createRequestConfig(): RequestConfig {
         }
         const apiError = toApiError(error);
         if (apiError.errorCode === 'AUTH.TOKEN_EXPIRED') {
+          throw apiError;
+        }
+        if (
+          apiError.errorCode === 'AUTH.SUPPORT_ENDED' ||
+          (isSupportSession() && apiError.status === 401)
+        ) {
+          onSupportEnded();
           throw apiError;
         }
         if (apiError.errorCode === 'AUTH.PASSWORD_CHANGE_REQUIRED') {
@@ -108,8 +119,16 @@ export function createRequestConfig(): RequestConfig {
             config._retried ||
             config.skipAuthRetry ||
             error.response?.status !== 401 ||
-            code !== 'AUTH.TOKEN_EXPIRED'
+            code !== 'AUTH.TOKEN_EXPIRED' ||
+            isSupportSession()
           ) {
+            if (
+              isSupportSession() &&
+              error.response?.status === 401 &&
+              (code === 'AUTH.SUPPORT_ENDED' || code === 'AUTH.TOKEN_EXPIRED')
+            ) {
+              onSupportEnded();
+            }
             throw error;
           }
           const token = await refreshRunner();

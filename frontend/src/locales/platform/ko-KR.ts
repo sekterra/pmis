@@ -1,5 +1,16 @@
 export default {
   'menu.tenants': '테넌트 관리',
+  'menu.supportAccesses': '지원 접속 기록',
+  'pages.platform.tenantAccess': '테넌트 접속',
+  'pages.platform.tenantAccessPrepare': '접속 준비',
+  'pages.platform.tenantAccessNotice':
+    '이 테넌트의 관리자 권한 전체로 접속합니다. 모든 변경 요청이 기록되며 테넌트 관리자가 기록을 볼 수 있습니다',
+  'pages.platform.tenantAccessReason': '접속 사유',
+  'pages.platform.tenantAccessReasonHint':
+    '비워 두면 접속 일시와 담당자 ID가 기록됩니다',
+  'pages.platform.tenantAccessCountdown': '티켓 남은 시간 {seconds}초',
+  'pages.platform.tenantAccessOpen': '새 탭에서 열기',
+  'pages.platform.tenantAccessReissue': '다시 발급',
   'pages.platform.title': 'PMIS 플랫폼 콘솔',
   'pages.platform.keyword': '검색어',
   'pages.platform.status': '상태',
