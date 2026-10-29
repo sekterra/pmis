@@ -804,4 +804,38 @@ git: `frontend`와 `D:\_project\PMIS` 모두 저장소가 아니다. `git status
 - 역할 조회 API는 페이지가 없다. 탭을 처음 열 때 한 번 받고, 같은 키면 다시 받지 않는다.
 - 플랫폼과 테넌트는 빌드가 하나다. `/access/user`는 그 라우트에 있고, 플랫폼 사용자는 `/access/**`를 막는다.
 
+## [F11.1단계] 개발 서버 시작 오류 수정 - 2026-10-29
+
+### 변경/추가 파일
+
+- 수정: `src/core/dev/runDev.ts`의 `./devPort.ts`, `./localEnv.ts`, `./proxyRules.ts`
+- 수정: `src/core/dev/proxyRules.ts`의 `../request/tenantHeader.ts`
+- `devPort.ts`, `localEnv.ts`, `tenantHeader.ts`는 상대 import가 없어 본문은 그대로다
+- 수정: `tsconfig.json`에 `noEmit`, `allowImportingTsExtensions`
+- 수정: `package.json`의 `engines.node`를 `>=22.18.0 <23.0.0 || >=23.6.0`
+- 수정: `doc/local-setup.md`에 Node 최소 버전과 `node -v`
+- 추가: `devServer.test.ts`의 `dev launcher` 테스트
+- 화면, 라우트, 라이브러리는 바꾸지 않았다
+
+### 검증 결과
+
+- 수정 전 `node src/core/dev/runDev.ts`는 `ERR_MODULE_NOT_FOUND`(`devPort`)로 끝났다. `node -v`는 v24.13.0
+- `npm.cmd run lint`: 통과. biome 185파일, `tsc --noEmit`. 종료 코드 0
+- `npm.cmd exec antd -- lint ./src`: 통과. 201파일, 이슈 0
+- `dev launcher` 테스트: 1개 통과. 약 170ms. 종료 코드 1, 포트 점유 문구, `ERR_MODULE_NOT_FOUND` 없음
+- `npm.cmd test`: 통과. 54파일, 213개. 약 343초. 이전 212개보다 테스트 1개. 파일 수는 같다
+- `npm.cmd run build`: 통과. 종료 코드 0
+- `npm.cmd run dev`는 시작 로그(`ready in`)까지 확인한 뒤 프로세스 트리를 종료했다. `runDev`/`max` 프로세스는 남지 않았다. 백엔드는 띄우지 않았다
+
+### 질문/확인 필요
+
+- 23.0부터 23.5는 타입 제거가 기본이 아니다. `engines`는 그 구간을 빼는 범위로 올렸다.
+- `tsc`가 `.ts` import를 TS5097로 거부해 `allowImportingTsExtensions`와 `noEmit`을 켰다. `npm run tsc`는 원래 `--noEmit`이다.
+
+### 가정한 사항
+
+- Node 공식 문서 기준 타입 제거 기본 활성은 22.18.0과 23.6.0이다. 이 머신에서 재현한 버전은 v24.13.0이다.
+- vitest가 도는 테스트 import와 `config/proxy.ts`의 import는 확장자를 붙이지 않았다. Node가 직접 읽는 사슬만 `.ts`다.
+- 빌드가 통과해 번들러는 `proxyRules.ts` 안의 `tenantHeader.ts` import를 받아들인다.
+
 
