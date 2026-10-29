@@ -431,13 +431,13 @@ class TenantProvisioningIntegrationTest {
 				WHERE employment_type_code = 'REGULAR' AND assignment_status_code = 'ACTIVE'
 				  AND primary_yn = 'Y' AND dept_head_yn = 'N' AND start_date = CURRENT_DATE
 				"""));
-		assertEquals("admin.user@example.com", scalarInSchema(schema, "SELECT login_id FROM user_account"));
-		assertEquals("Y", scalarInSchema(schema, "SELECT must_change_password_yn FROM user_account"));
-		assertEquals("NORMAL", scalarInSchema(schema, "SELECT account_type_code FROM user_account"));
-		assertEquals("ACTIVE", scalarInSchema(schema, "SELECT user_status_code FROM user_account"));
-		assertEquals("ko-KR", scalarInSchema(schema, "SELECT support_language_code FROM user_account"));
+		assertEquals("admin.user@example.com", scalarInSchema(schema, "SELECT login_id FROM user_account WHERE login_id = 'admin.user@example.com'"));
+		assertEquals("Y", scalarInSchema(schema, "SELECT btrim(must_change_password_yn) FROM user_account WHERE login_id = 'admin.user@example.com'"));
+		assertEquals("NORMAL", scalarInSchema(schema, "SELECT account_type_code FROM user_account WHERE login_id = 'admin.user@example.com'"));
+		assertEquals("ACTIVE", scalarInSchema(schema, "SELECT user_status_code FROM user_account WHERE login_id = 'admin.user@example.com'"));
+		assertEquals("ko-KR", scalarInSchema(schema, "SELECT support_language_code FROM user_account WHERE login_id = 'admin.user@example.com'"));
 		assertEquals("3", scalarInSchema(schema,
-				"SELECT (password_expire_datetime::date - password_changed_datetime::date)::text FROM user_account"));
+				"SELECT (password_expire_datetime::date - password_changed_datetime::date)::text FROM user_account WHERE login_id = 'admin.user@example.com'"));
 		assertEquals("0", scalarInSchema(schema, """
 				SELECT (
 				    (SELECT count(*) FROM company WHERE create_user_pk IS NOT NULL)
@@ -450,7 +450,7 @@ class TenantProvisioningIntegrationTest {
 		assertEquals("1", scalarInSchema(schema, """
 				SELECT count(*)::text FROM user_password_history WHERE change_type_code = 'INITIAL'
 				"""));
-		assertEquals("1", scalarInSchema(schema, """
+		assertEquals("2", scalarInSchema(schema, """
 				SELECT count(*)::text FROM user_role ur
 				JOIN role r ON r.role_pk = ur.role_pk
 				WHERE r.role_code = 'TENANT_ADMIN'
@@ -461,7 +461,7 @@ class TenantProvisioningIntegrationTest {
 		assertTrue(existed.temporaryPassword() == null);
 		assertEquals("admin.user@example.com", existed.adminLoginId());
 		assertEquals("ACTIVE", existed.tenantStatus());
-		assertEquals("1", scalarInSchema(schema, "SELECT count(*)::text FROM user_account"));
+		assertEquals("2", scalarInSchema(schema, "SELECT count(*)::text FROM user_account"));
 		assertEquals("1", scalarInSchema(schema, """
 				SELECT count(*)::text FROM user_password_history WHERE change_type_code = 'INITIAL'
 				"""));
@@ -471,6 +471,7 @@ class TenantProvisioningIntegrationTest {
 		executeInSchema(schema, """
 				UPDATE user_account
 				SET user_status_code = 'LOCKED', login_fail_count = 4, locked_datetime = CURRENT_TIMESTAMP
+				WHERE login_id = 'admin.user@example.com'
 				""");
 		String previousHash = passwordHash(schema);
 		ReissuedPassword reissued = new TenantAdminPasswordService(new PgTenantAdvisoryLock(dataSource), journal(dataSource),
@@ -480,9 +481,9 @@ class TenantProvisioningIntegrationTest {
 		assertFalse(hasher.matches(plain, passwordHash(schema)));
 		assertTrue(hasher.matches(nextPlain, passwordHash(schema)));
 		assertFalse(previousHash.equals(passwordHash(schema)));
-		assertEquals("ACTIVE", scalarInSchema(schema, "SELECT user_status_code FROM user_account"));
-		assertEquals("0", scalarInSchema(schema, "SELECT login_fail_count::text FROM user_account"));
-		assertEquals("Y", scalarInSchema(schema, "SELECT must_change_password_yn FROM user_account"));
+		assertEquals("ACTIVE", scalarInSchema(schema, "SELECT user_status_code FROM user_account WHERE login_id = 'admin.user@example.com'"));
+		assertEquals("0", scalarInSchema(schema, "SELECT login_fail_count::text FROM user_account WHERE login_id = 'admin.user@example.com'"));
+		assertEquals("Y", scalarInSchema(schema, "SELECT btrim(must_change_password_yn) FROM user_account WHERE login_id = 'admin.user@example.com'"));
 		assertEquals("1", scalarInSchema(schema, """
 				SELECT count(*)::text FROM user_password_history
 				WHERE change_type_code = 'RESET' AND changed_user_pk = 15
@@ -534,14 +535,14 @@ class TenantProvisioningIntegrationTest {
 		assertEquals("SEEDED", currentStep(code));
 		assertEquals("0", scalarInSchema(schema, "SELECT count(*)::text FROM company"));
 		assertEquals("0", scalarInSchema(schema, "SELECT count(*)::text FROM person"));
-		assertEquals("0", scalarInSchema(schema, "SELECT count(*)::text FROM user_account"));
+		assertEquals("1", scalarInSchema(schema, "SELECT count(*)::text FROM user_account"));
 		new TenantSeedRunner(dataSource).run(schema);
 		ProvisioningResult retried = fullService(dataSource, hasher).provision(adminCommand(code));
 		assertEquals("ACTIVE", retried.tenantStatus());
 		assertEquals(ProvisioningStepCode.COMPLETED, retried.currentStep());
 		assertFalse(retried.adminAlreadyPresent());
 		assertTrue(hasher.matches(retried.temporaryPassword().reveal(), passwordHash(schema)));
-		assertEquals("1", scalarInSchema(schema, "SELECT count(*)::text FROM user_account"));
+		assertEquals("2", scalarInSchema(schema, "SELECT count(*)::text FROM user_account"));
 	}
 
 	private static void assertPausedAtMigrated(ProvisioningResult result, String schema) {
@@ -980,7 +981,7 @@ class TenantProvisioningIntegrationTest {
 	}
 
 	private String passwordHash(String schema) throws Exception {
-		return scalarInSchema(schema, "SELECT password_hash FROM user_account");
+		return scalarInSchema(schema, "SELECT password_hash FROM user_account WHERE login_id = 'admin.user@example.com'");
 	}
 
 	private String plaintextHits(String schema, String plain) throws Exception {

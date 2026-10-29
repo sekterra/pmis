@@ -28,6 +28,8 @@ public class MdmSecurityProperties {
 
 	private Platform platform = new Platform();
 
+	private SupportAccess supportAccess = new SupportAccess();
+
 	public String getIssuer() {
 		return issuer;
 	}
@@ -106,6 +108,14 @@ public class MdmSecurityProperties {
 
 	public void setPlatform(Platform platform) {
 		this.platform = platform;
+	}
+
+	public SupportAccess getSupportAccess() {
+		return supportAccess;
+	}
+
+	public void setSupportAccess(SupportAccess supportAccess) {
+		this.supportAccess = supportAccess;
 	}
 
 	public static class Cookie {
@@ -202,6 +212,30 @@ public class MdmSecurityProperties {
 
 		public void setTempPasswordValidDays(int tempPasswordValidDays) {
 			this.tempPasswordValidDays = tempPasswordValidDays;
+		}
+
+	}
+
+	public static class SupportAccess {
+
+		private int ticketTtlSeconds = 60;
+
+		private int ttlMinutes = 30;
+
+		public int getTicketTtlSeconds() {
+			return ticketTtlSeconds;
+		}
+
+		public void setTicketTtlSeconds(int ticketTtlSeconds) {
+			this.ticketTtlSeconds = ticketTtlSeconds;
+		}
+
+		public int getTtlMinutes() {
+			return ttlMinutes;
+		}
+
+		public void setTtlMinutes(int ttlMinutes) {
+			this.ttlMinutes = ttlMinutes;
 		}
 
 	}

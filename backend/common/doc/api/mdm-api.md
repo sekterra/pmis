@@ -253,6 +253,22 @@ JWKS 예:
 
 `pwd_change_required=true`이면 비밀번호 변경, 로그아웃, me, refresh 외 테넌트 API는 `403 AUTH.PASSWORD_CHANGE_REQUIRED`다. `GET /api/mdm/v1/menus/my`는 이 허용 목록에 없다.
 
+`GET /api/mdm/v1/auth/me`의 `support`는 일반 토큰이면 null이다. 지원 접속 토큰이면 `supportAccessId`, `operatorLoginId`, `expireDatetime`이다. 표시 이름은 `플랫폼 지원 ({운영자 로그인 ID})`다. `passwordChangeRequired`는 항상 false다.
+
+## 지원 접속
+
+`POST /api/mdm/v1/auth/support-access/exchange`는 인증이 없다. 본문 `{ "ticket" }`, 헤더 `X-MDM-Request: 1`. 없으면 `403 AUTH.CSRF`. 성공 `data`는 `accessToken`, `expiresInSeconds`, `supportAccessId`다. Refresh 쿠키는 없다. `Cache-Control: no-store`다. 티켓이 없거나, 만료됐거나, 이미 썼거나, 다른 테넌트이거나, 운영자가 비활성이면 모두 `401 AUTH.SUPPORT_TICKET_INVALID`다.
+
+`POST /api/mdm/v1/auth/support-access/end`는 지원 접속 토큰과 `X-MDM-Request: 1`이 필요하다. 이미 끝난 접속을 다시 종료하면 성공이다. 일반 테넌트 토큰은 `403 AUTH.SUPPORT_FORBIDDEN`이다. 지원 접속 토큰으로 `POST /api/mdm/v1/auth/password/change`를 호출해도 같은 코드다.
+
+토큰에 `sup`이 있으면 매 요청마다 같은 테넌트, `ACTIVE`, 만료 전, 운영자 활성인지를 본다. 아니면 `401 AUTH.SUPPORT_ENDED`다. 만료된 `ACTIVE`는 이 때 `EXPIRED`로 저장한다. 운영자가 비활성이면 `REVOKED`와 `OPERATOR_DISABLED`로 저장한다.
+
+`GET /api/mdm/v1/support-accesses`와 `GET /api/mdm/v1/support-accesses/{id}/actions`는 `SUPPORT_ACCESS` READ가 필요하다. 서버가 현재 테넌트로 한정한다. 다른 테넌트 번호는 `404 SUPPORT.NOT_FOUND`다. 목록 항목은 번호, 운영자 로그인, 사유, 기본 사유 여부, 상태, 발급·시작·만료·종료 시각, 종료 사유, 시작 IP, 쓰기 횟수다. `ticket_hash`는 없다. 저장된 상태가 `ACTIVE`이고 만료 시각이 지났으면 응답 상태만 `EXPIRED`다. 조회는 행을 고치지 않는다. 동작 목록은 발생 시각 오름차순이다.
+
+쓰기(POST, PUT, PATCH, DELETE)는 종료 API를 빼고 처리 전에 동작 행을 남긴다. 기록에 실패하면 `503 SUPPORT.AUDIT_UNAVAILABLE`이고 본 처리는 하지 않는다. 조회 문자열은 경로에 넣지 않는다. 사용자 등록, 비밀번호 초기화, 역할 교체, 권한 변경, 메뉴 변경은 `sensitive`다.
+
+로그인 아이디 `$platform-support`는 시드 시스템 계정이다. 로그인은 없는 계정과 같이 `401 AUTH.INVALID_CREDENTIALS`다. 목록, 검색, 역할 보유 수, 마지막 관리자 수에서 빠진다. 조회·수정·삭제·상태 변경·역할 교체·비밀번호 초기화는 `409 USER.SYSTEM_ACCOUNT`다.
+
 ## 접속 주소
 
 `GET /api/mdm/v1/context`. 인증이 필요 없다. `Cache-Control: no-store`다. 테넌트 필터를 타지 않는다.

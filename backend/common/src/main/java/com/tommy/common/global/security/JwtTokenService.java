@@ -46,6 +46,11 @@ public class JwtTokenService implements JwtDecoder {
 	}
 
 	public String issue(String subject, String audience, String type, String tenant, boolean passwordChangeRequired, Duration ttl) {
+		return issue(subject, audience, type, tenant, passwordChangeRequired, ttl, java.util.Map.of());
+	}
+
+	public String issue(String subject, String audience, String type, String tenant, boolean passwordChangeRequired, Duration ttl,
+			java.util.Map<String, Object> extra) {
 		Instant now = Instant.now();
 		Instant exp = now.plus(ttl);
 		try {
@@ -60,6 +65,13 @@ public class JwtTokenService implements JwtDecoder {
 					.claim("pwd_change_required", passwordChangeRequired);
 			if (tenant != null) {
 				claims.claim("tenant", tenant);
+			}
+			if (extra != null) {
+				extra.forEach((name, value) -> {
+					if (value != null) {
+						claims.claim(name, value);
+					}
+				});
 			}
 			SignedJWT jwt = new SignedJWT(new JWSHeader.Builder(JWSAlgorithm.RS256).keyID(keys.kid()).build(), claims.build());
 			jwt.sign(new RSASSASigner(keys.privateKey()));

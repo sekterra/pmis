@@ -429,6 +429,17 @@ Refresh 테이블 컬럼은 회전과 가족 폐기에 충분하다. 컬럼 추�
 - 9.8 백엔드: 공용 V 마이그레이션(두 테이블), 티켓 발급, 교환, 종료, `sup`/`act` 클레임과 매 요청 검증, 지원 시스템 사용자와 업그레이드, 쓰기 요청 기록 필터, 조회 API(플랫폼, 테넌트), `SUPPORT_ACCESS` 메뉴와 권한 시드, 운영자 비활성화 시 폐기, 통합 테스트.
 - F12 프론트: 플랫폼 테넌트 상세 [테넌트 접속] 모달과 새 탭 열기, `/support-access` 진입 화면(티켓 교환, 주소 정리), 지원 접속 띠, 플랫폼 접속 기록 화면, 테넌트 `지원 접속 기록` 화면.
 
+### 구현 차이
+
+- 상태 컬럼은 기존 코드 컬럼과 같이 `status_code`다. 종료 사유도 `end_reason_code`다.
+- 메뉴 그룹 코드 `ACCESS`는 시드에 없다. `SUPPORT_ACCESS`는 `SYSTEM` 아래 정렬 62, 경로 `/system/support-access`다. READ만 만들고 `TENANT_ADMIN`에만 준다.
+- 띠에 쓰는 값은 `GET /api/mdm/v1/auth/me`의 `support`다. 필드는 `supportAccessId`, `operatorLoginId`, `expireDatetime`다. `context` 응답은 바꾸지 않았다.
+- 운영자를 비활성화하는 API는 없다. 교환 때는 비활성이면 티켓을 소모하지 않고 `AUTH.SUPPORT_TICKET_INVALID`다. 이미 발급된 토큰의 요청에서 비활성이면 `REVOKED` / `OPERATOR_DISABLED`로 두고 `AUTH.SUPPORT_ENDED`다.
+- 대표 도메인은 `primary_yn='Y'`, `verified_yn='Y'`, `use_yn='Y'`다. `dev`는 도메인 없이 `dev-base-url`을 쓴다.
+- 기간 필터는 발급 시각(`issued_datetime`)이다. 저장된 `ACTIVE`가 만료 시각을 넘으면 조회 응답만 `EXPIRED`로 보여주고, 행을 `EXPIRED`로 고치는 것은 그 토큰의 다음 요청이다.
+- 매 요청 검증은 DB를 본다. 60초 캐시는 두지 않았다. 운영자 비활성화 API가 없어 캐시를 바로 지울 곳이 없고, 만료도 요청 시점에 보여야 한다.
+- `$platform-support`는 시드 SQL로만 만든다. 사용자 등록 정규식은 `$`를 거절한다. 그 아이디의 실패 로그인은 실패 횟수를 올리지 않는다.
+
 ## 배포 전 점검
 
 - 리버스 프록시 또는 게이트웨이에서 로그인, refresh에 대한 IP 속도 제한이 있는지 확인한다. 애플리케이션에는 넣지 않았다.

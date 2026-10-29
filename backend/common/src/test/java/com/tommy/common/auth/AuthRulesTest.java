@@ -78,7 +78,8 @@ class AuthRulesTest {
 		PasswordHasher hasher = mock(PasswordHasher.class);
 		when(hasher.hash(org.mockito.ArgumentMatchers.any())).thenReturn("dummy-hash");
 		TenantAuthService service = new TenantAuthService(mock(EntityManager.class), hasher, mock(JwtTokenService.class),
-				new MdmSecurityProperties(), mock(AccountStatusCache.class), mock(TenantClock.class));
+				new MdmSecurityProperties(), mock(AccountStatusCache.class), mock(TenantClock.class),
+				mock(com.tommy.common.supportaccess.SupportAccessService.class));
 		service.rejectUnknown("secret");
 		verify(hasher).matches("secret", "dummy-hash");
 	}

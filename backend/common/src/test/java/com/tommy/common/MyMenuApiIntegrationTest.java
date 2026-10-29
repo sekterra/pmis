@@ -56,12 +56,12 @@ class MyMenuApiIntegrationTest {
 	private static final String NEXT = "N3w-Policy-Pass1";
 
 	private static final List<String> ADMIN_MENUS = List.of("SYSTEM", "I18N", "COMMON_CODE", "COMPANY", "DEPT", "PERSON", "USER",
-			"FILE_STORAGE", "FILE", "TEAM", "ROLE", "MENU", "PERMISSION");
+			"SUPPORT_ACCESS", "FILE_STORAGE", "FILE", "TEAM", "ROLE", "MENU", "PERMISSION");
 
 	private static final List<String> LIMITED_MENUS = List.of("SYSTEM", "I18N", "COMMON_CODE", "COMPANY", "DEPT", "PERSON", "FILE",
 			"TEAM");
 
-	private static final List<String> HIDDEN_FROM_LIMITED = List.of("USER", "ROLE", "MENU", "PERMISSION");
+	private static final List<String> HIDDEN_FROM_LIMITED = List.of("USER", "SUPPORT_ACCESS", "ROLE", "MENU", "PERMISSION");
 
 	private static final List<String> ALL_ACTIONS = List.of("READ", "CREATE", "UPDATE", "DELETE", "EXPORT");
 

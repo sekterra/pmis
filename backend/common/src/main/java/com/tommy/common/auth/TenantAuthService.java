@@ -21,6 +21,9 @@ import com.tommy.common.global.security.JwtTokenService;
 import com.tommy.common.global.security.MdmSecurityProperties;
 import com.tommy.common.global.security.PasswordHasher;
 import com.tommy.common.global.time.TenantClock;
+import com.tommy.common.supportaccess.SupportAccessRules;
+import com.tommy.common.supportaccess.SupportAccessService;
+import com.tommy.common.supportaccess.SupportAccounts;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.NoResultException;
@@ -43,22 +46,32 @@ public class TenantAuthService {
 
 	private final TenantClock clock;
 
+	private final SupportAccessService supportAccessService;
+
 	private final String dummyHash;
 
 	public TenantAuthService(EntityManager entityManager, PasswordHasher passwordHasher, JwtTokenService tokens,
-			MdmSecurityProperties properties, AccountStatusCache accountStatusCache, TenantClock clock) {
+			MdmSecurityProperties properties, AccountStatusCache accountStatusCache, TenantClock clock,
+			SupportAccessService supportAccessService) {
 		this.entityManager = entityManager;
 		this.passwordHasher = passwordHasher;
 		this.tokens = tokens;
 		this.properties = properties;
 		this.accountStatusCache = accountStatusCache;
 		this.clock = clock;
+		this.supportAccessService = supportAccessService;
 		this.dummyHash = passwordHasher.hash(UUID.randomUUID().toString());
 	}
 
 	@Transactional(noRollbackFor = ApiException.class)
 	public AuthSession login(String loginId, String password, HttpServletRequest request, HttpServletResponse response) {
 		String id = loginId == null ? "" : loginId.trim().toLowerCase(Locale.ROOT);
+		if (SupportAccounts.LOGIN_ID.equals(id)) {
+			rejectUnknown(password);
+			history(null, id, "FAIL_NOT_FOUND", ClientAddresses.ip(request, properties.isTrustForwardedHeaders()),
+					ClientAddresses.userAgent(request));
+			throw invalid();
+		}
 		Policy policy = policy();
 		String ip = ClientAddresses.ip(request, properties.isTrustForwardedHeaders());
 		String agent = ClientAddresses.userAgent(request);
@@ -187,6 +200,9 @@ public class TenantAuthService {
 	@Transactional(noRollbackFor = ApiException.class)
 	public AuthSession changePassword(String currentPassword, String newPassword, HttpServletRequest request,
 			HttpServletResponse response) {
+		if (SupportAccessRules.claimLong(currentJwt(), "sup") != null) {
+			throw new ApiException(403, "AUTH.SUPPORT_FORBIDDEN", "지원 접속에서는 비밀번호를 바꿀 수 없습니다.", 2);
+		}
 		long userPk = currentUserPk();
 		Policy policy = policy();
 		Object[] account = requireAccount(userPk);
@@ -250,8 +266,14 @@ public class TenantAuthService {
 				""").setParameter(1, userPk).setParameter(2, clock.today()).setParameter(3, clock.today()).getResultList();
 		String loginId = text(account[0]);
 		String name = text(account[5]);
-		return new Me(userPk, loginId, name == null ? loginId : name, text(account[1]), text(account[2]),
-				roles.stream().map(TenantAuthService::text).toList(), changeRequired(text(account[3]), instant(account[4])));
+		Jwt jwt = currentJwt();
+		SupportAccessService.SupportView support = supportAccessService.currentSupport(jwt);
+		boolean supportSession = SupportAccessRules.claimLong(jwt, "sup") != null;
+		String displayName = supportSession ? "플랫폼 지원 (" + (support == null ? "" : support.operatorLoginId()) + ")"
+				: (name == null ? loginId : name);
+		return new Me(userPk, loginId, displayName, text(account[1]), text(account[2]),
+				roles.stream().map(TenantAuthService::text).toList(),
+				supportSession ? false : changeRequired(text(account[3]), instant(account[4])), supportSession ? support : null);
 	}
 
 	private AuthSession issue(long userPk, String loginId, boolean changeRequired, Policy policy, HttpServletRequest request,
@@ -436,11 +458,15 @@ public class TenantAuthService {
 	}
 
 	private static long currentUserPk() {
+		return Long.parseLong(currentJwt().getSubject());
+	}
+
+	private static Jwt currentJwt() {
 		Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
 		if (authentication == null || !(authentication.getPrincipal() instanceof Jwt jwt)) {
 			throw unauthorized();
 		}
-		return Long.parseLong(jwt.getSubject());
+		return jwt;
 	}
 
 	void rejectUnknown(String password) {
@@ -501,7 +527,7 @@ public class TenantAuthService {
 	}
 
 	public record Me(long userPk, String loginId, String displayName, String supportLanguageCode, String timezoneId,
-			List<String> roleCodes, boolean passwordChangeRequired) {
+			List<String> roleCodes, boolean passwordChangeRequired, SupportAccessService.SupportView support) {
 	}
 
 }

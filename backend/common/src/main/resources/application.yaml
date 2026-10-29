@@ -56,12 +56,18 @@ mdm:
       - common
       - error
       - auth
+    support-access:
+      ticket-ttl-seconds: ${MDM_SUPPORT_TICKET_TTL_SECONDS:60}
+      ttl-minutes: ${MDM_SUPPORT_ACCESS_TTL_MINUTES:30}
     cookie:
       secure: ${MDM_COOKIE_SECURE:true}
     cors:
       allowed-origins: []
     private-key-path: ${MDM_JWT_PRIVATE_KEY_PATH:}
     previous-public-key-path: ${MDM_JWT_PREVIOUS_PUBLIC_KEY_PATH:}
+  support-access:
+    scheme: ${MDM_SUPPORT_ACCESS_SCHEME:https}
+    dev-base-url: ${MDM_SUPPORT_ACCESS_DEV_BASE_URL:http://localhost:8000}
   file:
     local-root: ${MDM_FILE_LOCAL_ROOT:}
     max-size-mb: ${MDM_FILE_MAX_SIZE_MB:50}

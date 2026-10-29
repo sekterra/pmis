@@ -26,6 +26,7 @@ public interface UserAccountRepository extends JpaRepository<UserAccount, Long>,
 			select count(u) from UserAccount u, UserRole ur
 			where ur.userAccount = u and ur.role.roleCode = 'TENANT_ADMIN' and ur.role.useYn = 'Y' and ur.useYn = 'Y'
 			  and u.useYn = 'Y' and u.userStatusCode = 'ACTIVE' and u.userPk <> :userPk
+			  and u.loginId <> '$platform-support'
 			  and (ur.validFromDate is null or ur.validFromDate <= :today)
 			  and (ur.validToDate is null or ur.validToDate >= :today)
 			""")

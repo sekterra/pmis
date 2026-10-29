@@ -40,6 +40,7 @@ import com.tommy.common.global.query.LikeEscape;
 import com.tommy.common.global.response.PageResponse;
 import com.tommy.common.global.security.CurrentTenantUser;
 import com.tommy.common.global.time.TenantClock;
+import com.tommy.common.supportaccess.SupportAccounts;
 import com.tommy.common.i18n.entity.SupportLanguage;
 import com.tommy.common.i18n.repository.SupportLanguageRepository;
 import com.tommy.common.org.entity.Person;
@@ -351,7 +352,11 @@ public class UserAccountService {
 	}
 
 	private UserAccount require(long userPk) {
-		return users.findById(userPk).orElseThrow(() -> OrgExceptions.of(404, "USER.NOT_FOUND", "사용자를 찾을 수 없습니다."));
+		UserAccount user = users.findById(userPk).orElseThrow(() -> OrgExceptions.of(404, "USER.NOT_FOUND", "사용자를 찾을 수 없습니다."));
+		if (SupportAccounts.LOGIN_ID.equals(user.getLoginId())) {
+			throw OrgExceptions.of(409, "USER.SYSTEM_ACCOUNT", "시스템 계정입니다.");
+		}
+		return user;
 	}
 
 	private UserAccount requireActive(long userPk) {
@@ -409,6 +414,7 @@ public class UserAccountService {
 			String useYn) {
 		return (root, query, builder) -> {
 			List<Predicate> predicates = new ArrayList<>();
+			predicates.add(builder.notEqual(root.get("loginId"), SupportAccounts.LOGIN_ID));
 			String text = OrgExceptions.trimToNull(keyword);
 			if (text != null) {
 				var person = root.join("person", JoinType.LEFT);

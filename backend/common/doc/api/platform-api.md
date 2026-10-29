@@ -84,9 +84,19 @@ Refresh 쿠키 이름은 `mdm_platform_refresh`, Path는 `/api/platform/v1/auth`
 
 테넌트 사용자 로그인은 등록한 도메인을 Host로 보낸다. dev 헤더 없이 Host만으로 테넌트를 찾는다.
 
+## 지원 접속
+
+`POST /api/platform/v1/tenants/{tenantCode}/support-access` 본문 `{ "reason" }`는 생략할 수 있다. 테넌트가 없거나 사용 여부가 N이면 `404 TENANT.NOT_FOUND`다. 상태가 ACTIVE가 아니거나 스키마가 없으면 `409 SUPPORT.TENANT_NOT_ACTIVE`다. 사유가 비거나 공백이면 서울 시각 `yyyy-MM-dd HH:mm {운영자 로그인}`으로 저장하고 기본 사유로 표시한다. 200자를 넘으면 `400 COMMON.VALIDATION_FAILED`다. 성공 `data`는 `supportAccessId`, `accessUrl`, `ticketExpireDatetime`다. `Cache-Control: no-store`다. 티켓 평문은 이 응답의 `accessUrl` 프래그먼트에만 있다.
+
+`dev` 프로필의 주소는 `{mdm.support-access.dev-base-url}/support-access?tenant={tenantCode}#ticket={ticket}`다. 그 외에는 `{mdm.support-access.scheme}://{대표 도메인}/support-access#ticket={ticket}`다. 대표 도메인은 `primary_yn='Y'`, `verified_yn='Y'`, `use_yn='Y'`다. 없으면 `409 SUPPORT.NO_DOMAIN`다.
+
+`GET /api/platform/v1/support-accesses` 쿼리는 `tenantCode`, `platformLoginId`(부분, 와일드카드 이스케이프), `status`, `from`, `to`(발급 시각), `page`, `size`, `sort`다. 정렬은 `issuedDatetime`(기본 내림차순), `startedDatetime`, `tenantCode`만 된다. `ticket_hash`는 주지 않는다. 저장된 `ACTIVE`가 만료됐으면 응답 상태만 `EXPIRED`다.
+
+`GET /api/platform/v1/support-accesses/{id}/actions`는 발생 시각 오름차순이다. 없으면 `404 SUPPORT.NOT_FOUND`다. 운영자를 비활성화하는 API는 없다. 요청마다 운영자 상태를 보고, 비활성이면 진행 중 접속을 `REVOKED`로 둔다.
+
 ## 오류 코드
 
-`AUTH.INVALID_CREDENTIALS`, `AUTH.CSRF`, `AUTH.TOKEN_EXPIRED`, `AUTH.TOKEN_REUSED`, `AUTH.REFRESH_IN_PROGRESS`, `AUTH.ACCOUNT_DISABLED`, `AUTH.UNAUTHORIZED`, `AUTH.TOKEN_REJECTED`, `AUTH.PASSWORD_CURRENT`, `AUTH.PASSWORD_SAME`, `AUTH.PASSWORD_POLICY`, `AUTH.PASSWORD_CHANGE_REQUIRED`, `TENANT.NOT_FOUND`, `TENANT.DUPLICATE`, `TENANT.ALREADY_ACTIVE`, `TENANT.INACTIVE`, `TENANT.INVALID_STATUS_TRANSITION`, `TENANT.LAST_DOMAIN`, `COMMON.VALIDATION_FAILED`, `COMMON.INVALID_PAGE`, `COMMON.INVALID_SORT`.
+`AUTH.INVALID_CREDENTIALS`, `AUTH.CSRF`, `AUTH.TOKEN_EXPIRED`, `AUTH.TOKEN_REUSED`, `AUTH.REFRESH_IN_PROGRESS`, `AUTH.ACCOUNT_DISABLED`, `AUTH.UNAUTHORIZED`, `AUTH.TOKEN_REJECTED`, `AUTH.PASSWORD_CURRENT`, `AUTH.PASSWORD_SAME`, `AUTH.PASSWORD_POLICY`, `AUTH.PASSWORD_CHANGE_REQUIRED`, `AUTH.SUPPORT_TICKET_INVALID`, `AUTH.SUPPORT_ENDED`, `AUTH.SUPPORT_FORBIDDEN`, `TENANT.NOT_FOUND`, `TENANT.DUPLICATE`, `TENANT.ALREADY_ACTIVE`, `TENANT.INACTIVE`, `TENANT.INVALID_STATUS_TRANSITION`, `TENANT.LAST_DOMAIN`, `SUPPORT.TENANT_NOT_ACTIVE`, `SUPPORT.NO_DOMAIN`, `SUPPORT.NOT_FOUND`, `SUPPORT.AUDIT_UNAVAILABLE`, `USER.SYSTEM_ACCOUNT`, `COMMON.VALIDATION_FAILED`, `COMMON.INVALID_PAGE`, `COMMON.INVALID_SORT`.
 
 ## 후속 과제
 

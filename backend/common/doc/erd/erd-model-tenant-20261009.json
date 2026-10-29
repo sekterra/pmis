@@ -1444,6 +1444,52 @@
           "subtypeId": ""
         }
       ]
+    },
+    {
+      "id": "entity-support-access",
+      "logicalName": "테넌트지원접속",
+      "physicalName": "tenant_support_access",
+      "remark": "플랫폼 운영자가 테넌트에 들어가는 일회용 티켓과 세션. 티켓 평문은 저장하지 않고 ticket_hash만 둔다.",
+      "subjectAreaId": "sa-platform-admin",
+      "position": { "x": 0, "y": 1200 },
+      "linkedEntityId": "",
+      "attributes": [
+        { "id": "attr-support-access-pk", "logicalName": "지원접속pk", "physicalName": "support_access_pk", "dataType": "BIGINT", "length": "", "isPrimaryKey": true, "isEssentialIdentifier": false, "isForeignKey": false, "nullable": false, "defaultValue": "", "description": "BIGINT + Sequence", "subtypeId": "" },
+        { "id": "attr-support-access-tenant", "logicalName": "테넌트pk", "physicalName": "tenant_pk", "dataType": "BIGINT", "length": "", "isPrimaryKey": false, "isEssentialIdentifier": false, "isForeignKey": true, "nullable": false, "defaultValue": "", "description": "pmis.tenant.tenant_pk", "subtypeId": "" },
+        { "id": "attr-support-access-admin", "logicalName": "운영자pk", "physicalName": "platform_admin_pk", "dataType": "BIGINT", "length": "", "isPrimaryKey": false, "isEssentialIdentifier": false, "isForeignKey": true, "nullable": false, "defaultValue": "", "description": "pmis.platform_admin.platform_admin_pk", "subtypeId": "" },
+        { "id": "attr-support-access-login", "logicalName": "운영자로그인", "physicalName": "platform_login_id", "dataType": "VARCHAR2", "length": "100", "isPrimaryKey": false, "isEssentialIdentifier": false, "isForeignKey": false, "nullable": false, "defaultValue": "", "description": "발급 시점 스냅샷", "subtypeId": "" },
+        { "id": "attr-support-access-reason", "logicalName": "사유", "physicalName": "reason", "dataType": "VARCHAR2", "length": "200", "isPrimaryKey": false, "isEssentialIdentifier": false, "isForeignKey": false, "nullable": false, "defaultValue": "", "description": "", "subtypeId": "" },
+        { "id": "attr-support-access-reason-default", "logicalName": "기본사유여부", "physicalName": "reason_default_yn", "dataType": "CHAR", "length": "1", "isPrimaryKey": false, "isEssentialIdentifier": false, "isForeignKey": false, "nullable": false, "defaultValue": "", "description": "Y/N", "subtypeId": "" },
+        { "id": "attr-support-access-status", "logicalName": "상태코드", "physicalName": "status_code", "dataType": "VARCHAR2", "length": "30", "isPrimaryKey": false, "isEssentialIdentifier": false, "isForeignKey": false, "nullable": false, "defaultValue": "", "description": "ISSUED/ACTIVE/ENDED/EXPIRED/REVOKED", "subtypeId": "" },
+        { "id": "attr-support-access-ticket", "logicalName": "티켓해시", "physicalName": "ticket_hash", "dataType": "VARCHAR2", "length": "64", "isPrimaryKey": false, "isEssentialIdentifier": false, "isForeignKey": false, "nullable": false, "defaultValue": "", "description": "SHA-256 hex. 평문 저장 금지", "subtypeId": "" },
+        { "id": "attr-support-access-ticket-expire", "logicalName": "티켓만료일시", "physicalName": "ticket_expire_datetime", "dataType": "TIMESTAMP", "length": "", "isPrimaryKey": false, "isEssentialIdentifier": false, "isForeignKey": false, "nullable": false, "defaultValue": "", "description": "", "subtypeId": "" },
+        { "id": "attr-support-access-issued", "logicalName": "발급일시", "physicalName": "issued_datetime", "dataType": "TIMESTAMP", "length": "", "isPrimaryKey": false, "isEssentialIdentifier": false, "isForeignKey": false, "nullable": false, "defaultValue": "", "description": "", "subtypeId": "" },
+        { "id": "attr-support-access-started", "logicalName": "시작일시", "physicalName": "started_datetime", "dataType": "TIMESTAMP", "length": "", "isPrimaryKey": false, "isEssentialIdentifier": false, "isForeignKey": false, "nullable": true, "defaultValue": "", "description": "", "subtypeId": "" },
+        { "id": "attr-support-access-expire", "logicalName": "세션만료일시", "physicalName": "expire_datetime", "dataType": "TIMESTAMP", "length": "", "isPrimaryKey": false, "isEssentialIdentifier": false, "isForeignKey": false, "nullable": true, "defaultValue": "", "description": "", "subtypeId": "" },
+        { "id": "attr-support-access-ended", "logicalName": "종료일시", "physicalName": "ended_datetime", "dataType": "TIMESTAMP", "length": "", "isPrimaryKey": false, "isEssentialIdentifier": false, "isForeignKey": false, "nullable": true, "defaultValue": "", "description": "", "subtypeId": "" },
+        { "id": "attr-support-access-end-reason", "logicalName": "종료사유코드", "physicalName": "end_reason_code", "dataType": "VARCHAR2", "length": "30", "isPrimaryKey": false, "isEssentialIdentifier": false, "isForeignKey": false, "nullable": true, "defaultValue": "", "description": "USER_ENDED/EXPIRED/OPERATOR_DISABLED", "subtypeId": "" },
+        { "id": "attr-support-access-issue-ip", "logicalName": "발급IP", "physicalName": "issue_ip", "dataType": "VARCHAR2", "length": "45", "isPrimaryKey": false, "isEssentialIdentifier": false, "isForeignKey": false, "nullable": true, "defaultValue": "", "description": "", "subtypeId": "" },
+        { "id": "attr-support-access-start-ip", "logicalName": "시작IP", "physicalName": "start_ip", "dataType": "VARCHAR2", "length": "45", "isPrimaryKey": false, "isEssentialIdentifier": false, "isForeignKey": false, "nullable": true, "defaultValue": "", "description": "", "subtypeId": "" },
+        { "id": "attr-support-access-agent", "logicalName": "사용자에이전트", "physicalName": "user_agent", "dataType": "VARCHAR2", "length": "500", "isPrimaryKey": false, "isEssentialIdentifier": false, "isForeignKey": false, "nullable": true, "defaultValue": "", "description": "", "subtypeId": "" }
+      ]
+    },
+    {
+      "id": "entity-support-access-action",
+      "logicalName": "테넌트지원접속동작",
+      "physicalName": "tenant_support_access_action",
+      "remark": "지원 접속 중 쓰기 요청 한 건. 본문은 저장하지 않는다.",
+      "subjectAreaId": "sa-platform-admin",
+      "position": { "x": 400, "y": 1200 },
+      "linkedEntityId": "",
+      "attributes": [
+        { "id": "attr-support-action-pk", "logicalName": "동작pk", "physicalName": "action_pk", "dataType": "BIGINT", "length": "", "isPrimaryKey": true, "isEssentialIdentifier": false, "isForeignKey": false, "nullable": false, "defaultValue": "", "description": "BIGINT + Sequence", "subtypeId": "" },
+        { "id": "attr-support-action-access", "logicalName": "지원접속pk", "physicalName": "support_access_pk", "dataType": "BIGINT", "length": "", "isPrimaryKey": false, "isEssentialIdentifier": false, "isForeignKey": true, "nullable": false, "defaultValue": "", "description": "", "subtypeId": "" },
+        { "id": "attr-support-action-occurred", "logicalName": "발생일시", "physicalName": "occurred_datetime", "dataType": "TIMESTAMP", "length": "", "isPrimaryKey": false, "isEssentialIdentifier": false, "isForeignKey": false, "nullable": false, "defaultValue": "", "description": "", "subtypeId": "" },
+        { "id": "attr-support-action-method", "logicalName": "HTTP메서드", "physicalName": "http_method", "dataType": "VARCHAR2", "length": "10", "isPrimaryKey": false, "isEssentialIdentifier": false, "isForeignKey": false, "nullable": false, "defaultValue": "", "description": "", "subtypeId": "" },
+        { "id": "attr-support-action-path", "logicalName": "경로", "physicalName": "path", "dataType": "VARCHAR2", "length": "500", "isPrimaryKey": false, "isEssentialIdentifier": false, "isForeignKey": false, "nullable": false, "defaultValue": "", "description": "쿼리 없음. 경로 변수는 실제 값", "subtypeId": "" },
+        { "id": "attr-support-action-status", "logicalName": "상태코드", "physicalName": "status_code", "dataType": "INTEGER", "length": "", "isPrimaryKey": false, "isEssentialIdentifier": false, "isForeignKey": false, "nullable": true, "defaultValue": "", "description": "응답 상태", "subtypeId": "" },
+        { "id": "attr-support-action-sensitive", "logicalName": "민감여부", "physicalName": "sensitive_yn", "dataType": "CHAR", "length": "1", "isPrimaryKey": false, "isEssentialIdentifier": false, "isForeignKey": false, "nullable": false, "defaultValue": "", "description": "Y/N", "subtypeId": "" }
+      ]
     }
   ],
   "relationships": [

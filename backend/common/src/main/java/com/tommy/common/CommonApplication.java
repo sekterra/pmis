@@ -11,9 +11,11 @@ import org.springframework.context.ConfigurableApplicationContext;
 import com.tommy.common.file.FileProperties;
 import com.tommy.common.global.multitenancy.PlatformHostProperties;
 import com.tommy.common.global.security.MdmSecurityProperties;
+import com.tommy.common.supportaccess.SupportAccessLocationProperties;
 
 @SpringBootApplication
-@EnableConfigurationProperties({ MdmSecurityProperties.class, PlatformHostProperties.class, FileProperties.class })
+@EnableConfigurationProperties({ MdmSecurityProperties.class, PlatformHostProperties.class, FileProperties.class,
+		SupportAccessLocationProperties.class })
 public class CommonApplication {
 
 	public static void main(String[] args) {

@@ -21,7 +21,7 @@ public interface RoleRepository extends JpaRepository<Role, Long>, JpaSpecificat
 	@Query("""
 			select r.rolePk, count(ur)
 			from UserRole ur join ur.role r join ur.userAccount u
-			where r.rolePk in :rolePks and ur.useYn = 'Y' and u.useYn = 'Y'
+			where r.rolePk in :rolePks and ur.useYn = 'Y' and u.useYn = 'Y' and u.loginId <> '$platform-support'
 			  and (ur.validFromDate is null or ur.validFromDate <= :today)
 			  and (ur.validToDate is null or ur.validToDate >= :today)
 			group by r.rolePk

@@ -104,3 +104,16 @@ Remove-Item Env:MDM_DEV_ADMIN_PASSWORD
 
 연결 설정과 `secret_ref`에는 비밀 값을 넣지 않는다. `secret_ref`는 외부 비밀 이름의 형식만 검사한다.
 
+## 10. 지원 접속
+
+플랫폼 운영자가 짧은 티켓으로 테넌트 토큰을 받는다. 티켓은 60초, 세션은 30분이다. 값은 비밀이 아니다.
+
+| 키 | 기본 | 의미 |
+| --- | --- | --- |
+| `mdm.security.support-access.ticket-ttl-seconds` | 60. `MDM_SUPPORT_TICKET_TTL_SECONDS` | 일회용 티켓 유효 시간 |
+| `mdm.security.support-access.ttl-minutes` | 30. `MDM_SUPPORT_ACCESS_TTL_MINUTES` | 교환 후 세션 시간. 연장과 refresh는 없다 |
+| `mdm.support-access.scheme` | `https`. `MDM_SUPPORT_ACCESS_SCHEME` | `dev`가 아닐 때 대표 도메인 주소의 스킴 |
+| `mdm.support-access.dev-base-url` | `http://localhost:8000`. `MDM_SUPPORT_ACCESS_DEV_BASE_URL` | `dev` 프로필의 프론트 주소 |
+
+이미 만들어진 테넌트에는 시스템 사용자 `$platform-support`, 메뉴 `SUPPORT_ACCESS`, 그 READ 권한이 없다. `TenantUpgradeService`가 테넌트 마이그레이션 뒤에 시드를 다시 실행하므로, 플랫폼의 테넌트 업그레이드 API로 넣는다. 시드는 없는 행만 추가한다. 이 문서는 그 명령을 공유 DB에 실행하지 않는다.
+

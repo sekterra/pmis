@@ -30,6 +30,7 @@ JOIN (VALUES
     ('DEPT', '부서', '/system/dept', 40),
     ('PERSON', '사람', '/system/person', 50),
     ('USER', '사용자', '/system/user', 60),
+    ('SUPPORT_ACCESS', '지원 접속', '/system/support-access', 62),
     ('FILE_STORAGE', '파일 저장소', '/system/file-storage', 65),
     ('FILE', '파일', '/system/file', 70),
     ('TEAM', '팀', '/system/team', 80),
@@ -104,3 +105,36 @@ WHERE r.role_code = 'USER'
   AND NOT EXISTS (
       SELECT 1 FROM role_permission rp
       WHERE rp.role_pk = r.role_pk AND rp.permission_pk = p.permission_pk);
+
+INSERT INTO permission (menu_pk, action_code, permission_code, permission_name, sort_order)
+SELECT m.menu_pk, 'READ', 'SUPPORT_ACCESS:READ', '지원 접속 조회', 1
+FROM menu m
+WHERE m.menu_code = 'SUPPORT_ACCESS'
+  AND NOT EXISTS (
+      SELECT 1 FROM permission p
+      WHERE p.menu_pk = m.menu_pk AND p.action_code = 'READ');
+
+INSERT INTO role_permission (role_pk, permission_pk)
+SELECT r.role_pk, p.permission_pk
+FROM role r
+JOIN permission p ON TRUE
+JOIN menu m ON m.menu_pk = p.menu_pk
+WHERE r.role_code = 'TENANT_ADMIN'
+  AND m.menu_code = 'SUPPORT_ACCESS'
+  AND p.action_code = 'READ'
+  AND NOT EXISTS (
+      SELECT 1 FROM role_permission rp
+      WHERE rp.role_pk = r.role_pk AND rp.permission_pk = p.permission_pk);
+
+INSERT INTO user_account (account_type_code, login_id, password_hash, must_change_password_yn, user_status_code)
+SELECT 'NORMAL', '$platform-support', NULL, 'N', 'ACTIVE'
+WHERE NOT EXISTS (SELECT 1 FROM user_account WHERE login_id = '$platform-support');
+
+INSERT INTO user_role (user_pk, role_pk, use_yn)
+SELECT u.user_pk, r.role_pk, 'Y'
+FROM user_account u
+JOIN role r ON r.role_code = 'TENANT_ADMIN'
+WHERE u.login_id = '$platform-support'
+  AND NOT EXISTS (
+      SELECT 1 FROM user_role ur
+      WHERE ur.user_pk = u.user_pk AND ur.role_pk = r.role_pk);
