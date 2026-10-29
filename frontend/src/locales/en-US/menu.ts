@@ -7,6 +7,7 @@ export default {
   'menu.org.dept': 'Departments',
   'menu.org.person': 'People',
   'menu.access.role': 'Roles',
+  'menu.access.user': 'Users',
   'menu.tenants': 'Tenants',
   'menu.login': 'Login',
   'menu.exception': 'Exception',

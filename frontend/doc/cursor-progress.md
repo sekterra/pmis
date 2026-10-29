@@ -764,4 +764,44 @@ git: `frontend`와 `D:\_project\PMIS` 모두 저장소가 아니다. `git status
 - 역할 수정 필드는 모두 화면에 있다. 빈 설명은 null이다.
 - 플랫폼과 테넌트는 빌드가 하나다. `/access/role`은 그 라우트에 있고, 플랫폼 사용자는 `/access/**`를 막는다.
 
+## [F11단계] 사용자 관리 화면 - 2026-10-29
+
+### 변경/추가 파일
+
+- 추가: `src/pages/access/user`(목록, Drawer, 역할 편집, 규칙, 흐름 테스트)
+- 추가: `src/services/mdm/users.ts`, `usersQuery.ts`, `usersRecord.d.ts`
+- 추가: `src/components/IssuedPasswordModal.tsx`
+- 추가: `doc/f11-wireframe.md`, `doc/f11-manual-check.md`
+- 수정: 부서 이력 상위 부서 표시. `deptRecord.d.ts`, `dept/historyLabel.ts`, `dept/index.tsx`
+- 수정: `src/core/menu/menuRoutes.ts`에 `USER` → `/access/user`
+- 수정: `config/routes.ts`에 `/access/user`
+- 수정: `ko-KR`/`en-US`의 `menu.ts`, `pages.ts`에 사용자 문구
+- 권한 관리 화면과 백엔드는 수정하지 않았다. `vitest.config.ts`는 바꾸지 않았다
+
+### 검증 결과
+
+- `npm.cmd run lint`: 통과. biome 186파일, 이어서 `tsc --noEmit`. 종료 코드 0
+- `npm.cmd exec antd -- lint ./src`: 통과. 201파일, 이슈 0
+- `src/pages/access/user/flow.test.tsx`를 3회 반복 실행했다. 매번 3개 통과(약 29초, 28초, 30초)
+- `npm.cmd test`: 통과. 54파일, 212개. 약 367초
+- `npm.cmd run build`: 통과. 종료 코드 0. 한 산출물에 `access/user`가 있다
+- 개발 서버와 백엔드는 띄우지 않았다
+
+### 질문/확인 필요
+
+- 초안은 계정이 없는 사람을 우선하라고 했다. 지시서는 사용 중 사람을 검색하고, 이미 연결된 사람은 서버 오류를 사람 칸에 보이라고 했다. 지시서를 따랐다. 차이는 `doc/f11-wireframe.md`에 적었다.
+- 수정 DTO에 `clearPerson`이 있으나 서비스는 이 값을 쓰지 않는다. 사람을 비우면 `personPk: null`만 보낸다.
+- `ROLE.INACTIVE`의 필드는 `roleCode`라 어느 역할인지 알 수 없다. 편집 창 안내에 보인다.
+- 플랫폼 임시 비밀번호 모달은 로그인 아이디 복사도 있어 그대로 두었다. 사용자 화면은 `IssuedPasswordModal`을 새로 만들었다.
+- 전체 테스트는 약 367초다. 파일별 시간은 보고서에 적었다. 테스트 설정은 바꾸지 않았다.
+- 사용자가 직접 볼 항목은 `doc/f11-manual-check.md` 맨 위에 모았다.
+
+### 가정한 사항
+
+- 목록은 회사 화면과 같이 antd `Table`이다. Drawer 너비는 `size="large"`다.
+- 부모 메뉴 그룹은 서버 `menus/my`의 `parentMenuCode`를 그대로 쓴다.
+- 생성일 정렬은 API가 받지만 이 단계 열에는 없다. 화면 정렬은 로그인 아이디, 상태, 마지막 로그인만이다.
+- 역할 조회 API는 페이지가 없다. 탭을 처음 열 때 한 번 받고, 같은 키면 다시 받지 않는다.
+- 플랫폼과 테넌트는 빌드가 하나다. `/access/user`는 그 라우트에 있고, 플랫폼 사용자는 `/access/**`를 막는다.
+
 

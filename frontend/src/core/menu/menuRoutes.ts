@@ -14,6 +14,7 @@ export const MENU_ROUTES: MenuRoute[] = [
   { menuCode: 'DEPT', path: '/org/dept', labelKey: 'menu.org.dept', primary: true },
   { menuCode: 'PERSON', path: '/org/person', labelKey: 'menu.org.person', primary: true },
   { menuCode: 'ROLE', path: '/access/role', labelKey: 'menu.access.role', primary: true },
+  { menuCode: 'USER', path: '/access/user', labelKey: 'menu.access.user', primary: true },
 ];
 
 export function routeForPath(pathname: string): MenuRoute | undefined {

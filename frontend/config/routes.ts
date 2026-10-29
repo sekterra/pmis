@@ -64,6 +64,12 @@ export default [
     component: './access/role',
   },
   {
+    path: '/access/user',
+    name: 'user',
+    hideInMenu: true,
+    component: './access/user',
+  },
+  {
     path: '/welcome',
     name: 'welcome',
     icon: 'home',

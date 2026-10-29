@@ -74,6 +74,8 @@ export type DeptHistory = {
   afterDeptName: string | null;
   beforeParentDeptPk: number | null;
   afterParentDeptPk: number | null;
+  beforeParentDeptName: string | null;
+  afterParentDeptName: string | null;
   changeReason: string | null;
   changeDatetime: string | null;
   changeUserPk: number | null;

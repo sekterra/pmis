@@ -26,6 +26,7 @@ import { fetchLanguages } from '@/services/mdm/i18n';
 import { listPeople } from '@/services/mdm/people';
 import type { PersonListItem } from '@/services/mdm/peopleRecord';
 import DeptFormDrawer from './DeptFormDrawer';
+import { parentChange } from './historyLabel';
 import styles from './index.module.css';
 import { deptErrorText } from './rules';
 import { defaultExpandedKeys, deptNodeLabel, nestDepts, type DeptNode } from './tree';
@@ -307,7 +308,7 @@ const DeptPage: React.FC = () => {
     },
     {
       title: text('pages.org.dept.historyParents', '상위 부서'),
-      render: (_, row) => `${row.beforeParentDeptPk ?? '-'} → ${row.afterParentDeptPk ?? '-'}`,
+      render: (_, row) => parentChange(row),
     },
     { title: text('pages.org.dept.historyReason', '사유'), dataIndex: 'changeReason' },
     { title: text('pages.org.dept.historyAt', '변경 시각'), dataIndex: 'changeDatetime' },

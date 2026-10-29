@@ -193,6 +193,8 @@ describe('department page', () => {
           afterDeptName: '개발본부',
           beforeParentDeptPk: 1,
           afterParentDeptPk: 1,
+          beforeParentDeptName: '본사',
+          afterParentDeptName: '본부',
           changeReason: null,
           changeDatetime: '2026-10-22T00:00:00',
           changeUserPk: null,
@@ -269,7 +271,7 @@ describe('department page', () => {
     fireEvent.click(screen.getByRole('tab', { name: '변경 이력' }));
     await screen.findByText('개명');
     expect(listDepartmentHistory).toHaveBeenCalledTimes(1);
-    expect(screen.getByText('1 → 1')).toBeTruthy();
+    expect(screen.getByText('본사 → 본부')).toBeTruthy();
     fireEvent.click(screen.getByRole('tab', { name: '기본 정보' }));
     fireEvent.click(screen.getByRole('tab', { name: '변경 이력' }));
     expect(listDepartmentHistory).toHaveBeenCalledTimes(1);
@@ -302,6 +304,8 @@ describe('department page', () => {
           afterDeptName: '본사후',
           beforeParentDeptPk: null,
           afterParentDeptPk: null,
+          beforeParentDeptName: null,
+          afterParentDeptName: null,
           changeReason: null,
           changeDatetime: '2026-01-01T00:00:00',
           changeUserPk: null,
@@ -326,6 +330,8 @@ describe('department page', () => {
           afterDeptName: '늦은개발',
           beforeParentDeptPk: 1,
           afterParentDeptPk: 1,
+          beforeParentDeptName: null,
+          afterParentDeptName: null,
           changeReason: null,
           changeDatetime: '2026-02-01T00:00:00',
           changeUserPk: null,
