@@ -1,8 +1,8 @@
 import { spawn } from 'node:child_process';
 import path from 'node:path';
-import { assertDevPortFree, resolveDevPort } from './devPort';
-import { applyUmiEnvFiles } from './localEnv';
-import { backendMissingNotice } from './proxyRules';
+import { assertDevPortFree, resolveDevPort } from './devPort.ts';
+import { applyUmiEnvFiles } from './localEnv.ts';
+import { backendMissingNotice } from './proxyRules.ts';
 
 async function main(): Promise<void> {
   const root = process.cwd();

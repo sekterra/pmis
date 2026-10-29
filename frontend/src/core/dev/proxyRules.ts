@@ -1,5 +1,5 @@
 import type { ClientRequest } from 'node:http';
-import { tenantHeaderFor } from '../request/tenantHeader';
+import { tenantHeaderFor } from '../request/tenantHeader.ts';
 
 export const MISSING_BACKEND_MESSAGE =
   '백엔드 주소가 없어 /api 요청이 프록시되지 않습니다. frontend/.env.local에 DEV_BACKEND_URL을 설정하세요';

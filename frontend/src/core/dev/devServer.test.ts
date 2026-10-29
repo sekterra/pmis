@@ -1,8 +1,10 @@
+import { spawn } from 'node:child_process';
 import type { ClientRequest } from 'node:http';
 import net from 'node:net';
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { PORT_BUSY_MESSAGE, assertDevPortFree, portBusyMessage, resolveDevPort } from './devPort';
 import { applyUmiEnvFiles, parseEnvFile } from './localEnv';
@@ -93,4 +95,52 @@ describe('local env files', () => {
       'http://quoted.invalid',
     );
   });
+});
+
+describe('dev launcher', () => {
+  it('resolves its modules and stops when the port is taken', async () => {
+    const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
+    const env: Record<string, string | undefined> = { ...process.env };
+    applyUmiEnvFiles(root, env);
+    const port = resolveDevPort(env);
+    const held = net.createServer();
+    held.unref();
+    await new Promise<void>((resolve, reject) => {
+      held.once('error', (error: NodeJS.ErrnoException) => {
+        if (error.code === 'EADDRINUSE') {
+          resolve();
+          return;
+        }
+        reject(error);
+      });
+      held.listen(port, '0.0.0.0', () => resolve());
+    });
+    const child = spawn(process.execPath, ['src/core/dev/runDev.ts'], {
+      cwd: root,
+      env: env as NodeJS.ProcessEnv,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    let output = '';
+    child.stdout.on('data', (chunk: Buffer) => {
+      output += chunk.toString();
+    });
+    child.stderr.on('data', (chunk: Buffer) => {
+      output += chunk.toString();
+    });
+    const code = await new Promise<number>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        child.kill();
+        reject(new Error('dev launcher did not exit'));
+      }, 4000);
+      child.once('exit', (exitCode) => {
+        clearTimeout(timer);
+        resolve(exitCode ?? 1);
+      });
+    }).finally(() => {
+      held.close();
+    });
+    expect(output).not.toContain('ERR_MODULE_NOT_FOUND');
+    expect(output).toContain('이미 다른 개발 서버가 떠 있을 수 있습니다');
+    expect(code).toBe(1);
+  }, 5000);
 });
