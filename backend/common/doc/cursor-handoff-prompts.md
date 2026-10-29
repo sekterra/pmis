@@ -483,7 +483,7 @@
 | 이름 | 필수 | 의미 |
 | --- | --- | --- |
 | `MDM_DEV_ADMIN_TARGET` | 필수 | `platform` 또는 `tenant` |
-| `MDM_DEV_ADMIN_TENANT_CODE` | target=tenant 일 때 필수 | 테넌트 코드 |
+| `MDM_DEV_ADMIN_TENANT_CODE` | target=tenant 일 때 선택 | 테넌트 코드. 비우면 `ACTIVE` 테넌트가 정확히 1개일 때 그 테넌트를 쓰고, 0개 또는 2개 이상이면 거절한다(후보 코드를 출력) |
 | `MDM_DEV_ADMIN_LOGIN` | 필수 | 로그인 아이디 |
 | `MDM_DEV_ADMIN_PASSWORD` | 필수 | 비밀번호 |
 
@@ -491,7 +491,7 @@
  1. 활성 프로필에 `dev` 가 포함되어 있어야 한다. 아니면 거절.
  2. 데이터베이스 이름이 `pmis` 인지 확인한다(기존 부트스트랩과 같은 검사).
  3. 환경변수 누락이나 빈 값이면 거절. 로그인 아이디는 소문자로 바꿔 저장한다(사용자 계정 규칙: 영문·숫자·`._@-` 3~100자). 비밀번호는 비어 있지 않고 BCrypt 한도(72바이트) 이내인지만 본다.
- 4. 출력에 비밀번호를 쓰지 않는다. 로그인 아이디는 출력해도 된다. 결과 한 줄(대상, 만들었는지/바꿨는지)만 출력한다.
+ 4. 출력에 비밀번호를 쓰지 않는다. 로그인 아이디는 출력해도 된다. 결과 한 줄(대상, target=tenant 이면 실제로 적용한 테넌트 코드, 만들었는지/바꿨는지)만 출력한다.
 
 target=platform:
  - `platform_admin` 에 같은 로그인 아이디가 있으면 그 계정의 비밀번호 해시를 바꾸고, 없으면 새로 만든다(이름·이메일은 로그인 아이디로 채운다).
@@ -499,7 +499,7 @@ target=platform:
  - 기존 refresh 토큰이 있으면 철회한다.
 
 target=tenant:
- - 테넌트 코드로 `pmis.tenant` 를 찾고 상태가 ACTIVE 이며 스키마가 있어야 한다. 아니면 거절. 그 테넌트 스키마 컨텍스트에서 실행한다(요청 필터와 같은 방식. 끝나면 반드시 컨텍스트 해제).
+ - 테넌트 코드(생략 시 위 규칙의 유일한 ACTIVE 테넌트)로 `pmis.tenant` 를 찾고 상태가 ACTIVE 이며 스키마가 있어야 한다. 아니면 거절. 그 테넌트 스키마 컨텍스트에서 실행한다(요청 필터와 같은 방식. 끝나면 반드시 컨텍스트 해제).
  - `user_account` 에 같은 로그인 아이디가 있으면 비밀번호 해시를 바꾸고, 없으면 새로 만든다(계정 유형 NORMAL, 사람 연결 없음, 언어·시간대는 테넌트 기본값, 상태 ACTIVE).
  - 두 경우 모두 `TENANT_ADMIN` 역할이 현재 유효하게 부여되어 있게 한다(없으면 부여, 철회돼 있으면 되살림, 기간이 지났으면 종료일을 비움).
  - 상태 정상, 실패 횟수 0, 잠금 해제, 사용 여부 Y, `must_change_password_yn='N'`, 비밀번호 만료 먼 미래 또는 null, refresh 철회, 이력 테이블이 있으면 사유 `RESET` 같은 기존 코드로 한 줄.
@@ -527,3 +527,81 @@ target=tenant:
 
 - 커밋: `[9.7] 요약`. 보고서: `docs/reports/9.7.md` 와 `9.7.diff` (`.diff` 는 추적하지 않음). a–e 형식에 git 상태 줄 포함. 보고서에 어떤 값도 적지 않는다.
 - push 하지 않는다. 사용자가 "push 해줘" 라고 할 때만 한다.
+
+## 9.8단계: 지원 접속 (플랫폼 운영자가 테넌트에 들어가 검증)
+
+사용자 결정(2026-10-29): 권한은 테넌트 관리자 전체, 사유는 선택 입력(비면 접속 일시 + 담당자 로그인 ID), 모든 테넌트에서 항상 허용, 접속 기록 조회 가능, 계정 관련 기능도 허용. 설계는 `backend/common/doc/auth-design.md` 의 "지원 접속" 절이다(먼저 끝까지 읽는다). 이 단계만 수행하고 멈춘다. 프론트는 이 단계가 승인된 뒤 F12 에서 한다.
+
+시작 전: `main` 으로 전환, `git pull --ff-only`, Claude 가 쓴 파일(지시서, `docs/reviews/*`, `auth-design.md`)이 변경 상태면 먼저 `docs:` 커밋으로 올린다. 작업 방식은 이 파일 맨 위 "작업 방식" 블록을 따른다.
+
+### A. 사전 확인 (코드 수정 전에 보고서 초안에 적는다)
+
+설계와 현재 코드가 어긋나는 곳을 찾는다. 작은 차이는 코드 쪽에 맞추고 보고서 "질문"에 적는다. 구조가 달라 설계를 못 따르는 경우에만 멈춘다. 확인할 것:
+ 1. `pmis.tenant` 의 키 컬럼과 `tenant_domain` 의 대표 도메인 컬럼 이름.
+ 2. `user_account` 의 NOT NULL 컬럼과 비밀번호 해시 컬럼 제약(시스템 사용자 행을 어떻게 넣을지), 상태·계정 유형 코드 값.
+ 3. `TENANT_ADMIN` 역할과 시드가 어느 스크립트(마이그레이션 또는 `S0x`)에서 들어가는지, 사용자 역할 부여 테이블 구조.
+ 4. 마지막 관리자 판정(`USER.LAST_ADMIN`)이 어떤 쿼리를 쓰는지, 사용자 목록·검색·사람 연결 선택·역할 보유자 수가 어디서 나오는지.
+ 5. 현재 Access 필터 체인 순서, `CurrentTenantUser` 가 `sub` 로 무엇을 읽는지, `DbPermissionChecker` 가 역할을 읽는 경로.
+ 6. 플랫폼 운영자 비활성화·삭제 API 가 있는지.
+
+### B. DB
+
+ 1. 공용 스키마 새 마이그레이션(다음 번호): 설계의 두 테이블 `tenant_support_access`, `tenant_support_access_action`. 기본 키, `status` 체크(`ISSUED`/`ACTIVE`/`ENDED`/`EXPIRED`/`REVOKED`), 인덱스(테넌트+시작시각 내림차순, 운영자+시작시각, `ticket_hash` 유일, action 은 `support_access_pk`+발생시각). 기존 컬럼 이름 규칙과 시간 타입을 따른다. ERD 문서(`backend/common/doc/erd`)가 있으면 갱신한다.
+ 2. 테넌트 스키마 새 마이그레이션 또는 시드(A.3 결과에 맞춰 순서를 정한다. 반복 실행에 안전하게 `NOT EXISTS`): 지원 시스템 사용자 1행(로그인 ID `$platform-support`, 상태 ACTIVE, 사람 연결 없음, 비밀번호 해시는 어떤 입력으로도 일치하지 않는 값 또는 NULL 허용이면 NULL), `TENANT_ADMIN` 역할 부여. 메뉴 `SUPPORT_ACCESS`(접근 관리 그룹 아래, 이름 i18n 키 포함, 기존 메뉴 시드 방식 그대로)와 권한 READ 를 `TENANT_ADMIN` 에만.
+ 3. 기존 테넌트: `TenantUpgradeService.migrate` 를 실행하면 위 2가 적용되는지 통합 테스트로 확인한다(이미 마이그레이션 방식이면 별도 코드가 없을 수 있다. 시드가 필요하면 업그레이드 서비스가 시드를 다시 적용하는 경로를 쓴다). 새 테넌트 프로비저닝도 같은 결과가 되어야 한다.
+
+### C. 플랫폼 API (`/api/platform/v1`, 플랫폼 토큰)
+
+ 1. `POST /tenants/{tenantCode}/support-access` 본문 `{reason?}`. 테넌트가 ACTIVE 이고 스키마가 있어야 한다(아니면 `TENANT.NOT_FOUND` 또는 `SUPPORT.TENANT_NOT_ACTIVE`). 사유는 trim 해 최대 200자(초과 `COMMON.VALIDATION_FAILED`), 비면 설계의 기본값(Asia/Seoul 시각 `yyyy-MM-dd HH:mm` + 운영자 로그인 ID)과 `reason_default_yn='Y'`. 티켓은 `SecureRandom` 256비트, URL-safe Base64, DB 에는 SHA-256 해시만. 수명 60초(`mdm.security.support-access.ticket-ttl-seconds`). 응답 `{supportAccessId, accessUrl, ticketExpireDatetime}` 에 `Cache-Control: no-store`. 티켓 원문은 응답 외 어디에도(로그, 예외, DB) 남기지 않는다.
+ 2. `accessUrl`: dev 프로필에서는 `{mdm.support-access.dev-base-url}/support-access?tenant={tenantCode}#ticket={ticket}` (기본 `http://localhost:8000`). 그 외에는 `{scheme}://{대표 도메인}/support-access#ticket={ticket}` (`mdm.support-access.scheme` 기본 https). 대표 도메인이 없으면 `SUPPORT.NO_DOMAIN`.
+ 3. `GET /support-accesses` 필터 tenantCode, platformLoginId(부분 일치. `LikeEscape` 사용), status, from, to(시작 시각 기준), 페이지네이션, 정렬 화이트리스트(`issuedDatetime` 기본 내림차순, `startedDatetime`, `tenantCode`). 응답 항목에서 `ticket_hash` 는 제외. 저장 상태가 ACTIVE 이고 만료 시각이 지났으면 응답 상태를 EXPIRED 로 계산해 준다(읽기 시 계산, 읽기 때 갱신하지 않는다).
+ 4. `GET /support-accesses/{id}/actions` 페이지네이션, 발생 시각 오름차순. 없으면 `SUPPORT.NOT_FOUND`.
+ 5. 플랫폼 운영자를 비활성화하는 경로가 있으면 그 운영자의 ISSUED/ACTIVE 행을 `REVOKED`(사유 코드 `OPERATOR_DISABLED`)로 바꾼다. 경로가 없으면 요청마다 운영자 활성 여부를 확인하는 B 쪽 검증(아래 D.4)에 맡기고 보고서에 적는다.
+
+### D. 테넌트 API (`/api/mdm/v1`)
+
+ 1. `POST /auth/support-access/exchange` 본문 `{ticket}`. 공개 경로, `X-MDM-Request: 1` 필수(`AUTH.CSRF`), Host(또는 dev 헤더)로 정해진 테넌트와 행의 테넌트가 같아야 한다. 티켓 해시로 행을 찾고 상태 ISSUED, 만료 전이어야 한다. 실패는 사유를 구분하지 않고 `401 AUTH.SUPPORT_TICKET_INVALID`(없음, 만료, 재사용, 다른 테넌트 모두 같은 응답과 비슷한 처리 시간). 성공하면 행 상태를 한 번에(조건부 UPDATE 로 경쟁 방지) ACTIVE 로 바꾸고 `started_datetime`, `expire_datetime`(+30분, `mdm.security.support-access.ttl-minutes`), `start_ip`, `user_agent` 를 채운다. 응답 `{accessToken, expiresInSeconds, supportAccessId}`, Refresh 쿠키는 만들지 않는다, `Cache-Control: no-store`. 이 요청은 티켓 외 인증이 필요 없다.
+ 2. `POST /auth/support-access/end` (지원 접속 토큰 필요, 헤더 `X-MDM-Request: 1`). 행을 ENDED 로, 사유 `USER_ENDED`. 이미 끝났으면 멱등하게 성공. 지원 접속 토큰이 아니면 `403 AUTH.SUPPORT_FORBIDDEN`.
+ 3. `GET /support-accesses`, `GET /support-accesses/{id}/actions`: `@RequirePermission(SUPPORT_ACCESS, READ)`. 현재 테넌트의 행만 나오도록 서버에서 테넌트 코드 조건을 강제한다(요청 파라미터로 바꿀 수 없다). 다른 테넌트 id 는 `SUPPORT.NOT_FOUND`. 응답 항목: 접속 id, 운영자 로그인 ID, 사유, 기본 사유 여부, 상태, 발급·시작·만료·종료 시각, 종료 사유, 접속 IP, 쓰기 요청 건수. 이 API 는 pmis 공용 스키마를 읽는다(테넌트 컨텍스트와 별개 조회. 연결·스키마 전환이 꼬이지 않게 기존 플랫폼 서비스가 공용 테이블을 읽는 방식을 따른다).
+ 4. `GET /auth/me` 응답에 `support` 객체를 추가한다. 일반 토큰이면 `null`. 지원 접속 토큰이면 `{supportAccessId, operatorLoginId, expireDatetime}` 이고 사용자 표시 이름은 `플랫폼 지원 ({운영자 로그인 ID})`.
+
+### E. 토큰과 요청 검증
+
+ 1. 발급: 기존 Access 발급기를 재사용해 `typ=tenant-user`, `aud=mdm-api`, `tenant`, `sub`=시스템 사용자 `user_pk`, `sup`=접속 id, `act`=운영자 `platform_admin_pk`, 수명 30분. `pwd_change_required` 는 항상 false.
+ 2. 매 요청 검증: `sup` 가 있는 토큰이면 (a) 행이 같은 테넌트의 ACTIVE 이고 만료 전인지, (b) 운영자가 활성(`use_yn='Y'`, 활성 상태)인지 본다. 짧은 캐시(60초 이내, 종료·폐기 때 즉시 삭제)를 둘 수 있다. 실패는 `401 AUTH.SUPPORT_ENDED`. 만료된 ACTIVE 행은 이 시점에 EXPIRED 로 갱신해도 된다.
+ 3. 지원 접속 토큰으로 막는 것: 자기 비밀번호 변경(`AUTH.SUPPORT_FORBIDDEN`), `/auth/refresh`(쿠키가 없으니 기존대로 실패하면 된다. 별도 처리 불필요), 지원 접속 재발급(플랫폼 API 라 `typ` 로 이미 막힘. 테스트로 확인). 나머지는 `TENANT_ADMIN` 과 같이 전체 허용이다(`DbPermissionChecker` 를 따로 우회하지 않고 시스템 사용자의 `TENANT_ADMIN` 역할로 통과시킨다).
+ 4. 쓰기 요청 기록 필터: `sup` 토큰의 POST/PUT/PATCH/DELETE 요청은 처리 전에 `tenant_support_access_action` 행을 별도 트랜잭션(REQUIRES_NEW)으로 넣고(경로는 쿼리 제외, `sensitive_yn` 은 비밀번호 초기화·재발급, 사용자 생성, 역할 부여·교체, 권한 변경, 메뉴 변경 경로), 처리 후 같은 행의 `status_code` 를 갱신한다. 처리 전 삽입이 실패하면 요청을 처리하지 않고 `503 SUPPORT.AUDIT_UNAVAILABLE` 로 거절한다(기록 없는 변경 금지). 요청 본문과 응답 본문은 저장하지 않는다. 종료 요청(`end`)은 기록 대상에서 뺀다.
+
+### F. 시스템 사용자 보호
+
+ 1. 시스템 사용자는 사용자 목록, 검색, 연결할 사람 선택, 역할 보유자 수에 나오지 않는다. 상세·수정·삭제·복구·상태 변경·역할 교체·비밀번호 초기화는 `USER.SYSTEM_ACCOUNT`(409 또는 기존 규칙에 맞는 상태 코드)로 거절한다. 사용자 목록 총 건수와 `TENANT_ADMIN` 보유자 수에도 포함하지 않는다. **마지막 관리자 판정에서 시스템 사용자를 세지 않는다**(세면 관리자가 한 명도 없어도 통과하는 구멍이 생긴다. 테스트 필수).
+ 2. 로그인: 이 로그인 ID 로는 어떤 경로로도 로그인할 수 없다. 응답은 잘못된 자격 증명과 같은 오류, 같은 처리 시간 규칙을 쓴다. 로그인 실패 이력 기록도 일반 실패와 같다.
+ 3. `pwd_change_required`, 비밀번호 만료, 잠금 판정이 시스템 사용자에게 적용되지 않게 한다(요청 검증이 `sup` 경로로 처리).
+
+### G. 테스트
+
+ - 단위: 사유 기본값(비어 있음, 공백, 200자 초과), 티켓 해시, 만료 계산, 민감 경로 판정, 상태 전이.
+ - 통합(`t_it_` 스키마, 실제 `pmis.tenant` 행 불변 방식 유지. 지원 접속 테이블 행은 테스트가 만들고 지운다):
+   1. 플랫폼 로그인 → 발급 → 교환 → 지원 토큰으로 `GET /me`(support 채워짐), 사용자 등록(임시 비밀번호 발급), 역할 교체, 권한 확인 → 쓰기 요청 기록 행에 경로와 `sensitive_yn` 이 맞게 남음, 조회 요청은 남지 않음.
+   2. 티켓 재사용, 만료(시계 조작), 다른 테넌트 Host, 변조 티켓 → 모두 같은 401.
+   3. 종료 후 같은 토큰 → `AUTH.SUPPORT_ENDED`. 만료 후, 운영자 비활성화 후도 같음.
+   4. 지원 토큰으로 자기 비밀번호 변경 거절, 플랫폼 API 호출 거절, 지원 재발급 불가.
+   5. 시스템 사용자: 목록·검색·선택에 없음, 수정·삭제·재발급 거절, 로그인 불가, 마지막 관리자 판정에 포함되지 않음(테넌트 관리자가 1명일 때 그 관리자 삭제가 여전히 `USER.LAST_ADMIN`).
+   6. 조회 권한: `TENANT_ADMIN` 은 자기 테넌트 기록만 보고, 다른 역할은 403, 다른 테넌트 기록 id 는 404. 플랫폼 목록 필터(테넌트, 운영자 부분 일치 + 와일드카드 문자, 상태, 기간)와 정렬 화이트리스트.
+   7. 기록 삽입 실패 시뮬레이션(액션 테이블 잠금 또는 목) → 쓰기 요청 503, 데이터 변경 없음.
+   8. `TenantUpgradeService.migrate` 로 기존 형태의 테넌트에 시스템 사용자·메뉴·권한이 생긴다.
+   9. 감사 컬럼: 지원 접속 중 만든 데이터의 `created_by` 가 시스템 사용자 `user_pk`.
+   10. 티켓·토큰·`Authorization` 값이 로그 출력에 없다(로그 캡처).
+ - 기존 단위·통합 테스트는 계속 통과해야 한다.
+
+### H. 문서
+
+ - `backend/common/doc/api/mdm-api.md` 와 플랫폼 API 문서에 새 엔드포인트, 오류 코드(`AUTH.SUPPORT_TICKET_INVALID`, `AUTH.SUPPORT_ENDED`, `AUTH.SUPPORT_FORBIDDEN`, `USER.SYSTEM_ACCOUNT`, `SUPPORT.*`)를 추가한다. 설정 키(`mdm.security.support-access.ticket-ttl-seconds`, `.ttl-minutes`, `mdm.support-access.scheme`, `.dev-base-url`)를 `local-setup.md` 에 적는다.
+ - `auth-design.md` 와 구현이 달라진 곳이 있으면 "지원 접속" 절 끝에 "구현 차이" 항목으로만 적는다(본문은 고치지 않는다).
+ - 기존 테넌트에 적용하는 방법(`TenantUpgradeService.migrate` 실행 방법)을 `local-setup.md` 에 한 줄 이상 적는다.
+ - `doc/cursor-progress.md` 갱신.
+
+### I. 마무리
+
+ - 커밋: `[9.8] 요약`. 보고서: `docs/reports/9.8.md` 와 `9.8.diff` (`.diff` 는 추적하지 않음). a–e 형식에 git 상태 줄 포함. 보고서에 티켓, 토큰, 비밀번호 값을 적지 않는다.
+ - push 하지 않는다. 사용자가 "push 해줘" 라고 할 때만 한다.

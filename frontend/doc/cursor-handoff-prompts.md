@@ -824,3 +824,56 @@ A. F8/F10 보완 (먼저 처리)
 검증: lint, antd lint, tsc, test, build. 전체 테스트가 늘어난 시간은 보고한다.
 진행 기록은 [F11.1단계] 형식으로 frontend/doc/cursor-progress.md 에 추가한다. 보고서는 "작업 방식"의 형식으로 docs/reports/F11.1.md 와 F11.1.diff 를 만든다. 커밋 메시지는 [F11.1] 요약. push 는 하지 않는다. 완료 후 멈춘다.
 ````
+
+---
+
+## F12단계: 지원 접속 화면 (플랫폼 [테넌트 접속], 지원 접속 띠, 접속 기록)
+
+선행: 백엔드 9.8 이 완료·승인된 뒤에 수행한다(`auth-design.md` "지원 접속" 절과 9.8 지시서 참고). 사용자 결정(2026-10-29): 권한 전체, 사유 선택(비면 접속 일시 + 담당자 ID), 항상 허용, 기록 조회, 계정 기능 허용. 이 단계만 수행하고 멈춘다.
+
+````
+기준 문서: backend/common/doc/auth-design.md "지원 접속", backend/common/doc/api/mdm-api.md 와 플랫폼 API 문서의 지원 접속 절(9.8 에서 추가). 응답 필드명은 명세와 백엔드 DTO 를 대조해 맞추고 다르면 DTO 를 따르되 보고서 "질문"에 올린다. 현재 코드 src/pages/platform/tenants(상세, 도메인 탭), src/core/auth(토큰 메모리 보관, 401 처리, refresh), src/core/auth/context.ts, src/layouts(헤더), config/routes.ts, menuRoutes.ts, src/pages/access/user(목록+Drawer 패턴). 구현 전에 frontend/doc/f12-wireframe.md 에 아래 화면의 구성(접속 모달 2단계, 진입 화면 상태, 띠, 기록 목록 열, 기록 Drawer)을 텍스트로 정리한다.
+
+1. 서비스와 타입 (src/services/mdm, src/services/platform)
+ - 플랫폼: startSupportAccess(tenantCode, reason?) → {supportAccessId, accessUrl, ticketExpireDatetime}, 기록 목록(필터 tenantCode, platformLoginId, status, from, to, page, size, sort), 기록 액션 목록.
+ - 테넌트: exchangeSupportTicket(ticket), endSupportAccess(), 기록 목록, 기록 액션 목록, me 응답의 support 필드 타입.
+ - 티켓과 accessUrl 은 서비스 호출 결과로만 다루고 로그, 콘솔, 전역 상태, react-query 캐시, 브라우저 저장소에 남기지 않는다(accessUrl 은 모달 컴포넌트 상태에만, 닫으면 지운다).
+
+2. 플랫폼 테넌트 상세의 [테넌트 접속]
+ - 상태가 ACTIVE 인 테넌트에서만 버튼을 보인다(아니면 숨기고 이유 툴팁). 플랫폼 로그인 상태에서만 보인다.
+ - 모달 1단계: 접속 사유(선택, 최대 200자, 안내 "비워 두면 접속 일시와 담당자 ID가 기록됩니다"), 주의 문구("이 테넌트의 관리자 권한 전체로 접속합니다. 모든 변경 요청이 기록되며 테넌트 관리자가 기록을 볼 수 있습니다"). [접속 준비] 로 발급 API 호출.
+ - 모달 2단계: 팝업 차단을 피하려고 자동으로 열지 않고 [새 탭에서 열기] 링크(`<a target="_blank" rel="noopener noreferrer" href=accessUrl>`)를 보인다. 티켓 남은 시간(60초) 카운트다운, 0 이 되면 링크를 비활성화하고 "다시 발급" 버튼. 링크를 눌러도 티켓은 일회용이므로 눌린 뒤에는 모달을 닫을 수 있게 한다. 닫으면 accessUrl 을 상태에서 지운다.
+ - 발급 오류(SUPPORT.*, TENANT.*)는 서버 메시지를 그대로 보인다.
+
+3. 진입 화면 /support-access (로그인 불필요한 공개 라우트, 레이아웃 셸 없음)
+ - 주소의 `#ticket=` 를 읽은 즉시 `history.replaceState` 로 주소창에서 지운다(렌더 전에). dev 에서는 `?tenant=` 값을 읽어 그 테넌트 코드로 요청 헤더(`X-Tenant-Code`)를 보낸다(기존 dev 테넌트 지정 방식을 재사용하고, 운영 빌드에서는 쿼리를 무시한다).
+ - 티켓이 없으면 "유효하지 않은 접속 주소입니다" 안내와 닫기 안내. 있으면 exchange 를 호출한다(`X-MDM-Request: 1` 은 기존 인증 호출과 같은 방식). 진행 중 로딩, 성공하면 Access 토큰을 메모리 인증 상태에 테넌트 세션으로 넣고 `/` 로 이동(replace). 실패(AUTH.SUPPORT_TICKET_INVALID)는 "접속 주소가 만료되었거나 이미 사용되었습니다. 플랫폼 콘솔에서 다시 접속하세요" 화면.
+ - 이 세션은 Refresh 가 없다. 인증 코어가 401 을 받으면 refresh 를 시도하지 않고 "지원 접속이 종료되었습니다" 화면(다시 접속 방법 안내)으로 보낸다. 새로고침하면 메모리 토큰이 사라지므로 같은 종료 화면이 나온다(정상 동작으로 문서화).
+ - 일반 로그인 세션과 섞이지 않도록, 지원 세션이면 로그인 화면으로 보내지 않는다.
+
+4. 지원 접속 띠와 종료
+ - me 의 support 가 있으면 모든 화면 최상단에 고정 띠: "지원 접속 중 · {operatorLoginId} · 남은 시간 mm:ss" 와 [지원 접속 종료] 버튼. 남은 시간은 expireDatetime 기준으로 1초마다 갱신(컴포넌트 언마운트 시 타이머 정리), 5분 이하에서 강조 색, 0 이 되면 종료 화면으로.
+ - [지원 접속 종료]: 확인창 후 end API 호출, 성공하든 실패하든 메모리 토큰을 지우고 종료 화면으로. 종료 화면은 "이 탭을 닫아도 됩니다"를 보인다.
+ - 헤더 사용자 이름은 서버가 준 표시 이름(`플랫폼 지원 (…)`)을 쓴다. 지원 세션에서는 [비밀번호 변경], [내 정보 수정] 메뉴를 숨긴다.
+ - 일반 로그인 세션에는 띠가 나오지 않는다.
+
+5. 접속 기록 화면 두 개 (같은 컴포넌트를 공유하되 pages 간 import 금지이므로 src/components 아래 공용으로 만든다)
+ - 플랫폼: 라우트 /support-accesses (플랫폼 영역 메뉴 "지원 접속 기록"). 필터: 테넌트 코드, 운영자 로그인 ID, 상태, 기간. 열: 테넌트, 운영자, 사유(기본 사유면 흐리게 "(자동)"), 상태 태그, 시작, 종료/만료, 접속 IP, 쓰기 요청 수. 서버 페이징·정렬.
+ - 테넌트: 라우트 /access/support-access (menuRoutes: SUPPORT_ACCESS → /access/support-access, READ 필요). 테넌트 필터 없음, 나머지 같음. 안내 문구 "플랫폼 운영자의 지원 접속 기록입니다. 기록은 수정하거나 삭제할 수 없습니다."
+ - 행 클릭 → Drawer: 위 항목 전부 + 쓰기 요청 목록(발생 시각, 메서드, 경로, 결과 코드, 민감 표시 태그). 액션 목록은 Drawer 가 열릴 때 호출하고 값 의존성(id, page)만 effect 에 쓰며 응답 도착 시 현재 키 확인(F9·F10 방식).
+ - 둘 다 읽기 전용(쓰기 버튼 없음). 플랫폼 영역 차단 규칙에 /access 가 이미 있으므로 테스트에 새 경로 포함.
+
+6. 문구는 모두 i18n 키(ko-KR/en-US 로컬 번들, menu.access.supportAccess 포함). 오류 문구도 번들 키, 서버 errorMessage 우선.
+
+7. 만들지 않는 것: 기록 삭제·수정·내보내기, 테넌트로의 알림, 접속 연장 기능, 승인 절차, 사용자 화면 변경(시스템 사용자는 서버가 숨긴다), 새 라이브러리.
+
+테스트(vitest, 서비스 목, 실제 네트워크 호출 0건을 매 테스트 뒤 확인):
+ (a) 서비스: 발급 본문(사유 trim, 빈 값은 생략 또는 null), 목록 쿼리(정렬 화이트리스트, 빈 필터 생략), exchange 본문
+ (b) 규칙: 티켓 파싱(`#ticket=` 추출, 주소창 정리), 남은 시간 계산, dev 에서만 ?tenant 사용, 기록 상태 태그 매핑
+ (c) 민감 값: 티켓과 accessUrl 이 console, localStorage, sessionStorage, react-query 캐시, history/location 에 남지 않음, 모달을 닫으면 상태에서 사라짐
+ (d) 화면 흐름: 테넌트 상세 [테넌트 접속] 표시 조건 → 사유 입력/미입력 → 2단계 링크와 카운트다운, 0 이 되면 비활성 → 진입 화면(성공, 티켓 없음, 실패) → 띠 표시와 남은 시간 → 종료 → 종료 화면 → 401 시 refresh 시도 없이 종료 화면, 지원 세션에서 비밀번호 변경 메뉴 숨김, 일반 세션에는 띠 없음, 기록 화면 두 개(권한별 접근, 필터, Drawer 의 액션 목록), 직접 접근 가드, 플랫폼 영역 차단
+ 새 흐름 테스트 파일은 3회 반복 실행해 통과를 기록한다. 타이머 테스트는 fake timers 를 쓰고 테스트 시간이 늘지 않게 한다.
+
+검증: lint, antd lint, tsc, test, build. 개발 서버와 백엔드는 띄우지 않는다. 사용자가 직접 볼 항목(플랫폼 로그인 → 테넌트 등록 → [테넌트 접속] → 새 탭 진입 → 띠, 모든 메뉴, 사용자 등록·임시 비밀번호, 종료, 만료, 테넌트 관리자로 로그인해 접속 기록 확인, 플랫폼 기록 화면)만 frontend/doc/f12-manual-check.md 맨 위에 모으고 나머지는 자동 테스트 이름을 표시한다. 값(주소, 계정, 비밀번호, 티켓)은 쓰지 않는다.
+진행 기록은 [F12단계] 형식으로 frontend/doc/cursor-progress.md 에 추가한다. 보고서는 "작업 방식"의 형식으로 docs/reports/F12.md 와 F12.diff 를 만든다. 커밋 메시지는 [F12] 요약. push 는 하지 않는다. 완료 후 멈춘다.
+````

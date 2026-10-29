@@ -336,8 +336,102 @@ Refresh 테이블 컬럼은 회전과 가족 폐기에 충분하다. 컬럼 추�
 
 8.1에서 구현하는 계정 상태: Access가 살아 있어도 계정이 `ACTIVE`가 아니거나 `use_yn='N'`이면 `401 AUTH.ACCOUNT_DISABLED`다. 사용자 단위 메모리 캐시 TTL 60초 안이며, 비밀번호 재발급과 계정 상태 변경이 그 캐시를 지운다.
 
+## 지원 접속
+
+플랫폼 운영자가 테넌트에 들어가 문제를 재현하고 기능을 검증하는 방법이다. 구현은 9.8(백엔드)과 F12(프론트)로 나눈다. 이 절은 설계만 적는다.
+
+### 확정된 요구
+
+1. 권한은 해당 테넌트의 관리자 권한 전체(`TENANT_ADMIN`과 같음)다.
+2. 접속 사유는 선택 입력이다. 비우면 `접속 일시 + 담당자 로그인 ID`를 기본값으로 저장한다. 예: `2026-10-29 14:05 admin`.
+3. 지원 접속은 모든 테넌트에서 항상 허용한다. 테넌트가 끄는 설정은 없다.
+4. 접속 기록을 확인할 수 있어야 한다. 플랫폼은 전체를, 테넌트 관리자는 자기 테넌트 것을 본다.
+5. 사용자 생성, 비밀번호 재발급, 역할 부여 같은 계정 기능도 지원 접속에서 쓸 수 있다.
+
+### 원칙
+
+- 플랫폼 운영자 계정과 테넌트 사용자 계정은 계속 분리한다. 지원 접속은 테넌트 계정으로 로그인하는 것이 아니라 "운영자 신원으로 발급받은 짧은 수명의 테넌트 토큰"이다. 테넌트 사용자의 비밀번호를 알 필요가 없고, 어떤 테넌트 계정의 잠금, 만료 상태와도 무관하다.
+- 권한이 전체이고 계정 기능까지 열려 있으므로, 대신 모든 접속과 변경 요청을 빠짐없이 기록한다. 기록은 지울 수 없다.
+- 지원 접속 중임을 화면에 항상 보여 준다.
+
+### 흐름
+
+1. 플랫폼 콘솔 테넌트 상세에서 [테넌트 접속]을 누른다. 사유를 선택 입력한다.
+2. `POST /api/platform/v1/tenants/{tenantCode}/support-access`. 본문 `{reason?}`. 서버는 접속 기록 행을 `ISSUED`로 만들고 일회용 티켓(256비트 난수, DB에는 SHA-256 해시만, 수명 60초)을 발급한다. 응답은 `supportAccessId`, `accessUrl`, `ticketExpireDatetime`이다.
+3. `accessUrl`은 그 테넌트의 대표 도메인(`tenant_domain`, 검증됨, 대표) 주소다. 티켓은 쿼리가 아니라 프래그먼트(`#ticket=...`)에 둔다. 서버 로그와 Referer에 남지 않게 한다. 프론트는 읽자마자 주소창에서 지운다. 새 탭으로 열어 플랫폼 콘솔 탭의 메모리 토큰과 섞이지 않게 한다.
+4. 테넌트 호스트에서 `POST /api/mdm/v1/auth/support-access/exchange`. 본문 `{ticket}`, 헤더 `X-MDM-Request: 1`. 티켓이 유효하고 미사용이며 Host의 테넌트와 같으면 행을 `ACTIVE`로 바꾸고 Access 토큰을 준다. 티켓 재사용, 만료, 다른 테넌트는 `401 AUTH.SUPPORT_TICKET_INVALID`로 같게 답한다.
+5. 종료는 [지원 접속 종료] 버튼(`POST /api/mdm/v1/auth/support-access/end`), 토큰 만료, 운영자 계정 비활성화 중 먼저 오는 것이다. 종료되면 행이 `ENDED` 또는 `EXPIRED`가 되고 그 토큰은 바로 쓸 수 없다.
+
+### 토큰
+
+일반 테넌트 Access와 같은 형식에 다음을 더한다.
+
+| 클레임 | 값 |
+| --- | --- |
+| typ | `tenant-user` (같음). 기존 검증을 그대로 탄다 |
+| aud, tenant | `mdm-api`, 해당 테넌트 코드 |
+| sub | 테넌트의 지원 시스템 사용자 `user_pk` |
+| sup | 접속 기록 `support_access_pk` |
+| act | 운영자 `platform_admin_pk` |
+| exp | 발급 후 30분. 설정 `mdm.security.support-access.ttl-minutes` |
+
+- Refresh 토큰은 없다. 연장도 없다. 만료되면 플랫폼에서 다시 접속한다.
+- `sup` 클레임이 있는 토큰은 매 요청마다 접속 기록 행이 `ACTIVE`이고 만료 전인지 확인한다(짧은 캐시 허용, 종료 시 캐시 삭제). 아니면 `401 AUTH.SUPPORT_ENDED`다.
+- 이 토큰으로 `/api/platform/**`는 호출할 수 없다(`typ`이 다름).
+- 비밀번호 변경 강제(`pwd_change_required`)는 항상 false다.
+- 지원 접속 토큰으로는 지원 접속을 다시 발급받을 수 없고, 자기 비밀번호는 바꿀 수 없다.
+
+### 지원 시스템 사용자
+
+테넌트 스키마마다 예약 계정 1행을 둔다. 로그인 ID `$platform-support`, 상태 `ACTIVE`, 로그인 불가(비밀번호로 인증하는 모든 경로에서 거절), `TENANT_ADMIN` 역할 보유.
+
+- 사용자 목록, 검색, 선택 목록에는 나오지 않는다. 수정, 삭제, 상태 변경, 역할 변경, 비밀번호 재발급도 거절한다(`USER.SYSTEM_ACCOUNT`).
+- 감사 컬럼(`created_by`, `updated_by`)에는 이 사용자의 `user_pk`가 들어간다. 그래서 지원 접속 중 만든 데이터는 "지원 접속이 만들었다"고 알 수 있고, 어느 운영자인지는 접속 기록(`sup`)으로 찾는다.
+- 새 테넌트는 프로비저닝 때, 기존 테넌트는 `TenantUpgradeService.migrate`로 만든다.
+- 이 계정이 생기면 9.5, 9.7처럼 감사 컬럼을 비워 두던 곳도 나중에 채울 수 있다. 이번 범위는 아니다.
+
+### 접속 기록
+
+공용 스키마 `pmis`에 둔다(테넌트 스키마가 아님). 운영자가 테넌트 스키마를 건드려 지울 수 없게 하고, 플랫폼이 전체를 한 번에 조회하기 위해서다.
+
+`tenant_support_access`: `support_access_pk`, 테넌트 키(기존 `tenant` 테이블 키와 같게), `platform_admin_pk`, `platform_login_id`(스냅샷), `reason`, `reason_default_yn`, `status`(`ISSUED`/`ACTIVE`/`ENDED`/`EXPIRED`/`REVOKED`), `ticket_hash`, `ticket_expire_datetime`, `issued_datetime`, `started_datetime`, `expire_datetime`, `ended_datetime`, `end_reason_code`, `issue_ip`, `start_ip`, `user_agent`.
+
+`tenant_support_access_action`: `action_pk`, `support_access_pk`, `occurred_datetime`, `http_method`, `path`(쿼리 제외, 경로 변수는 실제 값), `status_code`, `sensitive_yn`. 지원 접속 토큰으로 온 쓰기 요청(POST, PUT, PATCH, DELETE)만 기록한다. 조회는 기록하지 않는다. 요청 본문은 저장하지 않는다. 비밀번호 재발급, 사용자 생성, 역할, 권한 변경 경로는 `sensitive_yn='Y'`다.
+
+- 사유 기본값: 입력이 비었거나 공백뿐이면 `yyyy-MM-dd HH:mm {platform_login_id}`(서버 시각, 서울)로 저장하고 `reason_default_yn='Y'`. 최대 200자.
+- 수정과 삭제 API는 만들지 않는다. 보관 기간 정리도 이번 범위가 아니다.
+
+조회:
+
+- 플랫폼: `GET /api/platform/v1/support-accesses`(테넌트, 운영자, 기간, 상태 필터, 페이지), `GET /api/platform/v1/support-accesses/{id}/actions`.
+- 테넌트: `GET /api/mdm/v1/support-accesses`, `GET /api/mdm/v1/support-accesses/{id}/actions`. 새 메뉴 `SUPPORT_ACCESS`의 READ가 필요하고 `TENANT_ADMIN`에만 준다. 자기 테넌트 행만 나온다. 지원 접속 중인 토큰도 볼 수 있다.
+- 응답에 `ticket_hash`는 넣지 않는다.
+
+### 화면 표시
+
+- `GET /api/mdm/v1/context` 또는 내 정보에 `support: {active, operatorLoginId, expireDatetime}`을 넣어 프론트가 "지원 접속 중" 띠를 항상 보여 준다. 남은 시간과 [종료] 버튼이 있다.
+- 지원 접속 중 사용자 표시 이름은 `플랫폼 지원 ({운영자 로그인 ID})`다.
+
+### 위험과 완화
+
+| 위험 | 완화 |
+| --- | --- |
+| 운영자가 관리자 비밀번호를 재발급해 그 계정으로 위장 | 재발급 요청이 `sensitive` 행으로 남고 테넌트 관리자가 기록에서 볼 수 있다. 대상 계정은 `must_change_password`가 켜지므로 다음 로그인 때 본인이 알게 된다 |
+| 티켓 유출 | 60초, 일회용, 해시 저장, 프래그먼트 전달, Host 일치 검사 |
+| 토큰 유출 | 30분, Refresh 없음, 접속 기록과 매 요청 대조 |
+| 기록 삭제 | 삭제 API 없음, 공용 스키마 |
+| 운영자 퇴사 | 운영자 비활성화 시 그 운영자의 `ACTIVE` 행을 `REVOKED`로 바꾼다 |
+
+이번 범위에서 하지 않는 것: 테넌트로의 알림(메일), 테넌트별 승인 절차, 보관 기간 정리, `SUSPENDED` 테넌트 접속. 접속은 `ACTIVE` 테넌트만 허용한다.
+
+### 구현 분할
+
+- 9.8 백엔드: 공용 V 마이그레이션(두 테이블), 티켓 발급, 교환, 종료, `sup`/`act` 클레임과 매 요청 검증, 지원 시스템 사용자와 업그레이드, 쓰기 요청 기록 필터, 조회 API(플랫폼, 테넌트), `SUPPORT_ACCESS` 메뉴와 권한 시드, 운영자 비활성화 시 폐기, 통합 테스트.
+- F12 프론트: 플랫폼 테넌트 상세 [테넌트 접속] 모달과 새 탭 열기, `/support-access` 진입 화면(티켓 교환, 주소 정리), 지원 접속 띠, 플랫폼 접속 기록 화면, 테넌트 `지원 접속 기록` 화면.
+
 ## 배포 전 점검
 
 - 리버스 프록시 또는 게이트웨이에서 로그인, refresh에 대한 IP 속도 제한이 있는지 확인한다. 애플리케이션에는 넣지 않았다.
 - `MDM_JWT_PRIVATE_KEY_PATH`가 `dev` 밖에서는 필수이고, 쿠키 Secure가 켜져 있는지 확인한다.
 - CORS 허용 출처가 비어 있거나 실제 프론트 출처만 포함하는지 확인한다. 운영은 같은 사이트를 전제로 한다.
+- 지원 접속 티켓은 프래그먼트로만 전달되는지, 리버스 프록시 로그에 티켓이 남지 않는지 확인한다.
