@@ -401,7 +401,7 @@ PAGE를 등록하면 같은 트랜잭션에서 `READ`, `CREATE`, `UPDATE`, `DELE
 
 이름 번역은 `i18n_entity_text`다. 대상은 `company.company_name`, `dept.dept_name`, `person.person_name`이다. 요청 `translations`는 `{supportLanguageCode, text}`이고, 요청에 있는 언어만 추가하거나 바꾼다. 요청에 없는 언어는 그대로 둔다. 상세 조회만 번역을 포함하고 목록은 포함하지 않는다. 알 수 없거나 사용 중이 아닌 언어는 `400 I18N.LANGUAGE_NOT_FOUND`다.
 
-코드 값이 있을 때만 공통코드 서비스로 확인한다. 그룹은 `COMPANY_TYPE`, `DEPT_TYPE`, `EMPLOYMENT_TYPE`, `ASSIGNMENT_STATUS`, `POSITION`, `JOB_TITLE`이다. 사용 중이고 유효기간 안이 아니면 `400 ORG.INVALID_CODE_VALUE`와 `fieldErrors`다. 값을 생략하면 검사하지 않는다. `POSITION`과 `JOB_TITLE`은 그룹만 있고 시드 값이 없다.
+코드 값이 있을 때만 공통코드 서비스로 확인한다. 그룹은 `COMPANY_TYPE`, `DEPT_TYPE`, `EMPLOYMENT_TYPE`, `ASSIGNMENT_STATUS`, `POSITION`, `JOB_TITLE`이다. 사용 중이고 유효기간 안이 아니면 `400 ORG.INVALID_CODE_VALUE`와 `fieldErrors`다. 값을 생략하면 검사하지 않는다. `POSITION`과 `JOB_TITLE` 시드 값은 `common_code`와 `common_code_lang`에 있다. 그룹의 `code_value_length`는 비어 있고 컬럼은 100자라 지시서의 코드 값을 그대로 둔다.
 
 목록의 `useYn`은 7단계와 같다. 생략하면 사용 중지를 포함하고, `Y` 또는 `N`만 거른다. `ALL`은 없다. 부서 트리만 예외다. `asOfDate`가 없으면 오늘 기준 사용 중인 부서만 준다. `includeClosed=true`이면 사용 중지 부서도 오늘 유효기간 안에 있으면 포함한다. `asOfDate`가 있으면 `use_yn`을 보지 않고 `valid_from <= 날짜`이고 `valid_to`가 없거나 `valid_to >= 날짜`인 부서를 준다.
 
@@ -409,7 +409,7 @@ PAGE를 등록하면 같은 트랜잭션에서 `READ`, `CREATE`, `UPDATE`, `DELE
 
 회사 코드와 부서 코드는 만든 뒤 바꾸지 않는다. 코드 유니크는 논리 삭제 행도 포함하므로 같은 코드는 복구로만 다시 쓴다. 사업자등록번호는 앞뒤 공백만 제거하고 하이픈은 유지한다. 사용 중인 행끼리만 유일해서 논리 삭제 뒤 다른 회사가 같은 번호를 쓸 수 있다. 사람 이메일은 형식만 검사하고 중복을 허용한다. `profileFilePk`는 조회에만 나오고 저장 요청은 받지 않는다.
 
-부서 경로 `deptPath`는 `/상위PK/.../자신PK`다. 레벨은 슬래시 개수다. 상위가 바뀌면 이동한 부서와 하위를 경로 접두사 한 번의 `UPDATE`로 다시 계산한다. 과거 시점의 조직도는 재구성하지 않는다.
+부서 경로 `deptPath`는 `/상위PK/.../자신PK`다. 레벨은 슬래시 개수다. 상위가 바뀌면 이동한 부서와 하위를 경로 접두사 한 번의 `UPDATE`로 다시 계산한다. 경로에는 숫자 PK와 슬래시만 있으므로 LIKE 접두사는 그 경로 뒤에 `/`를 붙인 값이고 이스케이프하지 않는다. `/1/`은 `/1/10`만 맞추고 `/10`은 맞추지 않는다. 과거 시점의 조직도는 재구성하지 않는다.
 
 소속의 주 소속은 한 사람의 현재 소속(종료일 없음, `use_yn='Y'`) 중 하나다. 첫 현재 소속은 요청과 관계없이 `primaryYn='Y'`다. 이후 요청이 `Y`이면 기존 주 소속을 같은 트랜잭션에서 `N`으로 바꾼다. 주 소속을 종료해도 다른 소속을 주 소속으로 올리지 않는다. 이동 API는 없고 종료 뒤 새 소속을 만든다. 사원번호는 같은 회사에서 `use_yn='Y'`이고 값이 있는 행만 유일하다. 종료일은 유니크 조건이 아니다. 다른 회사의 같은 사원번호는 가능하다.
 
@@ -463,7 +463,7 @@ PAGE를 등록하면 같은 트랜잭션에서 `READ`, `CREATE`, `UPDATE`, `DELE
 
 삭제는 종료다. 사용 중인 하위 부서는 `409 DEPT.HAS_CHILD`, 현재 소속은 `409 DEPT.HAS_ACTIVE_ASSIGNMENT`다. 통과하면 `validToDate`를 종료일로 두고 `use_yn='N'`, `CLOSE` 이력을 남긴다. 복구는 상위가 사용 중이어야 하고 `validToDate`를 비우며 `use_yn='Y'`, `REOPEN` 이력을 남긴다.
 
-이력은 최신순 페이지다. 변경 유형, 적용일, 변경 전후 이름, 변경 전후 상위 PK, 사유, 변경 시각, 변경 사용자 PK를 준다. 이력 수정과 삭제는 없다. 변경 유형은 `DEPT_CHANGE_TYPE`의 `CREATE`, `RENAME`, `MOVE`, `CLOSE`, `REOPEN`이다.
+이력은 최신순 페이지다. 변경 유형, 적용일, 변경 전후 이름, 변경 전후 상위 PK, 사유, 변경 시각, 변경 사용자 PK를 준다. 상위 PK의 현재 `dept_name`을 `beforeParentDeptName`, `afterParentDeptName`으로 함께 준다. 이력 시점의 이름이나 번역이 아니다. 대상 부서가 없으면 null이고, 종료된 부서도 이름이 있으면 준다. 페이지에 나온 상위 PK를 `IN`으로 한 번 조회한다. 이력 수정과 삭제는 없다. 변경 유형은 `DEPT_CHANGE_TYPE`의 `CREATE`, `RENAME`, `MOVE`, `CLOSE`, `REOPEN`이다.
 
 ### 사람
 

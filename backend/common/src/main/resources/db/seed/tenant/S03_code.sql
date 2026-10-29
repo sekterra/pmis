@@ -1482,6 +1482,106 @@ WHERE g.code_group_code = 'JOB_TITLE'
       SELECT 1 FROM code_group_lang l
       WHERE l.code_group_pk = g.code_group_pk AND l.support_language_code = 'en-US');
 
+INSERT INTO common_code (code_group_pk, code_value, code_name, sort_order)
+SELECT g.code_group_pk, v.code_value, v.code_name, v.sort_order
+FROM code_group g
+JOIN (VALUES
+    ('STAFF', '사원', 10),
+    ('ASSISTANT_MANAGER', '대리', 20),
+    ('MANAGER', '과장', 30),
+    ('DEPUTY_GENERAL_MANAGER', '차장', 40),
+    ('GENERAL_MANAGER', '부장', 50),
+    ('DIRECTOR', '이사', 60),
+    ('EXECUTIVE', '임원', 70)
+) AS v(code_value, code_name, sort_order) ON TRUE
+WHERE g.code_group_code = 'POSITION'
+  AND NOT EXISTS (
+      SELECT 1 FROM common_code c
+      WHERE c.code_group_pk = g.code_group_pk AND c.code_value = v.code_value);
+
+INSERT INTO common_code_lang (code_pk, support_language_code, code_name)
+SELECT c.code_pk, 'ko-KR', v.code_name
+FROM common_code c
+JOIN code_group g ON g.code_group_pk = c.code_group_pk
+JOIN (VALUES
+    ('STAFF', '사원'),
+    ('ASSISTANT_MANAGER', '대리'),
+    ('MANAGER', '과장'),
+    ('DEPUTY_GENERAL_MANAGER', '차장'),
+    ('GENERAL_MANAGER', '부장'),
+    ('DIRECTOR', '이사'),
+    ('EXECUTIVE', '임원')
+) AS v(code_value, code_name) ON c.code_value = v.code_value
+WHERE g.code_group_code = 'POSITION'
+  AND NOT EXISTS (
+      SELECT 1 FROM common_code_lang l
+      WHERE l.code_pk = c.code_pk AND l.support_language_code = 'ko-KR');
+
+INSERT INTO common_code_lang (code_pk, support_language_code, code_name)
+SELECT c.code_pk, 'en-US', v.code_name
+FROM common_code c
+JOIN code_group g ON g.code_group_pk = c.code_group_pk
+JOIN (VALUES
+    ('STAFF', 'Staff'),
+    ('ASSISTANT_MANAGER', 'Assistant Manager'),
+    ('MANAGER', 'Manager'),
+    ('DEPUTY_GENERAL_MANAGER', 'Deputy General Manager'),
+    ('GENERAL_MANAGER', 'General Manager'),
+    ('DIRECTOR', 'Director'),
+    ('EXECUTIVE', 'Executive')
+) AS v(code_value, code_name) ON c.code_value = v.code_value
+WHERE g.code_group_code = 'POSITION'
+  AND NOT EXISTS (
+      SELECT 1 FROM common_code_lang l
+      WHERE l.code_pk = c.code_pk AND l.support_language_code = 'en-US');
+
+INSERT INTO common_code (code_group_pk, code_value, code_name, sort_order)
+SELECT g.code_group_pk, v.code_value, v.code_name, v.sort_order
+FROM code_group g
+JOIN (VALUES
+    ('MEMBER', '팀원', 10),
+    ('TEAM_LEAD', '팀장', 20),
+    ('DEPT_HEAD', '부서장', 30),
+    ('DIVISION_HEAD', '본부장', 40),
+    ('CEO', '대표', 50)
+) AS v(code_value, code_name, sort_order) ON TRUE
+WHERE g.code_group_code = 'JOB_TITLE'
+  AND NOT EXISTS (
+      SELECT 1 FROM common_code c
+      WHERE c.code_group_pk = g.code_group_pk AND c.code_value = v.code_value);
+
+INSERT INTO common_code_lang (code_pk, support_language_code, code_name)
+SELECT c.code_pk, 'ko-KR', v.code_name
+FROM common_code c
+JOIN code_group g ON g.code_group_pk = c.code_group_pk
+JOIN (VALUES
+    ('MEMBER', '팀원'),
+    ('TEAM_LEAD', '팀장'),
+    ('DEPT_HEAD', '부서장'),
+    ('DIVISION_HEAD', '본부장'),
+    ('CEO', '대표')
+) AS v(code_value, code_name) ON c.code_value = v.code_value
+WHERE g.code_group_code = 'JOB_TITLE'
+  AND NOT EXISTS (
+      SELECT 1 FROM common_code_lang l
+      WHERE l.code_pk = c.code_pk AND l.support_language_code = 'ko-KR');
+
+INSERT INTO common_code_lang (code_pk, support_language_code, code_name)
+SELECT c.code_pk, 'en-US', v.code_name
+FROM common_code c
+JOIN code_group g ON g.code_group_pk = c.code_group_pk
+JOIN (VALUES
+    ('MEMBER', 'Member'),
+    ('TEAM_LEAD', 'Team Lead'),
+    ('DEPT_HEAD', 'Department Head'),
+    ('DIVISION_HEAD', 'Division Head'),
+    ('CEO', 'CEO')
+) AS v(code_value, code_name) ON c.code_value = v.code_value
+WHERE g.code_group_code = 'JOB_TITLE'
+  AND NOT EXISTS (
+      SELECT 1 FROM common_code_lang l
+      WHERE l.code_pk = c.code_pk AND l.support_language_code = 'en-US');
+
 INSERT INTO code_group (code_group_code, solution_code, code_group_name, hierarchy_yn, sort_order)
 SELECT 'ASSIGNMENT_STATUS', 'MDM', '재직 상태', 'N', 14
 WHERE NOT EXISTS (SELECT 1 FROM code_group WHERE code_group_code = 'ASSIGNMENT_STATUS');

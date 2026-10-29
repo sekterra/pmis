@@ -1,5 +1,7 @@
 package com.tommy.common;
 
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.nullValue;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -23,7 +25,9 @@ import java.util.UUID;
 
 import javax.sql.DataSource;
 
+import org.hibernate.SessionFactory;
 import org.hibernate.boot.MetadataSources;
+import org.hibernate.stat.Statistics;
 import org.hibernate.boot.model.naming.CamelCaseToUnderscoresNamingStrategy;
 import org.hibernate.boot.registry.StandardServiceRegistry;
 import org.hibernate.boot.registry.StandardServiceRegistryBuilder;
@@ -32,6 +36,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import jakarta.persistence.EntityManager;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -55,6 +61,7 @@ import com.tommy.common.org.entity.Person;
 import com.tommy.common.org.entity.PersonAssignment;
 import com.tommy.common.tenant.provision.ProvisionTenantCommand;
 import com.tommy.common.tenant.provision.TenantProvisioningService;
+import com.tommy.common.tenant.provision.TenantSeedRunner;
 import com.tommy.common.tenant.provision.TenantUpgradeService;
 
 @Tag("integration")
@@ -87,6 +94,12 @@ class OrgApiIntegrationTest {
 
 	@Autowired
 	private JwtTokenService jwtTokenService;
+
+	@Autowired
+	private TenantSeedRunner seedRunner;
+
+	@Autowired
+	private EntityManager entityManager;
 
 	private final List<String> tenantCodes = new ArrayList<>();
 
@@ -471,6 +484,145 @@ class OrgApiIntegrationTest {
 				SELECT t.message_text FROM i18n_message_text t
 				JOIN i18n_message m ON m.message_pk = t.message_pk
 				WHERE m.message_key = 'COMPANY.DUPLICATE' AND t.support_language_code = 'en-US'
+				"""));
+	}
+
+	@Test
+	void departmentMoveUpdatesOnlySlashPrefixedDescendants() throws Exception {
+		String tenant = provision();
+		String schema = schema(tenant);
+		mockMvc.perform(post("/api/mdm/v1/companies").headers(auth(tenant)).contentType(MediaType.APPLICATION_JSON)
+				.content(company("ACME", "에이", "CLIENT", null, null, null, null, null, null, null))).andExpect(status().isOk());
+		long one = pk(mockMvc.perform(post("/api/mdm/v1/departments").headers(auth(tenant)).contentType(MediaType.APPLICATION_JSON)
+				.content(dept("ACME", null, "P1", "일", "DIVISION", 1))).andExpect(status().isOk()).andReturn());
+		assertEquals(1L, one);
+		scalar(schema, "SELECT setval('dept_seq', 9)::text");
+		long ten = pk(mockMvc.perform(post("/api/mdm/v1/departments").headers(auth(tenant)).contentType(MediaType.APPLICATION_JSON)
+				.content(dept("ACME", null, "P10", "십", "DIVISION", 2))).andExpect(status().isOk()).andReturn());
+		assertEquals(10L, ten);
+		scalar(schema, "SELECT setval('dept_seq', 99)::text");
+		long hundred = pk(mockMvc.perform(post("/api/mdm/v1/departments").headers(auth(tenant)).contentType(MediaType.APPLICATION_JSON)
+				.content(dept("ACME", "P10", "P100", "백", "TEAM", 1))).andExpect(status().isOk()).andReturn());
+		assertEquals(100L, hundred);
+		long child = pk(mockMvc.perform(post("/api/mdm/v1/departments").headers(auth(tenant)).contentType(MediaType.APPLICATION_JSON)
+				.content(dept("ACME", "P1", "C", "자", "TEAM", 1))).andExpect(status().isOk()).andReturn());
+		mockMvc.perform(put("/api/mdm/v1/departments/" + ten).headers(auth(tenant)).contentType(MediaType.APPLICATION_JSON)
+				.content(deptUpdate("P1", "십", "DIVISION", null))).andExpect(status().isOk());
+		mockMvc.perform(get("/api/mdm/v1/departments/" + one).headers(auth(tenant)))
+				.andExpect(jsonPath("$.data.deptPath").value("/1"));
+		mockMvc.perform(get("/api/mdm/v1/departments/" + child).headers(auth(tenant)))
+				.andExpect(jsonPath("$.data.deptPath").value("/1/" + child));
+		mockMvc.perform(get("/api/mdm/v1/departments/" + ten).headers(auth(tenant)))
+				.andExpect(jsonPath("$.data.deptPath").value("/1/10"));
+		mockMvc.perform(get("/api/mdm/v1/departments/" + hundred).headers(auth(tenant)))
+				.andExpect(jsonPath("$.data.deptPath").value("/1/10/100"));
+	}
+
+	@Test
+	void departmentHistoryUsesCurrentParentNamesInOneQuery() throws Exception {
+		String tenant = provision();
+		String schema = schema(tenant);
+		mockMvc.perform(post("/api/mdm/v1/companies").headers(auth(tenant)).contentType(MediaType.APPLICATION_JSON)
+				.content(company("ACME", "에이", "CLIENT", null, null, null, null, null, null, null))).andExpect(status().isOk());
+		long parentA = pk(mockMvc.perform(post("/api/mdm/v1/departments").headers(auth(tenant)).contentType(MediaType.APPLICATION_JSON)
+				.content(dept("ACME", null, "A", "본부", "DIVISION", 1))).andExpect(status().isOk()).andReturn());
+		long parentB = pk(mockMvc.perform(post("/api/mdm/v1/departments").headers(auth(tenant)).contentType(MediaType.APPLICATION_JSON)
+				.content(dept("ACME", null, "B", "영업", "DIVISION", 2))).andExpect(status().isOk()).andReturn());
+		long child = pk(mockMvc.perform(post("/api/mdm/v1/departments").headers(auth(tenant)).contentType(MediaType.APPLICATION_JSON)
+				.content(dept("ACME", "A", "C", "개발", "TEAM", 1))).andExpect(status().isOk()).andReturn());
+		mockMvc.perform(put("/api/mdm/v1/departments/" + parentA).headers(auth(tenant)).contentType(MediaType.APPLICATION_JSON)
+				.content("{\"deptName\":\"본사\",\"deptTypeCode\":\"DIVISION\"}")).andExpect(status().isOk());
+		mockMvc.perform(put("/api/mdm/v1/departments/" + child).headers(auth(tenant)).contentType(MediaType.APPLICATION_JSON)
+				.content(deptUpdate("B", "개발", "TEAM", null))).andExpect(status().isOk());
+		mockMvc.perform(put("/api/mdm/v1/departments/" + child).headers(auth(tenant)).contentType(MediaType.APPLICATION_JSON)
+				.content(deptUpdate("B", "개발팀", "TEAM", null))).andExpect(status().isOk());
+		mockMvc.perform(get("/api/mdm/v1/departments/" + child + "/history").headers(auth(tenant)).param("size", "20"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.items[?(@.changeTypeCode == 'CREATE')].afterParentDeptName", hasItem("본사")))
+				.andExpect(jsonPath("$.data.items[?(@.changeTypeCode == 'MOVE')].beforeParentDeptName", hasItem("본사")))
+				.andExpect(jsonPath("$.data.items[?(@.changeTypeCode == 'MOVE')].afterParentDeptName", hasItem("영업")))
+				.andExpect(jsonPath("$.data.items[?(@.changeTypeCode == 'RENAME')].beforeParentDeptName", hasItem("영업")));
+		Statistics statistics = entityManager.getEntityManagerFactory().unwrap(SessionFactory.class).getStatistics();
+		statistics.setStatisticsEnabled(true);
+		statistics.clear();
+		mockMvc.perform(get("/api/mdm/v1/departments/" + child + "/history").headers(auth(tenant)).param("size", "1"))
+				.andExpect(status().isOk());
+		long oneRow = statistics.getPrepareStatementCount();
+		statistics.clear();
+		mockMvc.perform(get("/api/mdm/v1/departments/" + child + "/history").headers(auth(tenant)).param("size", "2"))
+				.andExpect(status().isOk());
+		assertEquals(oneRow, statistics.getPrepareStatementCount());
+		execute(schema, "UPDATE dept_history SET after_parent_dept_pk = 999999999 WHERE dept_pk = " + child
+				+ " AND change_type_code = 'CREATE'");
+		mockMvc.perform(get("/api/mdm/v1/departments/" + child + "/history").headers(auth(tenant)).param("size", "20"))
+				.andExpect(jsonPath("$.data.items[?(@.changeTypeCode == 'CREATE')].afterParentDeptPk", hasItem(999999999)))
+				.andExpect(jsonPath("$.data.items[?(@.changeTypeCode == 'CREATE')].afterParentDeptName", hasItem(nullValue())));
+		mockMvc.perform(delete("/api/mdm/v1/departments/" + parentA).headers(auth(tenant))).andExpect(status().isOk());
+		mockMvc.perform(get("/api/mdm/v1/departments/" + child + "/history").headers(auth(tenant)).param("size", "20"))
+				.andExpect(jsonPath("$.data.items[?(@.changeTypeCode == 'MOVE')].beforeParentDeptName", hasItem("본사")));
+	}
+
+	@Test
+	void positionAndJobTitleSeedsStayIdempotent() throws Exception {
+		String tenant = provision();
+		String schema = schema(tenant);
+		assertEquals("7", scalar(schema, """
+				SELECT count(*)::text FROM common_code c
+				JOIN code_group g ON g.code_group_pk = c.code_group_pk
+				WHERE g.code_group_code = 'POSITION'
+				"""));
+		assertEquals("5", scalar(schema, """
+				SELECT count(*)::text FROM common_code c
+				JOIN code_group g ON g.code_group_pk = c.code_group_pk
+				WHERE g.code_group_code = 'JOB_TITLE'
+				"""));
+		assertEquals("Deputy General Manager", scalar(schema, """
+				SELECT l.code_name FROM common_code_lang l
+				JOIN common_code c ON c.code_pk = l.code_pk
+				JOIN code_group g ON g.code_group_pk = c.code_group_pk
+				WHERE g.code_group_code = 'POSITION' AND c.code_value = 'DEPUTY_GENERAL_MANAGER'
+				  AND l.support_language_code = 'en-US'
+				"""));
+		mockMvc.perform(post("/api/mdm/v1/companies").headers(auth(tenant)).contentType(MediaType.APPLICATION_JSON)
+				.content(company("ACME", "에이", "CLIENT", null, null, null, null, null, null, null))).andExpect(status().isOk());
+		mockMvc.perform(post("/api/mdm/v1/departments").headers(auth(tenant)).contentType(MediaType.APPLICATION_JSON)
+				.content(dept("ACME", null, "D", "개발", "TEAM", 1))).andExpect(status().isOk());
+		long person = pk(mockMvc.perform(post("/api/mdm/v1/people").headers(auth(tenant)).contentType(MediaType.APPLICATION_JSON)
+				.content("{\"personName\":\"김\"}")).andExpect(status().isOk()).andReturn());
+		mockMvc.perform(post("/api/mdm/v1/people/" + person + "/assignments").headers(auth(tenant)).contentType(MediaType.APPLICATION_JSON)
+				.content(assignment("ACME", "D", "REGULAR", "ACTIVE", "Y", "2026-01-01", null).replace("}",
+						",\"positionCode\":\"MANAGER\",\"jobTitleCode\":\"TEAM_LEAD\"}")))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.data.positionCode").value("MANAGER"));
+		execute(schema, """
+				UPDATE common_code SET code_name = '수정과장'
+				WHERE code_value = 'MANAGER' AND code_group_pk = (
+				    SELECT code_group_pk FROM code_group WHERE code_group_code = 'POSITION')
+				""");
+		execute(schema, """
+				UPDATE common_code_lang SET code_name = '수정과장'
+				WHERE support_language_code = 'ko-KR' AND code_pk = (
+				    SELECT c.code_pk FROM common_code c
+				    JOIN code_group g ON g.code_group_pk = c.code_group_pk
+				    WHERE g.code_group_code = 'POSITION' AND c.code_value = 'MANAGER')
+				""");
+		seedRunner.run(schema);
+		assertEquals("7", scalar(schema, """
+				SELECT count(*)::text FROM common_code c
+				JOIN code_group g ON g.code_group_pk = c.code_group_pk
+				WHERE g.code_group_code = 'POSITION'
+				"""));
+		assertEquals("수정과장", scalar(schema, """
+				SELECT code_name FROM common_code c
+				JOIN code_group g ON g.code_group_pk = c.code_group_pk
+				WHERE g.code_group_code = 'POSITION' AND c.code_value = 'MANAGER'
+				"""));
+		assertEquals("수정과장", scalar(schema, """
+				SELECT l.code_name FROM common_code_lang l
+				JOIN common_code c ON c.code_pk = l.code_pk
+				JOIN code_group g ON g.code_group_pk = c.code_group_pk
+				WHERE g.code_group_code = 'POSITION' AND c.code_value = 'MANAGER'
+				  AND l.support_language_code = 'ko-KR'
 				"""));
 	}
 

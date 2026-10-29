@@ -177,7 +177,7 @@ class TenantProvisioningIntegrationTest {
 			assertEquals("1", scalarInSchema(schema,
 					"SELECT count(*)::text FROM code_group WHERE code_group_code = '" + group + "'"));
 		}
-		assertEquals("0", scalarInSchema(schema, """
+		assertEquals("12", scalarInSchema(schema, """
 				SELECT count(*)::text FROM common_code c
 				JOIN code_group g ON g.code_group_pk = c.code_group_pk
 				WHERE g.code_group_code IN ('POSITION', 'JOB_TITLE')

@@ -1071,3 +1071,22 @@
   - 부서 경로 `dept_path LIKE`와 메뉴 `left` 비교는 키워드 검색이 아니라 그대로 뒀다
   - 정리 스케줄러는 단일 인스턴스 전제이고 기본은 꺼져 있다
 
+## [9.6단계] 부서 경로 점검, 이력 부서 이름, 코드 시드 - 2026-10-29
+
+- 변경 파일:
+  - `DeptService.relocate`: 경로가 `/`와 숫자 PK뿐이라 LIKE 접두사에 이스케이프를 넣지 않는다는 주석
+  - `DeptHistoryResponse`: `beforeParentDeptName`, `afterParentDeptName`. 페이지의 상위 PK를 `IN`으로 한 번 조회하고 현재 `dept_name`을 넣는다
+  - `S03_code.sql`: `POSITION` 7개, `JOB_TITLE` 5개. `common_code`와 `common_code_lang`. `WHERE NOT EXISTS`
+  - `doc/api/mdm-api.md`, `OrgApiIntegrationTest`, `TenantProvisioningIntegrationTest`
+- 검증 결과:
+  - `gradlew.bat test`: 86 통과, 실패 0, skip 0
+  - `gradlew.bat integrationTest`: 50 통과, 실패 0, skip 0. 대상 DB 이름은 `pmis`였다. 스키마는 `t_it_`만 만들고 정리했다
+- ERD 반영 내역: 없음. DDL 변경 없음
+- 질문/확인 필요:
+  - 시드 파일 변경만으로는 이미 만든 테넌트에 값이 들어가지 않는다. 새 테넌트 프로비저닝과 테넌트 업그레이드가 `TenantSeedRunner.run`을 호출할 때 반영된다. 업그레이드는 공유 테넌트에 실행하지 않았다
+  - 부서 화면은 아직 상위 PK만 보여 준다. 이번 단계는 API만 바꿨다
+- 가정한 사항:
+  - 그룹 `code_value_length`가 비어 있고 `code_value`는 100자라 지시서 코드를 줄이지 않았다
+  - 공통코드 이름은 기존 시드와 같이 `common_code_lang`에 둔다. `i18n_entity_text`는 회사·부서·사람 이름용이다
+  - 역할 권한 시드는 바꾸지 않았다
+

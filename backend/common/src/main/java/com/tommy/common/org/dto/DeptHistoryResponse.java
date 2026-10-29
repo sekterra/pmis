@@ -11,7 +11,9 @@ public record DeptHistoryResponse(
 		String beforeDeptName,
 		String afterDeptName,
 		Long beforeParentDeptPk,
+		String beforeParentDeptName,
 		Long afterParentDeptPk,
+		String afterParentDeptName,
 		String changeReason,
 		LocalDateTime changeDatetime,
 		Long changeUserPk) {

@@ -2,7 +2,11 @@ package com.tommy.common.org.service;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -117,7 +121,8 @@ public class DeptService {
 		require(deptPk);
 		Page<DeptHistory> page = histories.findAll((root, query, builder) -> builder.equal(root.get("dept").get("deptPk"), deptPk),
 				pageable);
-		return new PageResponse<>(page.getContent().stream().map(DeptService::history).toList(), page.getTotalElements(),
+		Map<Long, String> parentNames = parentNames(page.getContent());
+		return new PageResponse<>(page.getContent().stream().map(row -> history(row, parentNames)).toList(), page.getTotalElements(),
 				pageable.getPageNumber() + 1, pageable.getPageSize());
 	}
 
@@ -221,6 +226,7 @@ public class DeptService {
 	}
 
 	private void relocate(String oldPath, String newPath, int delta) {
+		// dept_path 는 / 와 숫자 PK 뿐이라 LIKE 접두사(경로 + /)가 /1 과 /10 을 섞지 않는다.
 		entityManager.createNativeQuery("""
 				UPDATE dept
 				SET dept_path = :newPrefix || substring(dept_path from :start),
@@ -282,11 +288,36 @@ public class DeptService {
 				withTranslations ? texts.list(EntityTextService.DEPT, EntityTextService.DEPT_NAME, dept.getDeptPk()) : null);
 	}
 
-	private static DeptHistoryResponse history(DeptHistory history) {
+	private Map<Long, String> parentNames(List<DeptHistory> rows) {
+		Set<Long> parentPks = new LinkedHashSet<>();
+		for (DeptHistory row : rows) {
+			if (row.getBeforeParentDeptPk() != null) {
+				parentPks.add(row.getBeforeParentDeptPk());
+			}
+			if (row.getAfterParentDeptPk() != null) {
+				parentPks.add(row.getAfterParentDeptPk());
+			}
+		}
+		if (parentPks.isEmpty()) {
+			return Map.of();
+		}
+		Map<Long, String> names = new HashMap<>();
+		for (Dept dept : depts.findAllById(parentPks)) {
+			names.put(dept.getDeptPk(), dept.getDeptName());
+		}
+		return names;
+	}
+
+	private static DeptHistoryResponse history(DeptHistory history, Map<Long, String> parentNames) {
 		return new DeptHistoryResponse(history.getHistoryPk(), history.getDept().getDeptPk(), history.getChangeTypeCode(),
 				history.getEffectiveDate(), history.getBeforeDeptName(), history.getAfterDeptName(),
-				history.getBeforeParentDeptPk(), history.getAfterParentDeptPk(), history.getChangeReason(),
-				history.getChangeDatetime(), history.getChangeUserPk());
+				history.getBeforeParentDeptPk(), parentName(parentNames, history.getBeforeParentDeptPk()),
+				history.getAfterParentDeptPk(), parentName(parentNames, history.getAfterParentDeptPk()),
+				history.getChangeReason(), history.getChangeDatetime(), history.getChangeUserPk());
+	}
+
+	private static String parentName(Map<Long, String> parentNames, Long parentPk) {
+		return parentPk == null ? null : parentNames.get(parentPk);
 	}
 
 	private static Specification<Dept> filter(String companyCode, String keyword, String deptTypeCode, String useYn,
