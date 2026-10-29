@@ -418,3 +418,45 @@
 - 커밋: `[9.5] 파일 보완과 정리 스케줄러` (필요하면 둘로 나누어도 된다).
 - 보고서: `docs/reports/9.5.md` 와 `9.5.diff` (`.diff` 는 기존대로 추적하지 않음). a–e 형식에 git 상태 줄 포함. b절에 LIKE 사용처 점검 목록을 넣는다.
 - push 하지 않는다. 사용자가 "push 해줘" 라고 할 때만 한다.
+
+## 9.6단계: 부서 경로 점검, 이력 부서 이름, 코드 시드, 조직 권한 현황
+
+9.5 승인(검토 기록: `docs/reviews/2026-10-22-9.5.md`). 프런트 F8·F9 에서 나온 요청과 9.5 검토에서 넘긴 항목을 묶은 작은 단계다. 시드 값과 권한 현황 외에는 DDL 변경 없음. 이 단계만 수행하고 멈춘다.
+
+시작 전: `main` 으로 전환, `git pull --ff-only`, Claude 가 쓴 파일(지시서, `docs/reviews/*`)이 변경 상태면 먼저 `docs:` 커밋으로 올린다. 작업 방식은 이 파일 맨 위 "작업 방식" 블록을 따른다.
+
+### A. 부서 경로 LIKE 점검 (9.5 검토 항목)
+
+- `DeptService.relocate` 의 `dept_path LIKE` 가 사용하는 값이 `/상위PK/.../자신PK` 형태(숫자와 슬래시뿐)인지 코드에서 확인한다. 부서 코드나 이름이 경로에 섞이는 곳이 없다면 `_`, `%` 문제가 없다.
+- 확인 결과를 코드 주석 한 줄(왜 안전한가)과 `doc/api/mdm-api.md` 부서 경로 절 한 문장으로 남긴다.
+- 회귀 테스트: 부서를 이동한 뒤 형제 부서의 경로가 바뀌지 않는지, PK 가 `1`, `10`, `100` 처럼 접두사가 겹칠 때(`/1/` 대 `/10/`) 하위만 갱신되는지 통합 테스트로 확인한다(접두사에 끝 슬래시가 포함되는지도 확인).
+- 만약 경로에 숫자가 아닌 값이 섞이는 곳이 있으면 `LikeEscape` 로 이스케이프하거나 `left` 비교로 바꾸고 보고서에 이유를 쓴다.
+
+### B. 부서 이력 응답에 상위 부서 이름 추가
+
+- 현재 `GET /departments/{deptPk}/history` 는 변경 전후 상위 부서 PK 만 준다. 응답 항목에 `beforeParentDeptName`, `afterParentDeptName` 을 추가한다(기존 필드는 유지). 값은 해당 부서의 현재 이름이다(이력 시점의 이름이 아님). 요청 언어 이름이 아니라 `dept_name` 컬럼 값을 쓴다.
+- 페이지의 PK 들을 모아 `IN` 한 번으로 조회한다(N+1 금지). 부서가 삭제(종료)된 경우에도 이름은 나온다. 대상이 없으면 null.
+- 테스트: 이름 변경이 섞인 이력에서 이름이 채워지는지, 쿼리 수가 페이지 크기에 비례하지 않는지(기존 방식의 쿼리 수 측정 테스트가 있으면 같은 방식).
+- `doc/api/mdm-api.md` 이력 절과 DTO 를 고친다.
+
+### C. 직위·직책 코드 시드 값
+
+- 공통코드 그룹 `POSITION`, `JOB_TITLE` 은 그룹만 있고 값이 없어 사람 화면의 직위·직책 선택이 비어 있다. 테넌트 시드(`S0x_...` 중 공통코드 시드를 확인해 같은 파일 또는 새 번호의 파일)에 기본 값을 추가한다. 멱등(`INSERT … WHERE NOT EXISTS`)이고 테넌트가 수정한 이름·정렬은 덮어쓰지 않는다. 기존 시드 파일을 바꿔도 이미 만들어진 테넌트에 반영되지 않는지 확인하고(시드 재실행 방식을 코드에서 확인), 반영 방식과 한계를 보고서에 쓴다.
+- 기본 값(코드 → ko-KR / en-US 이름): POSITION: `STAFF` 사원/Staff, `ASSISTANT_MANAGER` 대리/Assistant Manager, `MANAGER` 과장/Manager, `DEPUTY_GENERAL_MANAGER` 차장/Deputy General Manager, `GENERAL_MANAGER` 부장/General Manager, `DIRECTOR` 이사/Director, `EXECUTIVE` 임원/Executive. JOB_TITLE: `MEMBER` 팀원/Member, `TEAM_LEAD` 팀장/Team Lead, `DEPT_HEAD` 부서장/Department Head, `DIVISION_HEAD` 본부장/Division Head, `CEO` 대표/CEO. 코드 값 길이·형식은 그룹 정책(`code_value_length` 등)과 기존 검증 규칙을 먼저 확인하고 맞지 않으면 정책에 맞게 줄이고 보고한다. 정렬 순서는 10 단위로.
+- 이름은 공통코드 이름 번역 테이블(`i18n_entity_text` 의 공통코드 이름 대상)에 ko-KR 과 en-US 로 넣는다. 기존 공통코드 시드가 쓰는 방식을 그대로 따른다.
+- 통합 테스트: 새 테넌트를 만들면 두 그룹에 위 값이 있고 `ORG.INVALID_CODE_VALUE` 검증이 통과하는 것(예: 사람 소속에 `MANAGER` 직위 저장), 시드를 두 번 실행해도 중복이 없고 수정한 이름이 유지되는 것.
+
+### D. 조직 권한 현황 보고 (코드 변경 없음)
+
+- 시드 S05 를 읽고(스테이징이 안 될 만큼 경로가 깊어 Cursor 가 직접 읽는다) `COMPANY`, `DEPT`, `PERSON`, `USER`, `ROLE`, `PERMISSION`, `FILE`, `FILE_STORAGE`, `TEAM`, `COMMON_CODE`, `I18N`, `MENU` 각 메뉴의 READ/CREATE/UPDATE/DELETE/EXPORT 가 `TENANT_ADMIN`, `MANAGER`, `USER` 중 어느 역할에 부여되어 있는지 표로 보고서 b절에 적는다. 값이 없으면 "없음".
+- 이 표를 바탕으로 Claude 가 일반 사용자 기본 권한을 정할 수 있다. 이 단계에서 시드 권한을 바꾸지 않는다.
+
+### E. 테스트
+
+- 기존 단위 86건, 통합 47건이 계속 통과해야 한다. 새 통합 테스트는 `t_it_` 스키마와 실제 `pmis.tenant` 행 불변 확인 방식을 따른다.
+
+### F. 문서·마무리
+
+- `doc/api/mdm-api.md`, `doc/cursor-progress.md` 갱신.
+- 커밋: `[9.6] 요약`. 보고서: `docs/reports/9.6.md` 와 `9.6.diff` (`.diff` 는 추적하지 않음). a–e 형식에 git 상태 줄 포함. d절 질문에 시드 반영 방식과 한계를 쓴다.
+- push 하지 않는다. 사용자가 "push 해줘" 라고 할 때만 한다.
