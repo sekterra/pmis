@@ -1090,3 +1090,26 @@
   - 공통코드 이름은 기존 시드와 같이 `common_code_lang`에 둔다. `i18n_entity_text`는 회사·부서·사람 이름용이다
   - 역할 권한 시드는 바꾸지 않았다
 
+## [9.7단계] 개발 전용 관리자 계정 설정 명령 - 2026-10-29
+
+- 변경/추가 파일:
+  - 추가: `DevSetAdminRules`, `DevSetAdminService`, `DevSetAdminRunner`
+  - 수정: `CommonApplication` (`--dev-set-admin`이면 웹 없이 기동하고 종료)
+  - 추가: `DevSetAdminRulesTest`, `DevSetAdminIntegrationTest`
+  - 수정: `doc/local-setup.md`, `doc/platform-admin-bootstrap.md`
+  - 로그인 API, 비밀번호 변경 API, 사용자 등록 API, 비밀번호 정책 클래스는 바꾸지 않았다
+- 검증 결과:
+  - `gradlew.bat test --offline`: 88 통과, 실패 0, skip 0. 이전 86에 단위 2
+  - `gradlew.bat integrationTest --offline`: 52 통과, 실패 0, skip 0. 이전 50에 통합 2. 대상 DB 이름은 `pmis`. 스키마는 `t_it_`만 만들고 정리했다
+  - 공유 `platform_admin`과 `it-`가 아닌 `pmis.tenant` 행은 테스트 전후로 같다
+  - 공유 DB에 `--dev-set-admin`은 실행하지 않았다
+- ERD 반영 내역: 없음. DDL 변경 없음
+- 질문/확인 필요: 없음
+- 가정한 사항:
+  - 설정 키는 만들지 않았다. 인자 `--dev-set-admin`이 있고 활성 프로필에 `dev`가 있을 때만 동작한다
+  - 플랫폼 SQL은 `pmis.platform_admin`으로 고정되어 테스트 스키마로 격리할 수 없다. 플랫폼 변경은 단위 검증만 했다
+  - 비밀번호 만료는 스키마가 null을 허용하고, 로그인 판정도 null이면 만료가 아니라 null로 둔다
+  - `TENANT_ADMIN`의 시작일이 오늘보다 뒤면 비워서 지금 유효하게 만든다. 종료일이 오늘보다 앞이면 비운다
+  - 사용 여부가 N인 테넌트는 없는 테넌트로 거절한다. 상태가 ACTIVE가 아니면 사용할 수 없다고 거절한다
+  - refresh 철회 사유는 기존 재발급과 같은 `ADMIN`이다. 비밀번호 이력은 `RESET`이다
+
