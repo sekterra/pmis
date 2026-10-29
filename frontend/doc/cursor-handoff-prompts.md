@@ -919,3 +919,37 @@ A. F8/F10 보완 (먼저 처리)
 검증: lint, antd lint, tsc, test, build. 새 테스트 파일은 3회 반복 실행해 통과를 기록한다. 개발 서버와 백엔드는 띄우지 않는다. 사용자가 직접 볼 항목은 frontend/doc/f12-manual-check.md 맨 위에 "다시 확인" 절을 만들어 1번 후 로그인 화면이 열리는지부터 적는다.
 진행 기록은 [F12.1단계] 형식으로 frontend/doc/cursor-progress.md 에 추가한다. 보고서는 "작업 방식"의 형식으로 docs/reports/F12.1.md 와 F12.1.diff 를 만든다. 커밋 메시지는 [F12.1] 요약. push 는 하지 않는다. 완료 후 멈춘다.
 ````
+
+---
+
+## F13단계: 템플릿 원본 화면 참조 복원과 현재 화면 대응표 (조사만, 앱 코드 변경 없음)
+
+사용자 결정(2026-10-29): 화면은 직접 설계하지 않고 Ant Design Pro 템플릿(https://preview.pro.ant.design)의 와이어프레임과 표준 CRUD 패턴을 준용한다. 이 단계는 **원본 템플릿 소스를 참고용으로 되살리고, 우리 화면과 비교한 표를 만드는 조사 단계**다. 앱 동작과 화면은 바꾸지 않는다. 이 단계만 수행하고 멈춘다. F12.1 이후에 수행한다.
+
+````
+목적: 이후 화면 표준 문서와 화면 이전 단계를 정확한 원본을 보고 작성할 수 있게 한다. 삭제한 데모 화면(F0 에서 제거)이 git 이력에 남아 있으므로 거기서 꺼낸다.
+
+A. 참조용 원본 복원 (읽기 전용 복사본)
+ 1. git 이력에서 F0 이전, 즉 템플릿 데모 화면이 있던 마지막 커밋을 찾는다(`git log -- src/pages/form` 등). 커밋 해시와 찾은 방법을 보고서에 적는다. 이력에 없으면 멈추고 "질문"에 올린다(새 라이브러리 설치나 웹에서 내려받기는 하지 않는다).
+ 2. `git show <커밋>:경로` 로 다음 폴더의 파일을 `docs/template-reference/src/pages/...` 에 그대로 복사한다(내용을 고치지 않는다): form(basic-form, step-form, advanced-form), list(table-list, basic-list, card-list, search), profile(basic, advanced), account(center, settings), result(success, fail), dashboard(analysis, monitor, workplace)가 있으면 포함, user/login 과 user/register. 함께 필요한 것: 해당 페이지가 쓰는 components, `config/routes.ts` 의 원본 라우트 항목과 `config/defaultSettings.ts`, `config/config.ts` 의 antd configProvider 부분을 `docs/template-reference/config/` 에 복사. mock 데이터 파일과 이미지, 스타일(less)은 구조를 이해하는 데 필요한 것만 복사한다.
+ 3. `docs/template-reference/README.md` 에 "참고 전용이며 앱에 연결되지 않는다, 원본 커밋 해시, 복원 날짜"를 쓴다.
+ 4. 이 폴더가 lint(biome), tsc, vitest, umi 빌드, antd lint 대상에 들어가지 않는지 확인한다. 들어가면 제외 설정을 추가한다(tsconfig exclude, biome ignore, vitest exclude, antd lint 대상은 `./src` 이므로 영향 없음). 제외 설정 외에 앱 코드는 바꾸지 않는다.
+
+B. 템플릿 패턴 요약 `docs/template-reference/INDEX.md`
+ 각 데모 화면마다 한 항목: 경로(원본 라우트), 파일, 쓰는 부품(PageContainer, ProCard/Card, ProTable, ProForm, ModalForm, DrawerForm, StepsForm, ProDescriptions, FooterToolbar, ProList 등), 레이아웃 값(폼 최대 폭, layout, 필드 width 값, Card 속성, PageContainer 속성), 목록의 search 설정(labelWidth, defaultCollapsed, span), toolBarRender 구성, 행 선택과 일괄 동작(FooterToolbar), 페이지네이션 설정, 새로 만들기·수정·상세·삭제 방식(ModalForm, 단계 폼, Drawer 안 ProDescriptions, Popconfirm)과 성공 후 새로고침 방식, 성공·오류 메시지 방식(message, notification). 코드를 길게 붙이지 말고 핵심 줄만 인용한다. 템플릿이 쓰는 antd 전체 설정(variant: 'filled' 등)과 레이아웃 설정(defaultSettings: layout, contentWidth, fixedHeader 등)도 적는다.
+ 맨 위에 "표준 CRUD 한 장 요약"을 쓴다: 목록(검색 + 표 + 툴바) → 등록/수정(ModalForm 또는 DrawerForm 또는 단계 폼) → 상세(Drawer + ProDescriptions) → 삭제(확인) → 새로고침의 흐름과 사용 부품을 템플릿 table-list 기준으로 한 표로.
+
+C. 현재 화면 대응표 `docs/template-reference/MAPPING.md`
+ 현재 앱의 화면 전부(플랫폼: 로그인, 비밀번호 변경, 테넌트 목록, 등록, 상세, 지원 접속 기록, 지원 접속 진입·종료 / 테넌트: 공통코드 그룹·코드, 다국어 네임스페이스·메시지, 지원 언어, 회사, 부서, 사람, 역할, 사용자, 지원 접속 기록, 파일·팀·메뉴·권한은 아직 없음 표시)에 대해 한 줄씩:
+ | 화면 | 파일 | 현재 쓰는 부품(ProTable 인지 antd Table 인지, ProForm 인지 Form 인지, Drawer/Modal) | 가장 가까운 템플릿 화면 | 다른 점(예: Card 없음, 폭 제한 없음, 도메인 입력을 Space 로 가로 배치, 버튼 위치, 검색 영역 모양, 상세를 ProDescriptions 가 아니라 직접 구성) | 이전 난이도(상/중/하) |
+ 코드를 바꾸지 않고 읽어서 채운다. 파일마다 실제로 확인한 줄 번호를 적는다. 확인하지 못한 항목은 "미확인"으로 적는다.
+ 추가로 공통 항목: 현재 앱이 `@ant-design/pro-components` 의 ProTable, ProForm, ModalForm, DrawerForm, ProDescriptions, FooterToolbar, PageContainer 중 어떤 것을 이미 import 하는지, 버전(package.json), 템플릿 원본이 쓴 버전과 같은지.
+
+D. 호환 점검
+ - 템플릿 부품(ProTable 등)이 우리 규약과 맞는지 코드로 확인해 표로 쓴다: 우리 서버 페이징(page 1부터, size, sort 문자열 목록)과 ProTable 의 request(current, pageSize, sorter)를 잇는 방법(src/core/request 의 페이징 어댑터와의 관계), 오류 표시(ApiError 와 ProTable 의 request 실패 처리), 논리삭제와 사용여부 필터, 권한(can(menu, action))에 따른 버튼 숨김과 toolBarRender, 서버 메뉴·라우트 가드와의 관계, i18n(ProTable 의 내장 문구 로케일 ko-KR 설정), 테스트(vitest)에서 ProTable 을 렌더할 때 필요한 설정이나 문제. 해결 방법을 아는 것은 한 줄로, 모르는 것은 "미확인"으로 둔다.
+
+규칙: 앱 코드(src, config 의 동작 설정)는 이 단계에서 바꾸지 않는다. 새 라이브러리를 설치하지 않는다. 복원한 파일을 수정하지 않는다. 템플릿 원본 전체를 앱 폴더로 되돌리지 않는다.
+
+검증: 앱이 이전과 똑같이 lint, antd lint, tsc, test, build 를 통과하는지 확인한다(제외 설정이 맞게 들어갔는지 보는 용도). 개발 서버와 백엔드는 띄우지 않는다. 사용자가 직접 볼 것은 없다.
+진행 기록은 [F13단계] 형식으로 frontend/doc/cursor-progress.md 에 추가한다. 보고서는 "작업 방식"의 형식으로 docs/reports/F13.md 와 F13.diff 를 만들고(UTF-8), 복원한 폴더는 diff 에서 파일 목록과 크기만 요약해도 된다. 커밋 메시지는 [F13] 요약. push 는 하지 않는다. 완료 후 멈춘다.
+````
