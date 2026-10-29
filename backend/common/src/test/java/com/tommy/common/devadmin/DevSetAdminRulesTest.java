@@ -2,10 +2,12 @@ package com.tommy.common.devadmin;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.security.SecureRandom;
+import java.util.List;
 import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
@@ -21,7 +23,9 @@ class DevSetAdminRulesTest {
 		String login = login();
 		String password = letters(8);
 		assertThrows(IllegalArgumentException.class, () -> DevSetAdminRules.parse(null, null, login, password));
-		assertThrows(IllegalArgumentException.class, () -> DevSetAdminRules.parse("tenant", "   ", login, password));
+		Command omitted = DevSetAdminRules.parse("tenant", "   ", login, password);
+		assertNull(omitted.tenantCode());
+		assertFalse(omitted.toString().contains(password));
 		assertThrows(IllegalArgumentException.class, () -> DevSetAdminRules.parse("tenant", "it-ab", "  ", password));
 		assertThrows(IllegalArgumentException.class, () -> DevSetAdminRules.parse("platform", null, login, "   "));
 	}
@@ -46,6 +50,18 @@ class DevSetAdminRulesTest {
 		assertEquals("tenant it-ab created login@x", line);
 		assertFalse(line.contains(tenantPassword));
 		assertTrue(DevSetAdminRules.line("platform", null, tenant.loginId(), false).startsWith("platform updated "));
+	}
+
+	@Test
+	void resolvesABlankTenantCodeOnlyWhenOneActiveTenantExists() {
+		assertEquals("it-one", DevSetAdminRules.resolveOmittedTenant(List.of("it-one")));
+		IllegalStateException none = assertThrows(IllegalStateException.class, () -> DevSetAdminRules.resolveOmittedTenant(List.of()));
+		assertEquals("ACTIVE 테넌트가 없습니다.", none.getMessage());
+		IllegalStateException many = assertThrows(IllegalStateException.class,
+				() -> DevSetAdminRules.resolveOmittedTenant(List.of("it-b", "it-a")));
+		assertTrue(many.getMessage().contains("it-b"));
+		assertTrue(many.getMessage().contains("it-a"));
+		assertTrue(many.getMessage().startsWith("ACTIVE 테넌트가 2개입니다:"));
 	}
 
 	private static String login() {

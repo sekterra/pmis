@@ -184,6 +184,33 @@ class DevSetAdminIntegrationTest {
 	}
 
 	@Test
+	void rejectsOmittedTenantCodeUnlessExactlyOneActiveTenant() throws Exception {
+		String outside = outsideTenants();
+		String platformAdmins = scalar(null, "SELECT count(*)::text FROM pmis.platform_admin");
+		int active = Integer.parseInt(scalar(null, """
+				SELECT count(*)::text FROM pmis.tenant
+				WHERE tenant_status_code = 'ACTIVE' AND btrim(use_yn) = 'Y'
+				"""));
+		if (active == 1) {
+			assertEquals(outside, outsideTenants());
+			return;
+		}
+		String password = letters(6);
+		IllegalStateException rejected = assertThrows(IllegalStateException.class,
+				() -> devSetAdminService.apply(DevSetAdminRules.parse("tenant", " ", login(), password)));
+		assertFalse(rejected.getMessage().contains(password));
+		if (active == 0) {
+			assertEquals("ACTIVE 테넌트가 없습니다.", rejected.getMessage());
+		}
+		else {
+			assertTrue(rejected.getMessage().startsWith("ACTIVE 테넌트가 " + active + "개입니다:"));
+		}
+		assertNull(TenantContext.schema());
+		assertEquals(outside, outsideTenants());
+		assertEquals(platformAdmins, scalar(null, "SELECT count(*)::text FROM pmis.platform_admin"));
+	}
+
+	@Test
 	void rejectsUnknownAndInactiveTenantsWithoutChanges() throws Exception {
 		String outside = outsideTenants();
 		String missing = "it-" + UUID.randomUUID().toString().replace("-", "").substring(0, 8);

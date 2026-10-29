@@ -67,7 +67,7 @@ gradlew.bat bootRun --args="--bootstrap-platform-admin"
 
 개발 프로필에서만 동작하는 일회성 명령이다. 운영이나 공유 환경에서는 쓰지 않는다. 비밀번호 정책을 건너뛰므로 로컬 화면 확인용이다. 웹 서버는 뜨지 않고 끝나면 프로세스가 종료된다. 값은 이 문서에 적지 않는다.
 
-`MDM_DEV_ADMIN_TARGET`은 `platform` 또는 `tenant`다. `tenant`일 때만 `MDM_DEV_ADMIN_TENANT_CODE`가 필요하다. `MDM_DEV_ADMIN_LOGIN`과 `MDM_DEV_ADMIN_PASSWORD`는 항상 필요하다. 실행 중인 서버가 있으면 권한·계정 상태 캐시는 이 명령이 지우지 않는다. 캐시 TTL(60초) 동안 이전 상태가 보일 수 있다.
+`MDM_DEV_ADMIN_TARGET`은 `platform` 또는 `tenant`다. `tenant`일 때 `MDM_DEV_ADMIN_TENANT_CODE`는 비워도 된다. 비우면 사용 중(`ACTIVE`) 테넌트가 하나일 때만 그 테넌트를 쓰고, 없거나 둘 이상이면 후보 코드를 출력하고 끝난다. `MDM_DEV_ADMIN_LOGIN`과 `MDM_DEV_ADMIN_PASSWORD`는 항상 필요하다. 실행 중인 서버가 있으면 권한·계정 상태 캐시는 이 명령이 지우지 않는다. 캐시 TTL(60초) 동안 이전 상태가 보일 수 있다.
 
 ```powershell
 $env:MDM_DEV_ADMIN_TARGET = '<여기에 입력>'

@@ -6,6 +6,8 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
 
 import javax.sql.DataSource;
 
@@ -33,11 +35,12 @@ public class DevSetAdminService {
 		if ("platform".equals(command.target())) {
 			return inConnection(connection -> platform(connection, command));
 		}
-		TenantRow tenant = requireTenant(command.tenantCode());
+		String tenantCode = command.tenantCode() == null ? DevSetAdminRules.resolveOmittedTenant(activeTenantCodes()) : command.tenantCode();
+		TenantRow tenant = requireTenant(tenantCode);
 		TenantContext.beginRequest();
 		try {
 			TenantContext.setSchema(tenant.schemaName());
-			return inConnection(connection -> tenant(connection, tenant.schemaName(), command, tenant.languageCode(), tenant.timezoneId()));
+			return inConnection(connection -> tenant(connection, tenant.schemaName(), command, tenantCode, tenant.languageCode(), tenant.timezoneId()));
 		}
 		finally {
 			TenantContext.clear();
@@ -102,6 +105,26 @@ public class DevSetAdminService {
 		}
 	}
 
+	private List<String> activeTenantCodes() {
+		List<String> codes = new ArrayList<>();
+		try (Connection connection = dataSource.getConnection();
+				PreparedStatement statement = connection.prepareStatement("""
+						SELECT tenant_code
+						FROM pmis.tenant
+						WHERE tenant_status_code = 'ACTIVE' AND btrim(use_yn) = 'Y'
+						ORDER BY tenant_code
+						""");
+				ResultSet resultSet = statement.executeQuery()) {
+			while (resultSet.next()) {
+				codes.add(resultSet.getString(1));
+			}
+			return codes;
+		}
+		catch (SQLException ex) {
+			throw new IllegalStateException("테넌트를 찾을 수 없습니다.");
+		}
+	}
+
 	private static boolean schemaExists(Connection connection, String schemaName) throws SQLException {
 		try (PreparedStatement statement = connection.prepareStatement(
 				"SELECT 1 FROM pg_catalog.pg_namespace WHERE nspname = ?")) {
@@ -126,8 +149,8 @@ public class DevSetAdminService {
 		return DevSetAdminRules.line("platform", null, command.loginId(), created);
 	}
 
-	private String tenant(Connection connection, String schemaName, Command command, String languageCode, String timezoneId)
-			throws SQLException {
+	private String tenant(Connection connection, String schemaName, Command command, String tenantCode, String languageCode,
+			String timezoneId) throws SQLException {
 		setSearchPath(connection, schemaName);
 		String hash = passwordHasher.hash(command.password());
 		Long userPk = findUser(connection, command.loginId());
@@ -142,7 +165,7 @@ public class DevSetAdminService {
 		grantTenantAdmin(connection, userPk, rolePk);
 		insertHistory(connection, userPk, hash);
 		revokeUserRefresh(connection, userPk);
-		return DevSetAdminRules.line("tenant", command.tenantCode(), command.loginId(), created);
+		return DevSetAdminRules.line("tenant", tenantCode, command.loginId(), created);
 	}
 
 	private String inConnection(SqlWork work) {

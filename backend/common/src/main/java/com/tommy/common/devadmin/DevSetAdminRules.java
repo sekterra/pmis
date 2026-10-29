@@ -1,6 +1,7 @@
 package com.tommy.common.devadmin;
 
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Locale;
 import java.util.regex.Pattern;
 
@@ -28,9 +29,6 @@ public final class DevSetAdminRules {
 		if (!"platform".equals(target) && !"tenant".equals(target)) {
 			throw new IllegalArgumentException("MDM_DEV_ADMIN_TARGET 이 올바르지 않습니다.");
 		}
-		if ("tenant".equals(target) && blank(tenantCode)) {
-			throw new IllegalArgumentException("MDM_DEV_ADMIN_TENANT_CODE 가 없습니다.");
-		}
 		String loginId = login.trim().toLowerCase(Locale.ROOT);
 		if (!LOGIN.matcher(loginId).matches()) {
 			throw new IllegalArgumentException("로그인 아이디 형식이 올바르지 않습니다.");
@@ -39,7 +37,7 @@ public final class DevSetAdminRules {
 			throw new IllegalArgumentException("비밀번호가 BCrypt 한도를 넘습니다.");
 		}
 		String code = null;
-		if ("tenant".equals(target)) {
+		if ("tenant".equals(target) && !blank(tenantCode)) {
 			code = tenantCode.trim();
 			try {
 				SchemaNames.requireTenantCode(code);
@@ -49,6 +47,17 @@ public final class DevSetAdminRules {
 			}
 		}
 		return new Command(target, code, loginId, password);
+	}
+
+	public static String resolveOmittedTenant(List<String> activeCodes) {
+		List<String> codes = activeCodes == null ? List.of() : List.copyOf(activeCodes);
+		if (codes.size() == 1) {
+			return codes.get(0);
+		}
+		if (codes.isEmpty()) {
+			throw new IllegalStateException("ACTIVE 테넌트가 없습니다.");
+		}
+		throw new IllegalStateException("ACTIVE 테넌트가 " + codes.size() + "개입니다: " + String.join(", ", codes));
 	}
 
 	public static String line(String target, String tenantCode, String loginId, boolean created) {
