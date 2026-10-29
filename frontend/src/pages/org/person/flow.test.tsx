@@ -9,6 +9,7 @@ import type { MyMenu } from '@/core/menu/types';
 import { ApiError } from '@/core/request/errors';
 import type { Company } from '@/services/mdm/companyRecord';
 import type { Person } from '@/services/mdm/peopleRecord';
+import PersonDrawer from './PersonDrawer';
 import PersonPage from './index';
 
 const listPeople = vi.hoisted(() => vi.fn());
@@ -471,5 +472,77 @@ describe('person page', () => {
     expect(areaForbidden('/org/person')).toBe(true);
     setAccessContext({ kind: 'TENANT' });
     expect(areaForbidden('/org/person')).toBe(false);
+  });
+
+  it('fills assignments when the person object is replaced during a slow load', async () => {
+    let finish: (value: unknown) => void = () => undefined;
+    listAssignments.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const props = {
+      open: true,
+      tab: 'assignments',
+      saving: false,
+      languages: [],
+      companies: [],
+      canCreate: true,
+      canUpdate: true,
+      canDelete: true,
+      canUpload: true,
+      onTab: () => undefined,
+      onClose: () => undefined,
+      onSubmit: async () => undefined,
+      onDelete: () => undefined,
+      onRestore: () => undefined,
+      onNotice: () => undefined,
+      onChanged: () => undefined,
+    };
+    const view = render(
+      <App>
+        <PersonDrawer {...props} person={person()} />
+      </App>,
+    );
+    await waitFor(() => expect(listAssignments).toHaveBeenCalled());
+    view.rerender(
+      <App>
+        <PersonDrawer {...props} person={person({ personName: '다른객체' })} />
+      </App>,
+    );
+    finish({
+      items: [
+        {
+          assignmentPk: 1,
+          personPk: 7,
+          companyPk: 1,
+          companyCode: 'ACME',
+          companyName: '느린회사',
+          deptPk: null,
+          deptCode: null,
+          deptName: null,
+          employeeNo: 'SLOW',
+          employmentTypeCode: 'FULL',
+          positionCode: null,
+          jobTitleCode: null,
+          assignmentStatusCode: 'ACTIVE',
+          primaryYn: 'Y',
+          deptHeadYn: 'N',
+          startDate: '2026-01-01',
+          endDate: null,
+          description: null,
+          useYn: 'Y',
+          createDatetime: null,
+          createUserPk: null,
+          updateDatetime: null,
+          updateUserPk: null,
+        },
+      ],
+      total: 1,
+      page: 1,
+      size: 20,
+    });
+    expect(await screen.findByText('느린회사')).toBeTruthy();
   });
 });

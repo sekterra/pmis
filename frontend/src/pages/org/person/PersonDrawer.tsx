@@ -163,7 +163,7 @@ const PersonDrawer: React.FC<Props> = ({
     return () => {
       alive = false;
     };
-  }, [open, tab, person, page, useYn, reload]);
+  }, [open, tab, person?.personPk, page, useYn, reload]);
 
   const labelOf = (options: { value: string; label: string }[], code: string | null | undefined) =>
     code ? (options.find((item) => item.value === code)?.label ?? code) : text('pages.org.dept.none', '없음');

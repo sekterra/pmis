@@ -57,7 +57,9 @@ export function areaForbidden(pathname: string): boolean {
       pathname === '/mdm' ||
       pathname.startsWith('/mdm/') ||
       pathname === '/org' ||
-      pathname.startsWith('/org/')
+      pathname.startsWith('/org/') ||
+      pathname === '/access' ||
+      pathname.startsWith('/access/')
     );
   }
   return pathname === '/tenants' || pathname.startsWith('/tenants/');

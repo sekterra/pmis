@@ -6,6 +6,7 @@ export default {
   'menu.org.company': '회사',
   'menu.org.dept': '부서',
   'menu.org.person': '사람',
+  'menu.access.role': '역할',
   'menu.tenants': '테넌트 관리',
   'menu.login': '로그인',
   'menu.exception': '예외',

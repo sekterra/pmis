@@ -58,6 +58,12 @@ export default [
     component: './org/person',
   },
   {
+    path: '/access/role',
+    name: 'role',
+    hideInMenu: true,
+    component: './access/role',
+  },
+  {
     path: '/welcome',
     name: 'welcome',
     icon: 'home',

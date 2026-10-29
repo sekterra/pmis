@@ -725,4 +725,43 @@ git: `frontend`와 `D:\_project\PMIS` 모두 저장소가 아니다. `git status
 - 부서 화면의 변경 유형 한글은 컴포넌트에 두지 않고 `ko-KR`/`en-US` 번들만 쓴다.
 - 플랫폼과 테넌트는 빌드가 하나다. `/org/person`은 그 라우트에 있고, 플랫폼 사용자는 기존 `areaForbidden`이 `/org/**`를 막는다.
 
+## [F10단계] 역할 관리 화면 - 2026-10-29
+
+### 변경/추가 파일
+
+- 추가: `src/pages/access/role`(목록, Drawer, 권한 표, 규칙, 흐름 테스트)
+- 추가: `src/services/mdm/roles.ts`, `rolesQuery.ts`, `rolesRecord.d.ts`
+- 추가: `doc/f10-wireframe.md`, `doc/f10-manual-check.md`
+- 수정: `src/pages/org/person/PersonDrawer.tsx`. 소속 조회 의존성을 `personPk`로 바꿨다
+- 수정: `src/core/menu/menuRoutes.ts`에 `ROLE` → `/access/role`
+- 수정: `src/core/auth/context.ts`. 플랫폼은 `/access/**`도 막는다
+- 수정: `config/routes.ts`에 `/access/role`
+- 수정: `ko-KR`/`en-US`의 `menu.ts`, `pages.ts`에 역할 문구
+- 사용자 화면, 권한 관리 화면, 백엔드는 수정하지 않았다. `vitest.config.ts`는 바꾸지 않았다
+
+### 검증 결과
+
+- `npm.cmd run lint`: 통과. biome 175파일, 이어서 `tsc --noEmit`. 종료 코드 0
+- `npm.cmd exec antd -- lint ./src`: 통과. 188파일, 이슈 0
+- `src/pages/access/role/flow.test.tsx`를 3회 반복 실행했다. 매번 4개 통과(약 21초, 21초, 21초)
+- `npm.cmd test`: 통과. 50파일, 200개. 약 299초
+- `npm.cmd run build`: 통과. 종료 코드 0. 한 산출물에 `access/role`이 있다
+- 개발 서버와 백엔드는 띄우지 않았다
+
+### 질문/확인 필요
+
+- 초안은 테넌트 관리자 권한 편집을 숨기고, 지시서는 표를 읽기 전용으로 보이라고 했다. 지시서를 따랐다. 차이는 `doc/f10-wireframe.md`에 적었다.
+- 메뉴 이름은 응답 `menuName`이고, 기능 열 이름은 로컬 문구다. 없는 기능 코드는 코드 그대로다.
+- 부서 화면의 이력·소속 인원 조회는 숫자 PK만 의존한다. 회사 목록은 같은 키로 건너뛰지 않는다. 소속 표가 비는 패턴은 사람 Drawer만 고쳤다.
+- 전체 테스트는 약 299초다. 역할 흐름 파일은 약 21초다. 테스트 설정은 바꾸지 않았다.
+- 사용자가 직접 볼 항목은 `doc/f10-manual-check.md` 맨 위에 모았다.
+
+### 가정한 사항
+
+- 목록은 회사 화면과 같이 antd `Table`이다. Drawer 너비는 기존 `size="large"`다.
+- 부모 메뉴 그룹은 서버 `menus/my`의 `parentMenuCode`를 그대로 쓴다. 화면 코드에서 그룹을 가정하지 않았다.
+- 권한 조회는 `granted`를 보내지 않아 메뉴의 사용 중 권한을 모두 받는다. 메뉴 이름은 서버가 `Accept-Language`로 고른 값이다.
+- 역할 수정 필드는 모두 화면에 있다. 빈 설명은 null이다.
+- 플랫폼과 테넌트는 빌드가 하나다. `/access/role`은 그 라우트에 있고, 플랫폼 사용자는 `/access/**`를 막는다.
+
 
