@@ -912,4 +912,27 @@ git: `frontend`와 `D:\_project\PMIS` 모두 저장소가 아니다. `git status
 - JWT가 있으면 백엔드는 토큰 테넌트를 쓰고, 헤더/Host가 다르면 `TENANT.HOST_MISMATCH`. 지원 세션은 JWT만으로도 동작하나, 교환 직후·프록시 간섭을 피하려고 dev에서만 메모리 테넌트 헤더를 붙인다
 - `/api/platform`에는 테넌트 헤더를 붙이지 않는다(`tenantHeaderFor`)
 
+## [F13단계] 템플릿 원본 참조 복원과 대응표 - 2026-10-29
+
+### 변경/추가 파일
+
+- 추가: `docs/template-reference/` (ant-design-pro `v6.0.3` / `adfd440` 복사본 + README·INDEX·MAPPING·COMPAT)
+- 추가: 진행·보고서만. `frontend/src`·`frontend/config` 동작 코드는 변경 없음
+- git 이력에 데모가 없어 공식 저장소 태그에서 승인된 방식으로 가져옴. pro-blocks 불필요
+
+### 검증 결과
+
+- `npm.cmd run lint` / antd lint / `npm.cmd test`(64파일 240개) / `npm.cmd run build`: 모두 통과(앱 코드 불변)
+- `docs/template-reference`는 `frontend/` 밖이라 biome·tsc·vitest·antd lint 대상 아님. exclude 추가 없음
+- 개발 서버와 백엔드는 띄우지 않았다
+
+### 질문/확인 필요
+
+- 없음(질문 1 승인으로 공식 저장소 복제 진행)
+
+### 가정한 사항
+
+- `list/table-list` 라우트 실제 파일은 `src/pages/table-list`라 함께 복사했다
+- 공유 `src/components`는 데모 페이지가 import하지 않아 생략했다
+
 
