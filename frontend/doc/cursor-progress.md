@@ -935,4 +935,39 @@ git: `frontend`와 `D:\_project\PMIS` 모두 저장소가 아니다. `git status
 - `list/table-list` 라우트 실제 파일은 `src/pages/table-list`라 함께 복사했다
 - 공유 `src/components`는 데모 페이지가 import하지 않아 생략했다
 
+## [F14단계] 화면 표준 파일럿 (테넌트 목록·등록, 지원 접속 기록) - 2026-10-29
+
+### 변경/추가/삭제 파일
+
+- 추가: `frontend/doc/f14-wireframe.md`, `frontend/doc/testing-pro-components.md`, `frontend/doc/f14-manual-check.md`
+- 추가: `frontend/src/test/proRender.tsx`, `frontend/tests/antd-esm-loader.mjs`
+- 추가: `frontend/src/pages/platform/tenants/list.flow.test.tsx`, `new.flow.test.tsx`, `locale.pro.test.tsx`
+- 수정: `frontend/src/core/request/table.ts`, `table.test.ts`, `frontend/vitest.config.ts`
+- 수정: `frontend/src/pages/platform/tenants/index.tsx`, `new.tsx`, `list.test.ts`, `rules.ts`(정렬 화이트리스트는 기존 유지)
+- 수정: `frontend/src/components/supportAccess/SupportAccessHistory.tsx`, `SupportAccessDrawer.tsx`
+- 수정: `frontend/src/pages/platform/support-accesses/flow.test.tsx`, `frontend/src/pages/access/support-access/flow.test.tsx`
+- 수정: `frontend/src/locales/platform/{ko-KR,en-US}.ts`, `frontend/src/locales/{ko-KR,en-US}/pages.ts`
+- 서비스·인증·권한·다른 화면·`docs/template-reference`는 변경 없음
+
+### 검증 결과
+
+- `npm.cmd run lint`: 통과 (biome 경고 1건 수정 후 tsc 포함)
+- `npx.cmd antd lint ./src`: 통과, 이슈 0
+- `npm.cmd run tsc`: 통과
+- 새 흐름 테스트 5파일 3회: 매번 통과. 약 165초, 151초, 200초
+- `npm.cmd test`: 67파일, 253개 통과. 약 700초 (F13 약 430초 → Pro 실제 렌더 import가 늘어남)
+- `npm.cmd run build`: 통과
+- 개발 서버와 백엔드는 띄우지 않았다. 수동 확인은 `frontend/doc/f14-manual-check.md`
+
+### 질문/확인 필요
+
+- 없음. 목록 DTO에 계약일·마이그레이션이 없어 해당 열은 넣지 않음(기능·API 유지). 표준과 다른 점은 와이어프레임에만 적음.
+
+### 가정한 사항
+
+- ProTable 오류는 `toast-empty`(토스트 한 번 + 빈 결과). throw는 옵션.
+- 런타임 한국어: `config.locale.antd: true` + 기본 `ko-KR`. 테스트는 `ProConfigProvider` intl (`src/test/proRender.tsx`).
+- 도메인은 문자열 배열이라 `ProFormList` 대신 `Form.List`(세로 쌓임, 최소 1줄, 점선 추가).
+- vitest는 antd ESM 확장자 없는 import를 `tests/antd-esm-loader.mjs`로 보정.
+
 

@@ -1,10 +1,20 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import {
+  cleanup,
+  fireEvent,
+  screen,
+  waitFor,
+} from '@testing-library/react';
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { areaForbidden, resetAccessContext, setAccessContext } from '@/core/auth/context';
+import {
+  areaForbidden,
+  resetAccessContext,
+  setAccessContext,
+} from '@/core/auth/context';
 import { guardView } from '@/core/menu/guard';
 import type { MyMenu } from '@/core/menu/types';
 import type { SupportAccessItem } from '@/services/platform/data';
+import { renderWithPro } from '@/test/proRender';
 
 const listTenantSupportAccesses = vi.hoisted(() => vi.fn());
 const listTenantSupportAccessActions = vi.hoisted(() => vi.fn());
@@ -18,18 +28,15 @@ vi.mock('@/core/request/runtime', () => ({
   rawRequest: (...args: unknown[]) => rawRequest(...args),
 }));
 
-vi.mock('@ant-design/pro-components', () => {
-  const ReactMock = require('react') as typeof import('react');
-  return {
-    PageContainer: ({ children }: { children?: React.ReactNode }) =>
-      ReactMock.createElement('div', null, children),
-  };
-});
-
 vi.mock('@umijs/max', () => ({
   useIntl: () => ({
-    formatMessage: ({ defaultMessage, id }: { defaultMessage?: string; id: string }) =>
-      defaultMessage ?? id,
+    formatMessage: ({
+      defaultMessage,
+      id,
+    }: {
+      defaultMessage?: string;
+      id: string;
+    }) => defaultMessage ?? id,
   }),
   useAccess: () => ({
     can: (menu: string, action: string) => accessBag.can(menu, action),
@@ -37,7 +44,8 @@ vi.mock('@umijs/max', () => ({
 }));
 
 vi.mock('@/services/mdm/supportAccess', () => ({
-  listTenantSupportAccesses: (...args: unknown[]) => listTenantSupportAccesses(...args),
+  listTenantSupportAccesses: (...args: unknown[]) =>
+    listTenantSupportAccesses(...args),
   listTenantSupportAccessActions: (...args: unknown[]) =>
     listTenantSupportAccessActions(...args),
 }));
@@ -122,7 +130,7 @@ describe('tenant support access history flow', () => {
       guardView('/access/support-access', { status: 'ready', items: [] }),
     ).toBe('forbidden');
 
-    render(<TenantSupportAccessPage />);
+    renderWithPro(<TenantSupportAccessPage />);
     expect(
       await screen.findByText(
         '플랫폼 운영자의 지원 접속 기록입니다. 기록은 수정하거나 삭제할 수 없습니다.',
@@ -131,17 +139,17 @@ describe('tenant support access history flow', () => {
     expect(await screen.findByText('ops@example.com')).toBeTruthy();
     expect(screen.queryByLabelText('테넌트')).toBeNull();
 
-    fireEvent.change(screen.getByLabelText('운영자'), {
+    fireEvent.change(screen.getAllByLabelText('운영자')[0], {
       target: { value: 'ops' },
     });
-    fireEvent.click(screen.getByRole('button', { name: '검색' }));
+    fireEvent.click(screen.getByRole('button', { name: '조회' }));
     await waitFor(() =>
       expect(listTenantSupportAccesses).toHaveBeenCalledWith(
         expect.objectContaining({ platformLoginId: 'ops' }),
       ),
     );
 
-    fireEvent.click(screen.getByText('ops@example.com'));
+    fireEvent.click(screen.getByRole('button', { name: 'ops@example.com' }));
     expect(await screen.findByText('/api/mdm/v1/users/1')).toBeTruthy();
     expect(listTenantSupportAccessActions).toHaveBeenCalledWith(4, 1, 50);
   });

@@ -1,24 +1,13 @@
-import { PageContainer } from '@ant-design/pro-components';
+import type { ProColumns } from '@ant-design/pro-components';
+import { PageContainer, ProTable } from '@ant-design/pro-components';
 import { useIntl } from '@umijs/max';
+import { Button, Typography } from 'antd';
+import React, { useMemo, useState } from 'react';
+import { SUPPORT_ACCESS_STATUSES } from '@/core/supportAccess/rules';
 import {
-  Button,
-  DatePicker,
-  Form,
-  Input,
-  Select,
-  Space,
-  Table,
-  Tag,
-  Typography,
-} from 'antd';
-import type { ColumnsType, TablePaginationConfig } from 'antd/es/table';
-import dayjs from 'dayjs';
-import React, { useCallback, useEffect, useState } from 'react';
-import {
-  SUPPORT_ACCESS_STATUSES,
-  statusTagColor,
-} from '@/core/supportAccess/rules';
-import { toApiError } from '@/core/request/errors';
+  expandDateRangeParams,
+  toTableRequest,
+} from '@/core/request/table';
 import type {
   PageResult,
   SupportAccessItem,
@@ -55,239 +44,144 @@ const SupportAccessHistory: React.FC<SupportAccessHistoryProps> = ({
   hint,
 }) => {
   const intl = useIntl();
-  const [filters, setFilters] = useState<{
-    tenantCode?: string;
-    platformLoginId?: string;
-    status?: string;
-    from?: string;
-    to?: string;
-  }>({});
-  const [page, setPage] = useState(1);
-  const [size, setSize] = useState(20);
-  const [sort, setSort] = useState<string[]>(['issuedDatetime,desc']);
-  const [rows, setRows] = useState<SupportAccessItem[]>([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(false);
-  const [notice, setNotice] = useState<string>();
   const [selected, setSelected] = useState<SupportAccessItem | null>(null);
+  const text = (id: string, defaultMessage: string) =>
+    intl.formatMessage({ id, defaultMessage });
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const result = await list({
-        ...filters,
-        page,
-        size,
-        sort,
-      });
-      setRows(result.items);
-      setTotal(result.total);
-      setNotice(undefined);
-    } catch (error) {
-      setNotice(toApiError(error).message);
-    } finally {
-      setLoading(false);
-    }
-  }, [filters, list, page, size, sort]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  const columns: ColumnsType<SupportAccessItem> = [
-    ...(mode === 'platform'
-      ? [
+  const statusEnum = useMemo(
+    () =>
+      Object.fromEntries(
+        SUPPORT_ACCESS_STATUSES.map((status) => [
+          status,
           {
-            title: intl.formatMessage({
-              id: 'pages.supportAccess.tenant',
-              defaultMessage: '테넌트',
-            }),
-            dataIndex: 'tenantCode',
+            text: text(`pages.supportAccess.status.${status}`, status),
+            status:
+              status === 'ACTIVE'
+                ? ('Processing' as const)
+                : status === 'ISSUED'
+                  ? ('Default' as const)
+                  : status === 'EXPIRED'
+                    ? ('Warning' as const)
+                    : status === 'REVOKED'
+                      ? ('Error' as const)
+                      : ('Default' as const),
           },
-        ]
+        ]),
+      ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [intl],
+  );
+
+  const columns: ProColumns<SupportAccessItem>[] = [
+    ...(mode === 'platform'
+      ? ([
+          {
+            title: text('pages.supportAccess.tenant', '테넌트'),
+            dataIndex: 'tenantCode',
+            render: (_: unknown, record: SupportAccessItem) => (
+              <Button type="link" onClick={() => setSelected(record)}>
+                {record.tenantCode}
+              </Button>
+            ),
+          },
+        ] as ProColumns<SupportAccessItem>[])
       : []),
     {
-      title: intl.formatMessage({
-        id: 'pages.supportAccess.operator',
-        defaultMessage: '운영자',
-      }),
+      title: text('pages.supportAccess.operator', '운영자'),
+      dataIndex: 'platformLoginId',
+      hideInTable: true,
+      fieldProps: {
+        'aria-label': text('pages.supportAccess.operator', '운영자'),
+      },
+    },
+    {
+      title: text('pages.supportAccess.operator', '운영자'),
       dataIndex: 'operatorLoginId',
-    },
-    {
-      title: intl.formatMessage({
-        id: 'pages.supportAccess.reason',
-        defaultMessage: '사유',
-      }),
-      dataIndex: 'reason',
-      render: (value: string, row) =>
-        row.reasonDefault ? (
-          <Typography.Text type="secondary">
-            {value}{' '}
-            {intl.formatMessage({
-              id: 'pages.supportAccess.reasonAuto',
-              defaultMessage: '(자동)',
-            })}
-          </Typography.Text>
-        ) : (
-          value
-        ),
-    },
-    {
-      title: intl.formatMessage({
-        id: 'pages.supportAccess.status',
-        defaultMessage: '상태',
-      }),
-      dataIndex: 'status',
-      render: (value: string) => (
-        <Tag color={statusTagColor(value)}>{value}</Tag>
+      search: false,
+      render: (_, record) => (
+        <Button type="link" onClick={() => setSelected(record)}>
+          {record.operatorLoginId}
+        </Button>
       ),
     },
     {
-      title: intl.formatMessage({
-        id: 'pages.supportAccess.started',
-        defaultMessage: '시작',
-      }),
+      title: text('pages.supportAccess.status', '상태'),
+      dataIndex: 'status',
+      valueType: 'select',
+      valueEnum: statusEnum,
+    },
+    {
+      title: text('pages.supportAccess.period', '기간'),
+      dataIndex: 'issuedRange',
+      hideInTable: true,
+      valueType: 'dateTimeRange',
+    },
+    {
+      title: text('pages.supportAccess.reason', '사유'),
+      dataIndex: 'reason',
+      search: false,
+      render: (_, row) =>
+        row.reasonDefault ? (
+          <Typography.Text type="secondary">
+            {row.reason} {text('pages.supportAccess.reasonAuto', '(자동)')}
+          </Typography.Text>
+        ) : (
+          row.reason
+        ),
+    },
+    {
+      title: text('pages.supportAccess.started', '시작'),
       dataIndex: 'startedDatetime',
+      search: false,
       sorter: true,
     },
     {
-      title: intl.formatMessage({
-        id: 'pages.supportAccess.ended',
-        defaultMessage: '종료/만료',
-      }),
+      title: text('pages.supportAccess.ended', '종료/만료'),
       dataIndex: 'endedDatetime',
-      render: (_: unknown, row) => row.endedDatetime ?? row.expireDatetime,
+      search: false,
+      render: (_, row) => row.endedDatetime ?? row.expireDatetime,
     },
     {
-      title: intl.formatMessage({
-        id: 'pages.supportAccess.startIp',
-        defaultMessage: '접속 IP',
-      }),
+      title: text('pages.supportAccess.startIp', '접속 IP'),
       dataIndex: 'startIp',
+      search: false,
     },
     {
-      title: intl.formatMessage({
-        id: 'pages.supportAccess.writeCount',
-        defaultMessage: '쓰기 요청 수',
-      }),
+      title: text('pages.supportAccess.writeCount', '쓰기 요청 수'),
       dataIndex: 'writeCount',
+      search: false,
     },
   ];
 
-  const onTableChange = (
-    pagination: TablePaginationConfig,
-    _filters: Record<string, unknown>,
-    sorter: unknown,
-  ) => {
-    setPage(pagination.current ?? 1);
-    setSize(pagination.pageSize ?? 20);
-    const single = Array.isArray(sorter) ? sorter[0] : sorter;
-    if (
-      single &&
-      typeof single === 'object' &&
-      'field' in single &&
-      'order' in single
-    ) {
-      const field = (single as { field?: React.Key | React.Key[] }).field;
-      const order = (single as { order?: 'ascend' | 'descend' | null }).order;
-      if (field && !Array.isArray(field) && (order === 'ascend' || order === 'descend')) {
-        setSort([`${String(field)},${order === 'ascend' ? 'asc' : 'desc'}`]);
-      }
-    }
-  };
+  const request = useMemo(
+    () =>
+      toTableRequest(list, {
+        mapParams: (params) => {
+          const next = expandDateRangeParams(
+            params,
+            'issuedRange',
+            'from',
+            'to',
+          );
+          if (mode !== 'platform') {
+            delete next.tenantCode;
+          }
+          return next;
+        },
+      }),
+    [list, mode],
+  );
 
   return (
-    <PageContainer>
-      {hint ? (
-        <Typography.Paragraph type="secondary">{hint}</Typography.Paragraph>
-      ) : null}
-      {notice ? (
-        <Typography.Text type="danger" role="alert">
-          {notice}
-        </Typography.Text>
-      ) : null}
-      <Form
-        layout="inline"
-        style={{ marginBottom: 16 }}
-        onFinish={(values) => {
-          setPage(1);
-          setFilters({
-            tenantCode: values.tenantCode,
-            platformLoginId: values.platformLoginId,
-            status: values.status,
-            from: values.range?.[0]
-              ? dayjs(values.range[0]).toISOString()
-              : undefined,
-            to: values.range?.[1]
-              ? dayjs(values.range[1]).toISOString()
-              : undefined,
-          });
-        }}
-      >
-        {mode === 'platform' ? (
-          <Form.Item name="tenantCode" label={intl.formatMessage({
-            id: 'pages.supportAccess.tenant',
-            defaultMessage: '테넌트',
-          })}>
-            <Input allowClear />
-          </Form.Item>
-        ) : null}
-        <Form.Item
-          name="platformLoginId"
-          label={intl.formatMessage({
-            id: 'pages.supportAccess.operator',
-            defaultMessage: '운영자',
-          })}
-        >
-          <Input allowClear />
-        </Form.Item>
-        <Form.Item
-          name="status"
-          label={intl.formatMessage({
-            id: 'pages.supportAccess.status',
-            defaultMessage: '상태',
-          })}
-        >
-          <Select
-            allowClear
-            style={{ width: 140 }}
-            options={SUPPORT_ACCESS_STATUSES.map((status) => ({
-              value: status,
-              label: status,
-            }))}
-          />
-        </Form.Item>
-        <Form.Item
-          name="range"
-          label={intl.formatMessage({
-            id: 'pages.supportAccess.period',
-            defaultMessage: '기간',
-          })}
-        >
-          <DatePicker.RangePicker showTime />
-        </Form.Item>
-        <Form.Item>
-          <Space>
-            <Button type="primary" htmlType="submit">
-              {intl.formatMessage({
-                id: 'pages.supportAccess.search',
-                defaultMessage: '검색',
-              })}
-            </Button>
-          </Space>
-        </Form.Item>
-      </Form>
-      <Table
+    <PageContainer content={hint}>
+      <ProTable<SupportAccessItem>
+        headerTitle={text('pages.supportAccess.listTitle', '지원 접속 기록')}
         rowKey="supportAccessId"
-        loading={loading}
         columns={columns}
-        dataSource={rows}
-        pagination={{ current: page, pageSize: size, total }}
-        onChange={onTableChange as never}
-        onRow={(record) => ({
-          onClick: () => setSelected(record),
-          style: { cursor: 'pointer' },
-        })}
+        search={{ labelWidth: 120 }}
+        toolBarRender={false}
+        request={request}
+        pagination={{ defaultPageSize: 20 }}
       />
       <SupportAccessDrawer
         open={Boolean(selected)}

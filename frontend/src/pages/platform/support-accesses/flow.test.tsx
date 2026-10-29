@@ -1,8 +1,18 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import {
+  cleanup,
+  fireEvent,
+  screen,
+  waitFor,
+} from '@testing-library/react';
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { areaForbidden, resetAccessContext, setAccessContext } from '@/core/auth/context';
+import {
+  areaForbidden,
+  resetAccessContext,
+  setAccessContext,
+} from '@/core/auth/context';
 import type { SupportAccessItem } from '@/services/platform/data';
+import { renderWithPro } from '@/test/proRender';
 
 const listPlatformSupportAccesses = vi.hoisted(() => vi.fn());
 const listPlatformSupportAccessActions = vi.hoisted(() => vi.fn());
@@ -13,18 +23,15 @@ vi.mock('@/core/request/runtime', () => ({
   rawRequest: (...args: unknown[]) => rawRequest(...args),
 }));
 
-vi.mock('@ant-design/pro-components', () => {
-  const ReactMock = require('react') as typeof import('react');
-  return {
-    PageContainer: ({ children }: { children?: React.ReactNode }) =>
-      ReactMock.createElement('div', null, children),
-  };
-});
-
 vi.mock('@umijs/max', () => ({
   useIntl: () => ({
-    formatMessage: ({ defaultMessage, id }: { defaultMessage?: string; id: string }) =>
-      defaultMessage ?? id,
+    formatMessage: ({
+      defaultMessage,
+      id,
+    }: {
+      defaultMessage?: string;
+      id: string;
+    }) => defaultMessage ?? id,
   }),
 }));
 
@@ -94,21 +101,28 @@ describe('platform support access history flow', () => {
   it('lists, filters, opens drawer actions, and allows platform path', async () => {
     expect(areaForbidden('/support-accesses')).toBe(false);
     expect(areaForbidden('/access/support-access')).toBe(true);
-    render(<PlatformSupportAccessesPage />);
+    renderWithPro(<PlatformSupportAccessesPage />);
+    expect(await screen.findByRole('button', { name: '조회' })).toBeTruthy();
     expect(await screen.findByText('ops@example.com')).toBeTruthy();
     expect(listPlatformSupportAccesses).toHaveBeenCalled();
 
-    fireEvent.change(screen.getByLabelText('테넌트'), {
+    fireEvent.change(screen.getAllByLabelText('테넌트')[0], {
       target: { value: 'acme' },
     });
-    fireEvent.click(screen.getByRole('button', { name: '검색' }));
+    fireEvent.change(screen.getAllByLabelText('운영자')[0], {
+      target: { value: 'ops' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '조회' }));
     await waitFor(() =>
       expect(listPlatformSupportAccesses).toHaveBeenCalledWith(
-        expect.objectContaining({ tenantCode: 'acme' }),
+        expect.objectContaining({
+          tenantCode: 'acme',
+          platformLoginId: 'ops',
+        }),
       ),
     );
 
-    fireEvent.click(screen.getByText('ops@example.com'));
+    fireEvent.click(screen.getByRole('button', { name: 'ops@example.com' }));
     expect(await screen.findByText('/api/mdm/v1/users')).toBeTruthy();
     expect(listPlatformSupportAccessActions).toHaveBeenCalledWith(9, 1, 50);
   });

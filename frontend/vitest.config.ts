@@ -1,5 +1,10 @@
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { defineConfig } from 'vitest/config';
+
+const antdLoader = pathToFileURL(
+  join(__dirname, 'tests/antd-esm-loader.mjs'),
+).href;
 
 export default defineConfig({
   resolve: {
@@ -15,9 +20,9 @@ export default defineConfig({
     globals: true,
     setupFiles: ['./tests/setupTests.ts'],
     include: ['src/**/*.{test,spec}.{ts,tsx}'],
-    // Exclude Umi integration tests that depend on @umijs/max test infrastructure
-    // These require Umi's Jest runner and cannot be used with Vitest directly
     exclude: ['node_modules', 'dist', '.umi'],
+    pool: 'forks',
+    execArgv: ['--experimental-loader', antdLoader],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
@@ -30,8 +35,6 @@ export default defineConfig({
       ],
     },
     passWithNoTests: true,
-    // 부서 화면 흐름 테스트가 한 파일에서 DatePicker·Tree를 연다.
-    // 파일을 동시에 돌리면 15초 제한과 findBy 대기가 같이 깨진다.
     fileParallelism: false,
     testTimeout: 30000,
   },

@@ -1,6 +1,8 @@
+import type { ProDescriptionsColumn } from '@ant-design/pro-components';
+import { ProDescriptions } from '@ant-design/pro-components';
 import { useIntl } from '@umijs/max';
-import { Descriptions, Drawer, Table, Tag } from 'antd';
-import React, { useEffect, useRef, useState } from 'react';
+import { Drawer, Table, Tag, Typography } from 'antd';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { statusTagColor } from '@/core/supportAccess/rules';
 import { toApiError } from '@/core/request/errors';
 import type {
@@ -78,9 +80,97 @@ const SupportAccessDrawer: React.FC<SupportAccessDrawerProps> = ({
     }
   }, [open]);
 
+  const columns = useMemo(() => {
+    const items: ProDescriptionsColumn<SupportAccessItem>[] = [];
+    if (item?.tenantCode) {
+      items.push({
+        title: intl.formatMessage({
+          id: 'pages.supportAccess.tenant',
+          defaultMessage: '테넌트',
+        }),
+        dataIndex: 'tenantCode',
+      });
+    }
+    items.push(
+      {
+        title: intl.formatMessage({
+          id: 'pages.supportAccess.operator',
+          defaultMessage: '운영자',
+        }),
+        dataIndex: 'operatorLoginId',
+      },
+      {
+        title: intl.formatMessage({
+          id: 'pages.supportAccess.reason',
+          defaultMessage: '사유',
+        }),
+        dataIndex: 'reason',
+        render: (_, row) =>
+          row.reasonDefault ? (
+            <Typography.Text type="secondary">
+              {row.reason}{' '}
+              {intl.formatMessage({
+                id: 'pages.supportAccess.reasonAuto',
+                defaultMessage: '(자동)',
+              })}
+            </Typography.Text>
+          ) : (
+            row.reason
+          ),
+      },
+      {
+        title: intl.formatMessage({
+          id: 'pages.supportAccess.status',
+          defaultMessage: '상태',
+        }),
+        dataIndex: 'status',
+        render: (_, row) => (
+          <Tag color={statusTagColor(row.status)}>{row.status}</Tag>
+        ),
+      },
+      {
+        title: intl.formatMessage({
+          id: 'pages.supportAccess.issued',
+          defaultMessage: '발급',
+        }),
+        dataIndex: 'issuedDatetime',
+      },
+      {
+        title: intl.formatMessage({
+          id: 'pages.supportAccess.started',
+          defaultMessage: '시작',
+        }),
+        dataIndex: 'startedDatetime',
+      },
+      {
+        title: intl.formatMessage({
+          id: 'pages.supportAccess.ended',
+          defaultMessage: '종료/만료',
+        }),
+        dataIndex: 'endedDatetime',
+        render: (_, row) => row.endedDatetime ?? row.expireDatetime,
+      },
+      {
+        title: intl.formatMessage({
+          id: 'pages.supportAccess.startIp',
+          defaultMessage: '접속 IP',
+        }),
+        dataIndex: 'startIp',
+      },
+      {
+        title: intl.formatMessage({
+          id: 'pages.supportAccess.writeCount',
+          defaultMessage: '쓰기 요청 수',
+        }),
+        dataIndex: 'writeCount',
+      },
+    );
+    return items;
+  }, [intl, item?.tenantCode]);
+
   return (
     <Drawer
-      size={720}
+      size={600}
       open={open}
       onClose={onClose}
       title={intl.formatMessage({
@@ -90,88 +180,14 @@ const SupportAccessDrawer: React.FC<SupportAccessDrawerProps> = ({
       destroyOnHidden
     >
       {item ? (
-        <Descriptions column={1} size="small" bordered style={{ marginBottom: 16 }}>
-          {item.tenantCode ? (
-            <Descriptions.Item
-              label={intl.formatMessage({
-                id: 'pages.supportAccess.tenant',
-                defaultMessage: '테넌트',
-              })}
-            >
-              {item.tenantCode}
-            </Descriptions.Item>
-          ) : null}
-          <Descriptions.Item
-            label={intl.formatMessage({
-              id: 'pages.supportAccess.operator',
-              defaultMessage: '운영자',
-            })}
-          >
-            {item.operatorLoginId}
-          </Descriptions.Item>
-          <Descriptions.Item
-            label={intl.formatMessage({
-              id: 'pages.supportAccess.reason',
-              defaultMessage: '사유',
-            })}
-          >
-            {item.reason}
-            {item.reasonDefault
-              ? ` ${intl.formatMessage({
-                  id: 'pages.supportAccess.reasonAuto',
-                  defaultMessage: '(자동)',
-                })}`
-              : ''}
-          </Descriptions.Item>
-          <Descriptions.Item
-            label={intl.formatMessage({
-              id: 'pages.supportAccess.status',
-              defaultMessage: '상태',
-            })}
-          >
-            <Tag color={statusTagColor(item.status)}>{item.status}</Tag>
-          </Descriptions.Item>
-          <Descriptions.Item
-            label={intl.formatMessage({
-              id: 'pages.supportAccess.issued',
-              defaultMessage: '발급',
-            })}
-          >
-            {item.issuedDatetime}
-          </Descriptions.Item>
-          <Descriptions.Item
-            label={intl.formatMessage({
-              id: 'pages.supportAccess.started',
-              defaultMessage: '시작',
-            })}
-          >
-            {item.startedDatetime}
-          </Descriptions.Item>
-          <Descriptions.Item
-            label={intl.formatMessage({
-              id: 'pages.supportAccess.ended',
-              defaultMessage: '종료/만료',
-            })}
-          >
-            {item.endedDatetime ?? item.expireDatetime}
-          </Descriptions.Item>
-          <Descriptions.Item
-            label={intl.formatMessage({
-              id: 'pages.supportAccess.startIp',
-              defaultMessage: '접속 IP',
-            })}
-          >
-            {item.startIp}
-          </Descriptions.Item>
-          <Descriptions.Item
-            label={intl.formatMessage({
-              id: 'pages.supportAccess.writeCount',
-              defaultMessage: '쓰기 요청 수',
-            })}
-          >
-            {item.writeCount}
-          </Descriptions.Item>
-        </Descriptions>
+        <ProDescriptions<SupportAccessItem>
+          column={2}
+          size="small"
+          bordered
+          style={{ marginBottom: 16 }}
+          dataSource={item}
+          columns={columns}
+        />
       ) : null}
       {notice ? <div role="alert">{notice}</div> : null}
       <Table
