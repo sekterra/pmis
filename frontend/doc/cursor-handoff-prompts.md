@@ -953,3 +953,49 @@ D. 호환 점검
 검증: 앱이 이전과 똑같이 lint, antd lint, tsc, test, build 를 통과하는지 확인한다(제외 설정이 맞게 들어갔는지 보는 용도). 개발 서버와 백엔드는 띄우지 않는다. 사용자가 직접 볼 것은 없다.
 진행 기록은 [F13단계] 형식으로 frontend/doc/cursor-progress.md 에 추가한다. 보고서는 "작업 방식"의 형식으로 docs/reports/F13.md 와 F13.diff 를 만들고(UTF-8), 복원한 폴더는 diff 에서 파일 목록과 크기만 요약해도 된다. 커밋 메시지는 [F13] 요약. push 는 하지 않는다. 완료 후 멈춘다.
 ````
+
+---
+
+## F14단계: 화면 표준 파일럿 (테넌트 목록·등록, 지원 접속 기록) + 공통 준비
+
+F12.1, F13 승인(`docs/reviews/2026-10-29-F12.1.md`, `2026-10-29-F13.md`). 화면은 템플릿(Ant Design Pro v6.0.3)의 화면 틀과 표준 CRUD 를 따른다. 기준은 `frontend/doc/ui-standard-wireframe.md`(화면 표준)와 복원된 원본 `docs/template-reference/`이다. 이 단계는 표준을 세 가지 유형(A 목록, D 전체 페이지 폼, G 읽기 전용 기록)에 한 번씩 적용해 보는 파일럿이다. 기능(서버 호출, 오류 처리, 권한, 임시 비밀번호 모달)은 바꾸지 않고 화면 부품만 바꾼다. 이 단계만 수행하고 멈춘다.
+
+````
+기준 문서: frontend/doc/ui-standard-wireframe.md (1~4절), docs/template-reference/INDEX.md, MAPPING.md, COMPAT.md, 원본 소스 docs/template-reference/src/pages/table-list/(index.tsx, components/CreateForm.tsx), form/basic-form/index.tsx, form/advanced-form/index.tsx. 현재 코드 src/pages/platform/tenants(index.tsx, new.tsx), src/components/supportAccess, src/pages/platform/support-accesses, src/pages/access/support-access, src/core/request/table.ts, config/config.ts. 구현 전에 frontend/doc/f14-wireframe.md 에 세 화면의 구성(검색 항목, 열, 툴바, 폼 섹션, 필드 width, 버튼)을 글로 정리한다. 표준 문서와 다르게 하고 싶은 부분이 있으면 구현 전에 멈추고 "질문"에 올린다.
+
+A. 공통 준비 (먼저)
+ 1. ProTable·ProForm 내장 문구가 한국어로 나오는지 실제 렌더로 확인하고(조회, 초기화, 새로고침, 밀도, 열 설정, 제출, 취소, 펼치기/접기 등), 나오지 않으면 최소 설정으로 한국어가 나오게 한다(umi locale 의 antd 로케일이 pro-components 로케일에도 적용되는지 확인. 방법을 보고서에 쓴다). 영어(en-US)도 확인한다.
+ 2. vitest 에서 ProTable/ProForm 을 목 없이 렌더하는 방법을 확립한다. 필요한 setup(예: matchMedia, ResizeObserver 스텁)이 있으면 vitest setup 파일에 추가하고 frontend/doc/testing-pro-components.md 에 한 장으로 쓴다(request 가 비동기이므로 기다리는 방법, 검색 입력과 조회 버튼 동작 확인 방법, ProForm 제출 확인 방법). 서비스 호출만 목으로 한다.
+ 3. src/core/request/table.ts 의 toTableRequest 가 ProTable 의 검색 파라미터(날짜 범위 valueType 'dateRange' 등)를 우리 API 쿼리로 바꿀 수 있는지 확인하고, 필요하면 변환 함수를 추가한다(테스트 포함).
+ 4. 오류 표시 규칙: ProTable request 가 throw 하면 ProTable 이 기본 실패 UI 를 내고, 우리 presentError 도 토스트를 낼 수 있다. 중복 없이 한 번만 보이도록 규칙을 정하고(권장: request 안에서 presentError 로 토스트 한 번 + ProTable 에는 빈 결과 반환 또는 throw 중 하나) 구현과 테스트로 고정한다. 결정과 이유를 보고서에 쓴다.
+
+B. 테넌트 목록 (유형 A) src/pages/platform/tenants/index.tsx
+ - 템플릿 table-list 와 같은 구성: PageContainer + ProTable(headerTitle "테넌트 목록", search={{ labelWidth: 120 }}), 검색 항목은 코드·이름(텍스트), 상태(valueEnum, 서버 상태 코드와 한국어 이름), 나머지 열은 hideInSearch. toolBarRender 에 [+ 테넌트 등록] 주 버튼(/tenants/new 로 이동). 새로고침·밀도·열 설정은 ProTable 기본.
+ - 열: 코드(링크 버튼 → /tenants/:code), 이름, 상태(valueEnum 의 status 색), 기본 언어, 도메인(대표), 계약 시작·종료, 마지막 마이그레이션(현재 열이 있으면 유지). 정렬 가능한 열은 서버 화이트리스트만.
+ - 지금 있는 기능은 유지: 서버 페이징, 오류 처리, 로딩, 빈 상태.
+
+C. 테넌트 등록 (유형 D) src/pages/platform/tenants/new.tsx
+ - 구성: PageContainer(제목 "테넌트 등록") + Card variant="borderless" + ProForm(layout="vertical", 가운데 정렬, 최대 폭 720px, 필드 width 는 md/xl). 입력칸이 화면 전체 폭으로 늘어나지 않게 한다.
+ - 섹션(ProForm.Group 또는 Card 소제목): 기본 정보(코드, 이름, 기본 언어, 시간대), 계약(시작일, 종료일), 관리자(이름, 이메일), 도메인.
+ - 도메인은 ProFormList: 처음 1줄, 최소 1줄 유지, 줄마다 삭제 아이콘, 맨 아래 점선 [+ 도메인 추가] 버튼, 라벨은 첫 줄에만. 줄이 가로로 나열되지 않고 세로로 쌓인다.
+ - 제출 영역: ProForm 기본 submitter 를 한국어로 [등록](주 버튼) + [취소](목록으로). 필수 표시(별표)는 보이게 둔다.
+ - 유지: 기존 검증 규칙(src/pages/platform/tenants/rules.ts), 서버 fieldErrors 매핑, 등록 성공 후 임시 비밀번호 모달(TemporaryPasswordModal)과 닫은 뒤 상세로 이동, 제출 중 로딩과 중복 제출 방지.
+ - 날짜는 ProFormDatePicker 로 'YYYY-MM-DD' 문자열을 주고받는 기존 변환과 같은 결과가 나오게 한다.
+
+D. 지원 접속 기록 (유형 G) src/components/supportAccess(공용), 플랫폼·테넌트 두 화면
+ - ProTable 로 바꾼다. 플랫폼: 검색 항목 테넌트 코드, 운영자 로그인 ID, 상태(valueEnum), 기간(valueType 'dateRange', 발급 시각 기준). 테넌트 화면은 테넌트 코드 검색 없음. 툴바에 쓰기 버튼 없음. 안내 문구(기록은 수정·삭제할 수 없음)는 headerTitle 아래 또는 PageContainer content 에 유지.
+ - 행 클릭(링크) → Drawer(size 600) + ProDescriptions(column 2): 접속 정보 전부 + 쓰기 요청 목록(기존 방식. antd Table 가능). 쓰기 요청 목록 effect 는 값 의존성만 쓰고 응답 도착 시 현재 키 확인(기존 방식 유지).
+ - 상태 표시는 valueEnum 의 status 색, 기본 사유는 "(자동)" 흐리게 유지.
+
+E. 건드리지 않는 것: 서비스 계층(src/services), 인증·권한·메뉴, 다른 화면, 테넌트 상세(F18), 로그인. 새 라이브러리 설치 금지(@ant-design/pro-components 는 이미 있음). 템플릿 복원 폴더(docs/template-reference)는 수정하지 않는다.
+
+테스트(vitest, 서비스 목, 실제 네트워크 호출 0건):
+ (a) 테넌트 목록: ProTable 을 목 없이 렌더 → request 호출과 열 표시, 검색(코드·이름·상태) 후 조회, 페이지 이동, 정렬 화이트리스트, 등록 버튼 이동, 코드 링크 이동, 오류 시 토스트 한 번, 한국어 내장 문구(조회·초기화)
+ (b) 테넌트 등록: 필드와 섹션 표시, 도메인 추가·삭제·최소 1줄, 필수 검증, 서버 fieldErrors 매핑, 제출 본문이 기존과 같음, 임시 비밀번호 모달 → 닫기 → 상세 이동, 취소 → 목록, 제출 중 중복 방지
+ (c) 지원 접속 기록 플랫폼·테넌트: 검색 항목(테넌트 화면은 테넌트 코드 없음), 기간 검색의 쿼리 변환, 행 링크 → Drawer, 쓰기 요청 목록 호출 시점, 권한 없는 접근 차단
+ (d) 공통: toTableRequest 변환 확장 테스트, 오류 표시 규칙, 한국어 로케일(ProTable/ProForm 내장 문구)
+ 새 흐름 테스트 파일은 3회 반복 실행해 통과를 기록한다. 기존 테스트 중 바뀐 화면 구조 때문에 고쳐야 하는 것은 의도를 유지하며 고치고 목록으로 보고한다. 전체 테스트 시간이 늘어난 만큼(현재 약 430초)을 표로 보고한다.
+
+검증: lint, antd lint, tsc, test, build. 개발 서버와 백엔드는 띄우지 않는다. 가능하면 사용자가 눈으로 확인할 수 있도록 frontend/doc/f14-manual-check.md 맨 위에 확인 절차를 쓴다: 플랫폼 로그인 → 테넌트 목록(검색·정렬·페이지) → [테넌트 등록] 화면 모양(폭, 섹션, 도메인 추가·삭제, 취소) → 등록 → 임시 비밀번호 → 상세 → 지원 접속 기록(플랫폼) → 테넌트에 지원 접속한 뒤 테넌트 쪽 접속 기록. 각 항목은 "템플릿 table-list/basic-form 과 비교해 어색한 점이 있으면 적어 주세요" 형태로 쓴다. 값(주소, 계정, 비밀번호, 티켓)은 쓰지 않는다.
+진행 기록은 [F14단계] 형식으로 frontend/doc/cursor-progress.md 에 추가한다. 보고서는 "작업 방식"의 형식으로 docs/reports/F14.md 와 F14.diff(UTF-8)를 만든다. 커밋 메시지는 [F14] 요약. push 는 하지 않는다. 완료 후 멈춘다.
+````
