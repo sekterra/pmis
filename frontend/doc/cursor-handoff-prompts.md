@@ -742,3 +742,62 @@ A. F9 보완 (먼저 처리)
 검증: lint, antd lint, tsc, test, build. 개발 서버와 백엔드는 띄우지 않는다. 사용자가 직접 볼 항목(실제 서버로 역할 목록·등록·수정·삭제·복구, 권한 표 켜기·끄기와 자동 연동, 저장 후 해당 역할을 가진 사용자의 메뉴 변화, TENANT_ADMIN 읽기 전용, 권한이 적은 사용자, 사용감)만 frontend/doc/f10-manual-check.md 맨 위에 모으고 나머지는 자동 테스트 이름을 표시한다. 값(주소, 계정, 비밀번호)은 쓰지 않는다.
 진행 기록은 [F10단계] 형식으로 frontend/doc/cursor-progress.md 에 추가한다. 보고서는 "작업 방식"의 형식으로 docs/reports/F10.md 와 F10.diff 를 만든다. 커밋 메시지는 [F10] 요약. push 는 하지 않는다. 완료 후 멈춘다.
 ````
+
+---
+
+## F11단계: 사용자 관리 화면 (목록 + Drawer: 기본 정보·역할, 상태 변경, 임시 비밀번호)
+
+F10 승인(`docs/reviews/2026-10-29-F10.md`). 사용자 결정(2026-10-29): 추천안(역할 → 사용자 순서, 연결할 사람은 선택 항목). 와이어프레임은 `frontend/doc/users-roles-wireframe.md` 1절(공통)과 2절(사용자)이다. 이 단계가 끝나면 화면만으로 사용자를 만들고 역할을 주고 로그인해 비교할 수 있다. 이 단계만 수행하고 멈춘다.
+
+````
+기준 문서: frontend/doc/users-roles-wireframe.md (1절, 2절), backend/common/doc/api/mdm-api.md "사용자·역할·권한"의 사용자 절과 오류 표(USER.*, ROLE.*, 임시 비밀번호 응답은 Cache-Control: no-store). 응답 필드명은 명세와 백엔드 DTO(backend/common 의 access 패키지 dto)를 대조해 정확히 맞추고, 다르면 DTO 를 따르되 보고서 "질문"에 올린다. 현재 코드 src/pages/access/role(목록+Drawer+탭 패턴), src/pages/org/person(사람 검색 서비스), src/pages/org/shared, src/pages/platform/tenants/TemporaryPasswordModal.tsx, src/core/auth(현재 사용자 정보: userPk 필드명 확인), src/core/codes, config/routes.ts, src/core/auth/context.ts. 구현 전에 frontend/doc/f11-wireframe.md 에 목록 컬럼, Drawer 탭, 상태 버튼 표시 규칙(상태 → 가능한 동작 표), 임시 비밀번호 모달 동작, 역할 편집 규칙, 오류 문구 매핑을 텍스트로 정리한다. users-roles-wireframe.md 와 다른 점이 있으면 구현 전에 멈추고 "질문"에 올린다.
+
+A. F8/F10 보완 (먼저 처리)
+ 1. 부서 화면 이력 표(src/pages/org/dept/index.tsx)의 상위 부서 열이 번호만 보여 준다. 백엔드 9.6 이 이력 응답에 beforeParentDeptName, afterParentDeptName 을 추가했다. 타입(deptRecord.d.ts)에 필드를 추가하고 "이름 → 이름" 으로 보인다(이름이 null 이면 PK, 둘 다 없으면 '-'). 테스트 갱신.
+ 2. 전체 테스트 시간이 약 300초로 늘었다. 이 단계에서는 설정(vitest.config.ts)을 바꾸지 않는다. 대신 보고서에 파일별 소요 시간 상위 10개를 표로 적고(vitest 의 reporter 출력 사용), 원인 후보(antd 컴포넌트 렌더링, userEvent 입력 지연, 공통 setup)를 짧게 분석해 개선 제안만 쓴다.
+
+1. 서비스와 타입 (src/services/mdm)
+ - users.ts / usersQuery.ts / usersRecord.d.ts: 목록(GET /users: page, size, sort(loginId, userStatusCode, lastLoginDatetime, createDatetime, userPk), keyword, userStatusCode, accountTypeCode, roleCode, useYn), 상세, 등록(응답에 userPk, loginId, temporaryPassword, passwordExpireDatetime, mustChangePasswordYn), 수정(personPk, supportLanguageCode, timezoneId, description 만), 삭제, 복구, 상태 변경(PUT /users/{id}/status 본문 {userStatusCode}), 비밀번호 초기화(POST /users/{id}/password/reset, 등록과 같은 응답), 역할 조회(GET /users/{id}/roles, useYn 필터), 역할 교체(PUT /users/{id}/roles 본문 [{roleCode, validFromDate, validToDate}]). 날짜는 'YYYY-MM-DD'. 빈 값은 null.
+ - 임시 비밀번호가 담긴 응답 객체는 서비스 계층에서 호출한 곳으로 그대로 돌려주고, 로그·콘솔·전역 상태·react-query 캐시·URL·브라우저 저장소에 남기지 않는다. 오류 객체나 디버그 출력에도 넣지 않는다.
+ - 역할 이름 매핑용으로 F10 의 역할 목록 서비스(useYn=Y, size 200)를 재사용한다. 사람 선택은 F9 의 사람 목록 서비스를 재사용한다.
+
+2. 메뉴·라우트·권한
+ - menuRoutes.ts: USER → /access/user (primary). config/routes.ts 에 추가(/access 는 F10 에서 이미 플랫폼 영역에서 막힌다. 테스트에 /access/user 포함). 부모 그룹은 서버 menus/my 의 parentMenuCode 를 따른다.
+ - 권한: 메뉴 USER, READ/CREATE/UPDATE/DELETE. 상태 변경·비밀번호 초기화·복구·역할 교체는 UPDATE 로 판단한다(명세 확인). 역할 목록 조회는 ROLE:READ 가 필요하다. 사용자 화면에서 ROLE:READ 가 없으면 역할 선택·역할 이름 표시를 코드 그대로 보이게 하고 역할 편집 버튼은 숨긴다(안내 한 줄).
+
+3. 목록 (src/pages/access/user)
+ - 검색: keyword(로그인 아이디·사람 이름), 상태(USER_STATUS 코드. 그룹 이름을 시드에서 확인하고 없으면 ACTIVE/LOCKED/DORMANT/WITHDRAWN 을 로컬 문구로), 계정 유형('ACCOUNT_TYPE'), 역할(역할 Select), 사용 여부(전체는 파라미터 없음). [조회] [초기화].
+ - 열: 로그인 아이디, 사람(personName, 없으면 '-'), 계정 유형, 상태(문구 + 색 태그), 역할(roleCodes 를 역할 이름 목록으로, 3개 넘으면 "외 N"), 마지막 로그인, 비밀번호 변경 필요, 사용 여부, 작업. 서버 페이징·정렬. 사용 중지·탈퇴 행은 흐리게. 행 클릭으로 Drawer. [+ 사용자 등록](CREATE).
+
+4. 등록 Drawer
+ - 필드: 로그인 아이디(필수, 영문·숫자·`._@-` 3~100자 폼 검사, "소문자로 저장됩니다" 안내, 논리 삭제한 아이디도 다시 쓸 수 없다는 안내), 계정 유형(Select, 기본 NORMAL), 연결할 사람(선택. 검색형 Select: 사람 목록 API 를 keyword 로 호출, useYn=Y, 선택 해제 가능. 표시 "이름 (이메일)". 이미 계정이 연결된 사람은 서버가 거절하므로 서버 오류를 사람 칸에 보인다), 언어(fetchLanguages, 기본 ko-KR), 시간대(Intl.supportedValuesOf('timeZone') 가 있으면 그것, 없으면 Asia/Seoul 등 소수의 목록. 새 라이브러리 금지. 기본 Asia/Seoul), 초기 역할(다중 선택, 사용 중 역할. TENANT_ADMIN 은 선택할 수 있지만 선택하면 경고 문구), 설명.
+ - 저장 성공 시 임시 비밀번호 모달을 연다. 확인 후 모달을 닫으면 Drawer 는 수정 모드로 바뀌어 같은 사용자가 열려 있고 목록이 갱신된다.
+
+5. 임시 비밀번호 모달
+ - 서버 응답의 temporaryPassword 를 크게 보이고(고정폭 글꼴, 가려지지 않음), [복사] 버튼(navigator.clipboard 실패 시 선택해서 복사하라는 안내), 만료 시각, 안내 문구("이 창을 닫으면 다시 볼 수 없습니다. 사용자는 첫 로그인에서 비밀번호를 바꿔야 합니다")를 둔다. 닫기 버튼 외에 바깥 클릭·ESC 로는 닫히지 않게 해 실수로 사라지는 것을 막는다. 닫으면 컴포넌트 상태에서 즉시 지운다.
+ - 플랫폼 콘솔의 TemporaryPasswordModal 이 일반화할 수 있으면 공용 컴포넌트(src/components/TemporaryPasswordModal)로 옮기거나 복사한다. pages 간 import 는 금지(core 와 components 만 공유)이므로, 옮기면 플랫폼 쪽 import 만 최소로 바꾸고 기존 플랫폼 테스트가 통과함을 보고한다. 비교가 어려우면 새로 만들고 중복은 보고서에 적는다.
+ - 비밀번호 초기화도 같은 모달을 쓴다.
+
+6. 상세 Drawer (넓은 폭, 탭 2개)
+ - 탭 1 기본 정보: 로그인 아이디·계정 유형·상태는 읽기 전용, 수정 가능은 연결된 사람·언어·시간대·설명(수정 본문은 이 4개만). 읽기 전용 정보: 잠금 종류(ADMIN 은 "관리자 잠금", AUTO 는 "자동 잠금"), 로그인 실패 횟수, 비밀번호 변경일·만료일, 마지막 로그인, 생성·수정 정보. 논리 삭제된 사용자는 수정 불가(안내).
+ - 헤더 동작: 상태 변경 [잠금] [잠금 해제] [휴면] [휴면 해제], [비밀번호 초기화], [삭제] / [복구]. 가능한 동작 표: ACTIVE → 잠금, 휴면 / LOCKED → 잠금 해제 / DORMANT → 휴면 해제 (WITHDRAWN 이거나 사용 중지면 복구만). 잠금·휴면 확인창에 "로그인 중인 세션이 종료됩니다", 삭제 확인창에 "탈퇴 처리되고 세션이 종료됩니다", 복구 확인창에 "정상 상태로 돌아오고 비밀번호 변경이 필요합니다", 초기화 확인창에 "새 임시 비밀번호가 발급되고 세션이 종료됩니다"를 적는다. 동작 뒤 상세·목록을 다시 불러온다.
+ - 본인 보호: 로그인한 본인의 행(현재 사용자 userPk 와 비교. 필드명은 core/auth 를 확인)에서는 잠금·휴면·삭제·비밀번호 초기화·역할 편집 버튼을 숨기고 "본인 계정은 변경할 수 없습니다" 안내를 보인다(서버는 USER.SELF_OPERATION_FORBIDDEN). 본인 비밀번호 변경은 기존 화면 몫이다.
+ - 서버 거절(USER.LAST_ADMIN, USER.SELF_OPERATION_FORBIDDEN, USER.INVALID_STATUS_TRANSITION, USER.NO_PASSWORD_ACCOUNT, USER.PERSON_ALREADY_LINKED 등)은 서버 메시지를 그대로 보인다.
+ - 탭 2 역할: 현재 부여 목록(과거·미래·철회 포함, 사용 여부 필터). 열: 역할 이름, 시작일, 종료일, 사용 여부. [역할 편집](UPDATE, ROLE:READ 필요, 본인·삭제된 사용자는 숨김) 모달: 사용 중 역할 목록에서 다중 선택 + 역할별 시작일/종료일(선택, 종료 ≥ 시작 검증). 모달을 열 때 현재 사용 중(use_yn=Y) 부여를 모두 채워서 보여 주고, 저장 시 선택된 전체를 보낸다(교체 방식). 빠진 역할은 철회된다는 안내 한 줄. TENANT_ADMIN 을 빼는 경우 마지막 관리자 거절(USER.LAST_ADMIN)은 서버 메시지로. ROLE.INACTIVE/ROLE.NOT_FOUND/ROLE.INVALID_DATE 는 해당 역할 행 근처에 표시.
+ - 조회 effect 는 값 의존성(userPk, tab, page, useYn, reload)만 쓰고 응답 도착 시 현재 키 확인(F9·F10 방식).
+
+7. 문구는 모두 i18n 키(ko-KR/en-US 로컬 번들, menu.access.user 포함). 오류 문구도 번들 키. 서버 errorMessage 우선.
+
+8. 만들지 않는 것: 권한(PERMISSION) 관리 화면, 사용자 일괄 등록, 로그인 이력·세션 목록, 비밀번호 직접 설정(서버는 임시 비밀번호만 발급), 역할 변경 이력, 새 라이브러리.
+
+테스트(vitest, 서비스 목, 실제 네트워크 호출 0건을 매 테스트 뒤 확인):
+ (a) 서비스: 목록 쿼리(전체 useYn 생략, 정렬 화이트리스트), 등록 본문(로그인 아이디 trim, 빈 값 null, personPk/roleCodes), 수정 본문(4개 필드만, personPk 비움 = null), 역할 교체 본문, 상태 변경 본문
+ (b) 규칙: 로그인 아이디 형식, 상태 → 가능한 동작 표, 본인 판정, 역할 편집 날짜 검증, 오류 → 칸 매핑
+ (c) 임시 비밀번호: 등록·초기화 후 모달에 표시, 닫으면 상태에서 사라짐, 바깥 클릭·ESC 로 닫히지 않음, 값이 console/localStorage/sessionStorage/react-query 캐시에 남지 않음(console 스파이와 저장소 검사)
+ (d) 화면 흐름: 목록 → 검색 → 등록(저장 후 모달 → 닫으면 수정 모드) → 상태 변경(확인창 문구, 목록 갱신) → 비밀번호 초기화 → 삭제·복구 → 역할 탭 호출 시점 → 역할 편집 저장 본문 → 서버 거절 메시지, 권한별 버튼(READ 만 / 모두), ROLE:READ 없을 때 역할 이름 코드 표시와 편집 버튼 숨김, 본인 행 보호, 직접 접근 가드, 플랫폼 영역 차단(/access/user)
+ (e) A 항목: 부서 이력 상위 이름 표시
+ 새 흐름 테스트 파일은 3회 반복 실행해 통과를 기록한다.
+
+검증: lint, antd lint, tsc, test, build. 개발 서버와 백엔드는 띄우지 않는다. 사용자가 직접 볼 항목(실제 서버로 사용자 등록·임시 비밀번호 모달, 그 계정으로 로그인해 비밀번호 변경 후 역할에 맞는 메뉴 확인, 잠금·휴면·해제, 초기화, 삭제·복구, 역할 편집, 본인 행 보호, 권한이 적은 사용자의 화면, 사용감)만 frontend/doc/f11-manual-check.md 맨 위에 모으고 나머지는 자동 테스트 이름을 표시한다. 값(주소, 계정, 비밀번호)은 쓰지 않는다.
+진행 기록은 [F11단계] 형식으로 frontend/doc/cursor-progress.md 에 추가한다. 보고서는 "작업 방식"의 형식으로 docs/reports/F11.md 와 F11.diff 를 만든다. 커밋 메시지는 [F11] 요약. push 는 하지 않는다. 완료 후 멈춘다.
+````
