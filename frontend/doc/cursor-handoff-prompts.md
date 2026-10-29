@@ -801,3 +801,26 @@ A. F8/F10 보완 (먼저 처리)
 검증: lint, antd lint, tsc, test, build. 개발 서버와 백엔드는 띄우지 않는다. 사용자가 직접 볼 항목(실제 서버로 사용자 등록·임시 비밀번호 모달, 그 계정으로 로그인해 비밀번호 변경 후 역할에 맞는 메뉴 확인, 잠금·휴면·해제, 초기화, 삭제·복구, 역할 편집, 본인 행 보호, 권한이 적은 사용자의 화면, 사용감)만 frontend/doc/f11-manual-check.md 맨 위에 모으고 나머지는 자동 테스트 이름을 표시한다. 값(주소, 계정, 비밀번호)은 쓰지 않는다.
 진행 기록은 [F11단계] 형식으로 frontend/doc/cursor-progress.md 에 추가한다. 보고서는 "작업 방식"의 형식으로 docs/reports/F11.md 와 F11.diff 를 만든다. 커밋 메시지는 [F11] 요약. push 는 하지 않는다. 완료 후 멈춘다.
 ````
+
+---
+
+## F11.1단계: 개발 서버 시작 오류 수정 (ERR_MODULE_NOT_FOUND)
+
+사용자 수동 테스트 중 `npm run dev` 가 아래 오류로 시작하지 못했다. 이 단계만 수행하고 멈춘다.
+
+````
+증상: `npm run dev` 실행 시 Node 가 `Cannot find module '...\src\core\dev\devPort' imported from ...\src\core\dev\runDev.ts` (ERR_MODULE_NOT_FOUND)로 종료한다.
+
+원인 추정: package.json 의 dev 스크립트는 `node src/core/dev/runDev.ts` 로 TypeScript 파일을 Node 가 직접 실행(type stripping)한다. 이 방식에서 Node 의 ESM 해석기는 상대 import 의 확장자를 보충해 주지 않는다. runDev.ts 의 `./devPort`, `./localEnv`, `./proxyRules` 가 확장자 없이 import 되어 실패한다. (vitest 와 tsc 는 확장자 없는 import 를 해석하므로 기존 테스트로는 걸리지 않았다.)
+
+해야 할 일:
+ 1. 재현: 실제 `node src/core/dev/runDev.ts` 가 같은 오류로 실패하는지 확인하고 `node -v` 를 보고서에 적는다. 이 방식이 동작하려면 필요한 Node 최소 버전(type stripping 이 기본인 버전)을 공식 문서로 확인한다.
+ 2. 수정: runDev.ts 와 이 파일이 (직접·간접으로) 상대 import 하는 모든 파일(devPort.ts, localEnv.ts, proxyRules.ts 등)의 상대 import 에 `.ts` 확장자를 붙인다. tsc/biome/antd lint 가 `.ts` 확장자 import 를 거부하면 tsconfig 에 `allowImportingTsExtensions`(noEmit 전제)를 켜는 최소 변경으로 해결하고 이유를 보고한다. Umi/Max 의 번들러가 쓰는 파일에는 이 변경이 영향을 주지 않는지 확인한다(해당 개발용 파일만 바꾼다).
+ 3. 대체 방식은 쓰지 않는다: 새 라이브러리(tsx, ts-node 등) 추가, 파일을 JavaScript 로 변환하는 변경은 하지 않는다. 위 방법으로 해결되지 않을 때만 멈추고 보고서 "질문"에 선택지를 적는다.
+ 4. engines: package.json 의 `engines.node` 가 위에서 확인한 최소 버전보다 낮으면 올린다. frontend/doc/local-setup.md 에 "Node 최소 버전과 확인 방법(node -v)"을 한 줄 추가한다.
+ 5. 회귀 테스트: 새 테스트 하나는 실제 자식 프로세스로 `process.execPath` 에 `src/core/dev/runDev.ts` 를 실행해 모듈 해석 오류(ERR_MODULE_NOT_FOUND)가 나지 않는 것을 확인한다. 개발 서버가 실제로 뜨면 안 되므로, 포트를 미리 점유하거나 PORT 를 이미 사용 중인 값으로 주어 "이미 다른 개발 서버가 떠 있을 수 있습니다" 메시지로 정상 종료(코드 1)하게 만들고, 출력에 ERR_MODULE_NOT_FOUND 가 없으며 그 메시지가 있는지 검사한다. 테스트가 5초 안에 끝나게 하고 개발 서버·max 프로세스를 띄우지 않는다.
+ 6. `npm run dev` 를 실제로 실행해 시작 로그가 나오는 것까지만 확인하고(백엔드는 띄우지 않는다) 즉시 종료한다. 띄운 프로세스가 남지 않았는지 확인해 보고한다.
+
+검증: lint, antd lint, tsc, test, build. 전체 테스트가 늘어난 시간은 보고한다.
+진행 기록은 [F11.1단계] 형식으로 frontend/doc/cursor-progress.md 에 추가한다. 보고서는 "작업 방식"의 형식으로 docs/reports/F11.1.md 와 F11.1.diff 를 만든다. 커밋 메시지는 [F11.1] 요약. push 는 하지 않는다. 완료 후 멈춘다.
+````
