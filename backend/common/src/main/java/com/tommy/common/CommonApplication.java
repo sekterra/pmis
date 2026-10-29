@@ -18,18 +18,24 @@ public class CommonApplication {
 
 	public static void main(String[] args) {
 		boolean bootstrap = false;
+		boolean devSetAdmin = false;
 		for (String arg : args) {
 			if ("--bootstrap-platform-admin".equals(arg)) {
 				bootstrap = true;
 			}
+			if ("--dev-set-admin".equals(arg)) {
+				devSetAdmin = true;
+			}
 		}
 		SpringApplication application = new SpringApplication(CommonApplication.class);
-		if (bootstrap) {
+		if (bootstrap || devSetAdmin) {
 			application.setWebApplicationType(WebApplicationType.NONE);
+		}
+		if (bootstrap) {
 			application.setDefaultProperties(Map.of("mdm.bootstrap.platform-admin", "true"));
 		}
 		ConfigurableApplicationContext context = application.run(args);
-		if (bootstrap) {
+		if (bootstrap || devSetAdmin) {
 			System.exit(SpringApplication.exit(context));
 		}
 	}

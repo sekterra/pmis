@@ -63,11 +63,29 @@ gradlew.bat bootRun --args="--bootstrap-platform-admin"
 
 로그인 아이디는 환경변수 `MDM_BOOTSTRAP_ADMIN_LOGIN`이다. 이름과 이메일은 `MDM_BOOTSTRAP_ADMIN_NAME`, `MDM_BOOTSTRAP_ADMIN_EMAIL`이며 생략할 수 있다. 임시 비밀번호는 그 실행의 표준 출력에만 나온다.
 
-## 7. 통합 테스트
+## 7. 개발용 관리자 계정 설정
+
+개발 프로필에서만 동작하는 일회성 명령이다. 운영이나 공유 환경에서는 쓰지 않는다. 비밀번호 정책을 건너뛰므로 로컬 화면 확인용이다. 웹 서버는 뜨지 않고 끝나면 프로세스가 종료된다. 값은 이 문서에 적지 않는다.
+
+`MDM_DEV_ADMIN_TARGET`은 `platform` 또는 `tenant`다. `tenant`일 때만 `MDM_DEV_ADMIN_TENANT_CODE`가 필요하다. `MDM_DEV_ADMIN_LOGIN`과 `MDM_DEV_ADMIN_PASSWORD`는 항상 필요하다. 실행 중인 서버가 있으면 권한·계정 상태 캐시는 이 명령이 지우지 않는다. 캐시 TTL(60초) 동안 이전 상태가 보일 수 있다.
+
+```powershell
+$env:MDM_DEV_ADMIN_TARGET = '<여기에 입력>'
+$env:MDM_DEV_ADMIN_TENANT_CODE = '<여기에 입력>'
+$env:MDM_DEV_ADMIN_LOGIN = '<여기에 입력>'
+$env:MDM_DEV_ADMIN_PASSWORD = '<여기에 입력>'
+.\gradlew.bat bootRun --args="--dev-set-admin"
+Remove-Item Env:MDM_DEV_ADMIN_TARGET
+Remove-Item Env:MDM_DEV_ADMIN_TENANT_CODE
+Remove-Item Env:MDM_DEV_ADMIN_LOGIN
+Remove-Item Env:MDM_DEV_ADMIN_PASSWORD
+```
+
+## 8. 통합 테스트
 
 통합 테스트는 로컬 파일을 쓰지 않는다. 환경변수 `MDM_TEST_DB_URL`, `MDM_TEST_DB_USERNAME`, `MDM_TEST_DB_PASSWORD`만 사용한다.
 
-## 8. 파일 저장
+## 9. 파일 저장
 
 `mdm.file.local-root`가 비어 있으면 기본 LOCAL 저장소를 자동으로 만들지 않는다. 업로드는 `409 FILE.NO_DEFAULT_STORAGE`다. `dev` 프로필은 작업 디렉터리의 `build/mdm-files`를 쓴다. 이 경로는 저장소 작업 디렉터리 안이다.
 
