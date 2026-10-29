@@ -37,15 +37,22 @@ function renderErrorFallback(
             ? 'Failed to load page'
             : 'Something went wrong',
         })}
-        subTitle={intl.formatMessage({
-          id: getSubTitleId(isChunkError, isOffline),
-          defaultMessage:
-            isChunkError && isOffline
-              ? 'Your network connection has been lost. Please check your connection and reload.'
-              : isChunkError
-                ? 'Page resources failed to load. Please reload and try again.'
-                : 'Sorry, an error occurred on this page. Please reload or go back to the home page.',
-        })}
+        subTitle={
+          <>
+            {intl.formatMessage({
+              id: getSubTitleId(isChunkError, isOffline),
+              defaultMessage:
+                isChunkError && isOffline
+                  ? 'Your network connection has been lost. Please check your connection and reload.'
+                  : isChunkError
+                    ? 'Page resources failed to load. Please reload and try again.'
+                    : 'Sorry, an error occurred on this page. Please reload or go back to the home page.',
+            })}
+            {process.env.NODE_ENV === 'development' && error.message ? (
+              <div style={{ marginTop: 8, color: '#cf1322' }}>{error.message}</div>
+            ) : null}
+          </>
+        }
         extra={[
           isChunkError && (
             <Button type="primary" key="retry" onClick={onRetry}>

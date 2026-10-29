@@ -1,16 +1,7 @@
 import { history, useIntl } from '@umijs/max';
 import { Button, Result, Spin } from 'antd';
 import React, { useEffect, useState } from 'react';
-import { beginSupportSession } from '@/core/auth/supportSession';
-import { setAccessToken } from '@/core/auth/token';
-import {
-  clearTicketFromLocation,
-  tenantCodeFromSearch,
-} from '@/core/supportAccess/rules';
-import { noteAuthenticated } from '@/core/menu/runtime';
-import { me } from '@/services/mdm/auth';
-import { exchangeSupportTicket } from '@/services/mdm/supportAccess';
-import { toApiError } from '@/core/request/errors';
+import { exchangeSupportAccessOnce } from './exchangeOnce';
 
 type View = 'loading' | 'missing' | 'invalid' | 'done';
 
@@ -20,42 +11,17 @@ const SupportAccessEntryPage: React.FC = () => {
 
   useEffect(() => {
     let cancelled = false;
-    const ticket = clearTicketFromLocation({
-      pathname: window.location.pathname,
-      search: window.location.search,
-      hash: window.location.hash,
-    });
-    if (!ticket) {
-      setView('missing');
-      return undefined;
-    }
-    const tenantCode = tenantCodeFromSearch(
-      window.location.search,
-      process.env.NODE_ENV === 'development',
-    );
-    void (async () => {
-      try {
-        const exchanged = await exchangeSupportTicket(ticket, tenantCode);
-        if (cancelled) {
-          return;
-        }
-        setAccessToken(exchanged.accessToken);
-        beginSupportSession();
-        const user = await me();
-        if (cancelled) {
-          return;
-        }
-        await noteAuthenticated(user);
+    void exchangeSupportAccessOnce().then((result) => {
+      if (cancelled) {
+        return;
+      }
+      if (result.view === 'done') {
         setView('done');
         history.replace('/');
-      } catch (error) {
-        if (cancelled) {
-          return;
-        }
-        const code = toApiError(error).errorCode;
-        setView(code === 'AUTH.SUPPORT_TICKET_INVALID' || code ? 'invalid' : 'invalid');
+        return;
       }
-    })();
+      setView(result.view);
+    });
     return () => {
       cancelled = true;
     };

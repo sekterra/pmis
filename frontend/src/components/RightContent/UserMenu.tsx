@@ -54,6 +54,7 @@ const UserMenu: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
   return (
     <HeaderDropdown
+      trigger={['click']}
       menu={{
         selectedKeys: [],
         items,
@@ -68,8 +69,17 @@ const UserMenu: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         },
       }}
     >
-      <span>{user.displayName}</span>
-      {children}
+      <span
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 8,
+          cursor: 'pointer',
+        }}
+      >
+        <span>{user.displayName}</span>
+        {children}
+      </span>
     </HeaderDropdown>
   );
 };

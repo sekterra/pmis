@@ -1,9 +1,13 @@
 import type { RequestConfig } from '@umijs/max';
 import { request } from '@umijs/max';
-import { isSupportSession } from '@/core/auth/supportSession';
+import {
+  getSupportTenantCode,
+  isSupportSession,
+} from '@/core/auth/supportSession';
 import { getAccessToken } from '@/core/auth/token';
 import { ApiError, presentError, toApiError, toBlobApiError, unwrapData } from './errors';
 import { getFeedback } from './feedback';
+import { tenantHeaderFor } from './tenantHeader';
 
 type RetryRunner = () => Promise<string | null>;
 type Navigate = () => void;
@@ -96,6 +100,16 @@ export function createRequestConfig(): RequestConfig {
             ...config.headers,
             Authorization: `Bearer ${token}`,
           };
+        }
+        if (process.env.NODE_ENV === 'development') {
+          const supportTenant = getSupportTenantCode();
+          const tenantHeader = tenantHeaderFor(url, supportTenant ?? undefined);
+          if (tenantHeader && !config.headers?.['X-Tenant-Code']) {
+            config.headers = {
+              ...config.headers,
+              'X-Tenant-Code': tenantHeader,
+            };
+          }
         }
         return config;
       },

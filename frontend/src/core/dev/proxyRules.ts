@@ -31,7 +31,8 @@ export function createDevProxy(
   }
   const onProxyReq = (prefix: string) => (proxyReq: ClientRequest) => {
     const value = tenantHeaderFor(prefix, tenantCode);
-    if (value) {
+    // 지원 접속 탭이 이미 보낸 헤더를 DEV_TENANT_CODE 로 덮어쓰지 않는다.
+    if (value && !proxyReq.getHeader('x-tenant-code')) {
       proxyReq.setHeader('X-Tenant-Code', value);
     }
   };

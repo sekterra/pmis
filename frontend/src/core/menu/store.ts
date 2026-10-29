@@ -2,7 +2,7 @@ import { resetCodeOptionsCache } from '@/core/codes/useCodeOptions';
 import { toApiError } from '@/core/request/errors';
 import { accessKind } from '@/core/auth/context';
 import { fetchMyMenus } from '@/services/mdm/menu';
-import type { MenuSnapshot } from './types';
+import type { MenuSnapshot, MyMenu } from './types';
 
 const idle = (): MenuSnapshot => ({ status: 'idle', items: [] });
 
@@ -127,6 +127,13 @@ export function noteLocaleChanged(): Promise<MenuSnapshot> {
 
 export function retryMenus(): Promise<MenuSnapshot> {
   return loadMenus();
+}
+
+/** 테스트에서 서버 메뉴 스냅샷을 직접 넣는다. */
+export function replaceMenuItemsForTest(items: MyMenu[]): void {
+  allowed = true;
+  snapshot = { status: 'ready', items };
+  emit();
 }
 
 export function resetMenuState(): void {

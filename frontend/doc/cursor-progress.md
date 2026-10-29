@@ -880,4 +880,36 @@ git: `frontend`와 `D:\_project\PMIS` 모두 저장소가 아니다. `git status
 - 공용 기록 UI는 `src/components/supportAccess`에 두고 pages 간 import는 하지 않았다
 - antd 6 권고에 맞춰 `App.useApp().modal`, `destroyOnHidden`, `Alert title`, `Space orientation`, `Drawer size`, `Spin description`을 썼다
 
+## [F12.1단계] 로그인 후 화면 오류 긴급 수정 + F12 검토 보완 - 2026-10-29
+
+### 변경/추가 파일
+
+- 수정: `UserMenu.tsx` — Dropdown 자식을 단일 `span`으로 감쌈, `trigger={['click']}`
+- 추가: `UserMenu.test.tsx`(실제 antd Dropdown), `layoutSmoke.test.tsx`(ErrorBoundary+헤더/사이드)
+- 추가: `pages/support-access/exchangeOnce.ts` — StrictMode 이중 effect용 단일 promise
+- 수정: `pages/support-access/index.tsx`, `flow.test.tsx`(StrictMode 1회 교환)
+- 수정: `supportSession.ts` — dev 지원 테넌트 코드 메모리, `request/runtime.ts`·`proxyRules.ts`(기존 헤더 보존)
+- 수정: `menu/runtime.tsx` `locale: false`, `config/routes.ts` 이름 키(`org.*`/`access.*`)
+- 추가: `menuLocale.test.tsx`, 플랫폼·테넌트 기록 `flow.test.tsx`
+- 수정: `ErrorBoundary` 개발 모드 오류 한 줄, `local-setup.md`, `f12-manual-check.md` 「다시 확인」
+- 같은 종류의 다중 자식 Dropdown/Popover/Tooltip/Popconfirm은 UserMenu뿐이었다
+
+### 검증 결과
+
+- `npm.cmd run lint`: 통과. biome 204파일, `tsc --noEmit`
+- `npm.cmd exec antd -- lint ./src`: 통과. 224파일, 이슈 0
+- 새 테스트 6파일 3회: 매번 14개 통과. 약 55초, 55초, 59초
+- `npm.cmd test`: 64파일, 240개. 약 430초
+- `npm.cmd run build`: 통과
+- 개발 서버와 백엔드는 띄우지 않았다
+
+### 질문/확인 필요
+
+- 레이아웃 스모크는 vitest에서 ProLayout이 `antd/es/calendar/locale/zh_CN`을 못 찾아 Layout+UserMenu+menuDataRender 합성으로 대체했다. 실제 ProLayout `avatarProps`와 같은 UserMenu 합성이다
+
+### 가정한 사항
+
+- JWT가 있으면 백엔드는 토큰 테넌트를 쓰고, 헤더/Host가 다르면 `TENANT.HOST_MISMATCH`. 지원 세션은 JWT만으로도 동작하나, 교환 직후·프록시 간섭을 피하려고 dev에서만 메모리 테넌트 헤더를 붙인다
+- `/api/platform`에는 테넌트 헤더를 붙이지 않는다(`tenantHeaderFor`)
+
 

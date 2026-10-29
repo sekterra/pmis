@@ -13,8 +13,11 @@ import { MISSING_BACKEND_MESSAGE, backendMissingNotice, createDevProxy } from '.
 function headerSink() {
   const headers: Record<string, string> = {};
   const req = {
+    getHeader(name: string) {
+      return headers[name.toLowerCase()];
+    },
     setHeader(name: string, value: string) {
-      headers[name] = value;
+      headers[name.toLowerCase()] = value;
     },
   } as ClientRequest;
   return { headers, req };
@@ -36,8 +39,25 @@ describe('dev proxy', () => {
     const platform = headerSink();
     rules['/api/mdm']?.onProxyReq(mdm.req);
     rules['/api/platform']?.onProxyReq(platform.req);
-    expect(mdm.headers['X-Tenant-Code']).toBe('acme');
-    expect(platform.headers['X-Tenant-Code']).toBeUndefined();
+    expect(mdm.headers['x-tenant-code']).toBe('acme');
+    expect(platform.headers['x-tenant-code']).toBeUndefined();
+  });
+
+  it('does not overwrite an existing X-Tenant-Code from the browser', () => {
+    const rules = createDevProxy('http://backend.invalid', 'acme');
+    const headers: Record<string, string> = {
+      'x-tenant-code': 'beta',
+    };
+    const req = {
+      getHeader(name: string) {
+        return headers[name.toLowerCase()];
+      },
+      setHeader(name: string, value: string) {
+        headers[name.toLowerCase()] = value;
+      },
+    } as ClientRequest;
+    rules['/api/mdm']?.onProxyReq(req);
+    expect(headers['x-tenant-code']).toBe('beta');
   });
 
   it('warns only when the backend url is missing', () => {

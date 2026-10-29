@@ -6,9 +6,11 @@ import {
   beginSupportSession,
   clearSupportSessionFlag,
   endSupportSession,
+  getSupportTenantCode,
   isSupportSession,
 } from '@/core/auth/supportSession';
 import { clearAccessToken, getAccessToken, setAccessToken } from '@/core/auth/token';
+import { resetExchangeSupportAccessOnce } from './exchangeOnce';
 
 const exchangeSupportTicket = vi.hoisted(() => vi.fn());
 const me = vi.hoisted(() => vi.fn());
@@ -52,6 +54,7 @@ describe('support access entry flow', () => {
     clearAccessToken();
     clearSupportSessionFlag();
     endSupportSession();
+    resetExchangeSupportAccessOnce();
     window.history.replaceState(null, '', '/support-access');
   });
 
@@ -61,6 +64,7 @@ describe('support access entry flow', () => {
     clearAccessToken();
     clearSupportSessionFlag();
     endSupportSession();
+    resetExchangeSupportAccessOnce();
   });
 
   it('shows a missing-ticket message when the hash has no ticket', async () => {
@@ -105,10 +109,49 @@ describe('support access entry flow', () => {
     );
     expect(getAccessToken()).toBe('support-access-token');
     expect(isSupportSession()).toBe(true);
+    if (process.env.NODE_ENV === 'development') {
+      expect(getSupportTenantCode()).toBe('acme');
+    }
     expect(window.location.hash).toBe('');
     expect(window.location.href).not.toContain('one-time-ticket');
     expect(sessionStorage.getItem('mdm_support_session')).toBe('1');
     expect(JSON.stringify(window.history.state)).not.toContain('one-time-ticket');
+  });
+
+  it('shares one exchange under StrictMode double mount', async () => {
+    window.history.replaceState(
+      null,
+      '',
+      '/support-access?tenant=acme#ticket=strict-ticket',
+    );
+    exchangeSupportTicket.mockResolvedValue({
+      accessToken: 'support-access-token',
+      expiresInSeconds: 1800,
+      supportAccessId: 3,
+    });
+    me.mockResolvedValue({
+      userPk: 1,
+      loginId: '$platform-support',
+      displayName: '플랫폼 지원 (ops)',
+      supportLanguageCode: 'ko-KR',
+      timezoneId: 'Asia/Seoul',
+      roleCodes: ['TENANT_ADMIN'],
+      passwordChangeRequired: false,
+      support: {
+        supportAccessId: 3,
+        operatorLoginId: 'ops@example.com',
+        expireDatetime: '2099-01-01T00:00:00Z',
+      },
+    });
+    render(
+      <React.StrictMode>
+        <SupportAccessEntryPage />
+      </React.StrictMode>,
+    );
+    await waitFor(() => expect(replace).toHaveBeenCalledWith('/'));
+    expect(exchangeSupportTicket).toHaveBeenCalledTimes(1);
+    expect(getAccessToken()).toBe('support-access-token');
+    expect(screen.queryByText('유효하지 않은 접속 주소입니다')).toBeNull();
   });
 
   it('shows the expired ticket screen without refreshing', async () => {
@@ -141,5 +184,6 @@ describe('support access entry flow', () => {
     expect(isSupportSession()).toBe(true);
     clearAccessToken();
     expect(isSupportSession()).toBe(false);
+    expect(getSupportTenantCode()).toBeNull();
   });
 });

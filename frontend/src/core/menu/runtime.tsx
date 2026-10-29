@@ -49,23 +49,52 @@ function withIcon(node: SideMenuNode): SideMenuNode & { icon: React.ReactNode } 
   };
 }
 
+type MenuRenderNode = {
+  name?: string;
+  locale?: boolean;
+  children?: MenuRenderNode[];
+  [key: string]: unknown;
+};
+
+function withLocaleOff<T extends MenuRenderNode>(nodes: T[]): T[] {
+  return nodes.map((node) => ({
+    ...node,
+    locale: false,
+    children: node.children
+      ? withLocaleOff(node.children as T[])
+      : node.children,
+  }));
+}
+
+function translateRouteItem<T extends MenuRenderNode>(item: T): T {
+  if (!item.name) {
+    return item;
+  }
+  const key = item.name.startsWith('menu.') ? item.name : `menu.${item.name}`;
+  return { ...item, name: localLabel(key) };
+}
+
 export function menuDataRender<T>(items: T[]): T[] {
   if (accessKind() === 'PLATFORM') {
-    return [
+    return withLocaleOff([
       {
         path: '/tenants',
         name: localLabel('menu.tenants'),
         icon: <TeamOutlined />,
-      } as T,
+      },
       {
         path: '/support-accesses',
         name: localLabel('menu.supportAccesses'),
         icon: <SettingOutlined />,
-      } as T,
-    ];
+      },
+    ]) as T[];
   }
   const serverItems = buildSideMenu(getMenuSnapshot().items, localLabel).map(withIcon);
-  return [...(serverItems as T[]), ...items];
+  const routeItems = (items as MenuRenderNode[]).map(translateRouteItem);
+  return withLocaleOff([
+    ...(serverItems as MenuRenderNode[]),
+    ...routeItems,
+  ]) as T[];
 }
 
 export function viewFor(
